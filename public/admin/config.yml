@@ -1,23 +1,13 @@
 # =====================================================================
-# Decap CMS Configuration
-# Defines the friendly admin UI fields that map to our content files.
+# Decap CMS Configuration — Darayya Platform
 #
-# AUTHENTICATION:
-# This config uses Netlify Identity ("git-gateway") which is the simplest
-# auth setup for staff and works with our Council Dashboard's shared login.
+# Designed for non-technical council staff: clear emoji-labeled sections,
+# smart defaults, helpful Arabic hints, and collapsible advanced fields.
 #
-# SETUP (one-time):
-#   1. Sign up at https://netlify.com (free)
-#   2. Connect your GitHub repo
-#   3. In Netlify site settings → Identity → Enable Identity
-#   4. Under Identity → Registration → set "Invite only"
-#   5. Under Identity → Services → Git Gateway → Enable Git Gateway
-#   6. Invite each staff member by email under Identity → Invite users
-#   7. Done. The dashboard at /ar/admin/ and Decap at /admin/ will both use
-#      the same login.
+# AUTHENTICATION: Netlify Identity. See README → Step 4 for setup.
 #
-# ALTERNATIVE (pure GitHub OAuth, no Netlify):
-#   See README for the Cloudflare Worker setup.
+# IMPORTANT: Field shapes match src/content/config.ts (Astro schema).
+# When adding fields, update both files together.
 # =====================================================================
 
 backend:
@@ -31,224 +21,340 @@ public_folder: "/images/uploads"
 # Show site logo in the CMS sidebar
 logo_url: /logos/darayya-emblem.svg
 
-# Use Arabic UI labels (Decap detects this automatically based on collection labels)
 locale: ar
 
 # =====================================================================
-# COLLECTIONS — what staff can edit
+# COLLECTIONS
 # =====================================================================
 collections:
-  # ----- PROJECTS -----
+  # ─────────────────────────────────────────────────────────────────
+  # المشاريع — Projects (main collection)
+  # ─────────────────────────────────────────────────────────────────
   - name: "projects"
-    label: "المشاريع — Projects"
-    label_singular: "مشروع"
+    label: "📋 المشاريع — Projects"
+    label_singular: "مشروع جديد"
     folder: "src/content/projects"
     format: "frontmatter"
     extension: "md"
     create: true
-    slug: "{{id}}"
+    delete: true
+    slug: "{{fields.id}}"
     identifier_field: id
-    summary: "{{title.ar}} — {{title.en}}"
-    fields:
-      - { label: "المعرّف الفريد (لا تغيّره بعد الإنشاء)", name: "id", widget: "string", hint: "Unique slug, e.g. roads-jalaa" }
-      - { label: "الترتيب", name: "order", widget: "number", default: 0, value_type: int }
-      - { label: "مشروع بارز (على الصفحة الرئيسية)؟", name: "featured", widget: "boolean", default: false }
+    summary: "{{title.ar}}"
 
+    fields:
+
+      # ─── 1. اسم المشروع ──────────────────────────────────────────
+      - label: "اسم المشروع"
+        name: "title"
+        widget: "object"
+        hint: "اكتب الاسم بالعربية. النسخة الإنجليزية اختيارية وسيتم مراجعتها لاحقاً"
+        fields:
+          - label: "بالعربية ★"
+            name: "ar"
+            widget: "string"
+            hint: "مثلاً: تأهيل شارع الجلاء الرئيسي"
+          - label: "بالإنجليزية (اختياري)"
+            name: "en"
+            widget: "string"
+            required: false
+            hint: "يمكن تركه فارغاً"
+            default: ""
+
+      # ─── 2. وصف المشروع ──────────────────────────────────────────
+      - label: "وصف المشروع"
+        name: "description"
+        widget: "object"
+        hint: "جملتان أو ثلاث: ماذا سيُبنى، لمن، وما الفائدة"
+        fields:
+          - label: "بالعربية ★"
+            name: "ar"
+            widget: "text"
+            hint: "وصف مختصر للمشروع باللغة العربية"
+          - label: "بالإنجليزية (اختياري)"
+            name: "en"
+            widget: "text"
+            required: false
+            default: ""
+
+      # ─── 3. القطاع والحالة ───────────────────────────────────────
       - label: "القطاع"
         name: "category"
         widget: "select"
+        hint: "إلى أي قطاع ينتمي المشروع؟"
         options:
-          - { label: "الطرقات والتعبيد — Roads", value: "roads" }
-          - { label: "المياه النظيفة — Water",   value: "water" }
-          - { label: "الصرف الصحي — Sewer",      value: "sewer" }
-          - { label: "الإنارة — Lighting",        value: "lighting" }
-          - { label: "الاتصالات — Communications", value: "communications" }
-          - { label: "المرافق العامة — Facilities", value: "facilities" }
+          - { label: "🛣️  الطرقات والتعبيد",  value: "roads" }
+          - { label: "💧 المياه النظيفة",       value: "water" }
+          - { label: "🚿 الصرف الصحي",         value: "sewer" }
+          - { label: "💡 الإنارة",              value: "lighting" }
+          - { label: "📡 الاتصالات",            value: "communications" }
+          - { label: "🏛️  المرافق العامة",      value: "facilities" }
 
-      - label: "الحالة"
+      - label: "حالة المشروع"
         name: "status"
         widget: "select"
+        default: "funding"
+        hint: "ابدأ بـ \"مفتوح للتبرع\" للمشاريع الجديدة"
         options:
-          - { label: "مفتوح للتبرع — Open for funding", value: "funding" }
-          - { label: "قيد التنفيذ — Active",            value: "active" }
-          - { label: "مكتمل — Completed",                value: "completed" }
-          - { label: "قيد التخطيط — Planning",           value: "planning" }
+          - { label: "🟡 مفتوح للتبرع — يبحث عن تمويل",      value: "funding" }
+          - { label: "🟢 قيد التنفيذ — العمل جارٍ",          value: "active" }
+          - { label: "⚫ مكتمل — انتهى العمل",                value: "completed" }
+          - { label: "⚪ قيد التخطيط — لم يبدأ بعد",         value: "planning" }
 
       - label: "صحة المشروع"
         name: "health"
         widget: "select"
+        default: "healthy"
+        hint: "هل المشروع يسير وفق الخطة؟"
         options:
-          - { label: "يسير بشكل ممتاز — Healthy", value: "healthy" }
-          - { label: "يحتاج متابعة — Warning",     value: "warning" }
-          - { label: "متعثّر — Stalled",            value: "stalled" }
-          - { label: "مكتمل — Completed",           value: "completed" }
+          - { label: "🟢 يسير بشكل ممتاز",     value: "healthy" }
+          - { label: "🟡 يحتاج متابعة",         value: "warning" }
+          - { label: "🔴 متعثّر",               value: "stalled" }
+          - { label: "⚫ مكتمل",                value: "completed" }
 
-      - label: "العنوان"
-        name: "title"
-        widget: "object"
-        fields:
-          - { label: "بالعربية", name: "ar", widget: "string" }
-          - { label: "English",   name: "en", widget: "string" }
-
-      - label: "الموقع"
+      # ─── 4. الموقع ───────────────────────────────────────────────
+      - label: "📍 الموقع"
         name: "location"
         widget: "object"
+        hint: "أين يقع المشروع في داريّا؟"
         fields:
-          - { label: "بالعربية", name: "ar", widget: "string" }
-          - { label: "English",   name: "en", widget: "string" }
+          - label: "اسم الموقع (بالعربية) ★"
+            name: "ar"
+            widget: "string"
+            hint: "مثلاً: الحي الشرقي — داريّا، وسط المدينة"
+          - label: "اسم الموقع (بالإنجليزية، اختياري)"
+            name: "en"
+            widget: "string"
+            required: false
+            default: ""
 
-      - label: "الوصف"
-        name: "description"
-        widget: "object"
-        fields:
-          - { label: "بالعربية", name: "ar", widget: "text" }
-          - { label: "English",   name: "en", widget: "text" }
+      - label: "خط العرض (Latitude)"
+        name: "lat"
+        widget: "number"
+        value_type: "float"
+        default: 33.45
+        hint: "افتراضي: ٣٣٫٤٥ (وسط داريّا). عدّل قليلاً للموقع الدقيق"
 
-      - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: int, min: 0 }
-      - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: int, min: 0 }
-      - { label: "عدد المتبرعين",        name: "donors",    widget: "number", value_type: int, min: 0, default: 0 }
-      - { label: "الأيام المتبقية",       name: "daysLeft",  widget: "number", value_type: int, min: 0, default: 0 }
+      - label: "خط الطول (Longitude)"
+        name: "lng"
+        widget: "number"
+        value_type: "float"
+        default: 36.25
+        hint: "افتراضي: ٣٦٫٢٥ (وسط داريّا). عدّل قليلاً للموقع الدقيق"
 
-      - { label: "خط العرض (Latitude)", name: "lat", widget: "number", value_type: float, hint: "حوالي 33.45 لداريّا" }
-      - { label: "خط الطول (Longitude)", name: "lng", widget: "number", value_type: float, hint: "حوالي 36.25 لداريّا" }
+      # ─── 5. التمويل ──────────────────────────────────────────────
+      - label: "💰 الميزانية المطلوبة (بالدولار)"
+        name: "budgetUSD"
+        widget: "number"
+        value_type: "int"
+        min: 1
+        hint: "كم يحتاج المشروع بالكامل؟ مثلاً: 50000"
 
-      - label: "المشاريع الفرعية"
+      - label: "💵 المبلغ المحصّل حتى الآن (بالدولار)"
+        name: "raisedUSD"
+        widget: "number"
+        value_type: "int"
+        min: 0
+        default: 0
+        hint: "ابدأ بـ ٠ للمشاريع الجديدة"
+
+      - label: "👥 عدد المتبرعين"
+        name: "donors"
+        widget: "number"
+        value_type: "int"
+        min: 0
+        default: 0
+        hint: "ابدأ بـ ٠ للمشاريع الجديدة"
+
+      - label: "⏱️ الأيام المتبقية للتمويل"
+        name: "daysLeft"
+        widget: "number"
+        value_type: "int"
+        min: 0
+        default: 30
+        hint: "الافتراضي ٣٠ يوماً"
+
+      # ─── 6. إعدادات متقدمة ───────────────────────────────────────
+      - label: "🔧 المعرّف الفريد (رمز المشروع)"
+        name: "id"
+        widget: "string"
+        hint: "لا يتغيّر بعد إنشاء المشروع. أحرف إنجليزية صغيرة وشرطات فقط. مثلاً: roads-jalaa"
+        pattern: ['^[a-z0-9-]+$', 'يجب أن يحتوي على أحرف إنجليزية صغيرة، أرقام، وشرطات فقط']
+
+      - label: "ترتيب الظهور (اختياري)"
+        name: "order"
+        widget: "number"
+        value_type: "int"
+        default: 0
+        required: false
+        hint: "الأرقام الأصغر تظهر أولاً. اتركه على ٠ ما لم تكن تريد ترتيباً معيناً"
+
+      - label: "مشروع بارز على الصفحة الرئيسية؟"
+        name: "featured"
+        widget: "boolean"
+        default: false
+        required: false
+        hint: "اختياري — يضع المشروع ضمن المشاريع البارزة في الواجهة"
+
+      # ─── 7. المشاريع الفرعية ─────────────────────────────────────
+      - label: "🧩 المشاريع الفرعية"
         name: "subs"
         widget: "list"
         required: false
+        hint: "اختياري: قسّم المشروع إلى أجزاء قابلة للتبرع منفصلة. مثلاً: \"المرحلة الأولى\"، \"المرحلة الثانية\"."
         summary: "{{fields.title.ar}}"
         fields:
-          - { label: "المعرّف", name: "id", widget: "string" }
+          - { label: "المعرّف الفرعي", name: "id", widget: "string", hint: "مثلاً: r1، w2" }
           - label: "العنوان"
             name: "title"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
-          - label: "الطول / التفصيل"
+              - { label: "بالعربية ★", name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - label: "التفصيل (الطول/الكمية)"
             name: "length"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
-          - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: int, min: 0 }
-          - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: int, min: 0 }
+              - { label: "بالعربية ★", name: "ar", widget: "string", hint: "مثلاً: ٥٠٠ متر، ٣ خزانات" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: "int", min: 0 }
+          - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: "int", min: 0, default: 0 }
 
-      - label: "تحديثات ميدانية"
-        name: "updates"
-        widget: "list"
-        required: false
-        summary: "{{fields.body.ar}}"
-        fields:
-          - label: "التاريخ"
-            name: "date"
-            widget: "object"
-            fields:
-              - { label: "بالعربية", name: "ar", widget: "string", hint: "مثلاً: منذ ٣ أيام" }
-              - { label: "English",   name: "en", widget: "string", hint: "e.g. 3 days ago" }
-          - label: "الكاتب"
-            name: "author"
-            widget: "object"
-            fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
-          - label: "نص التحديث"
-            name: "body"
-            widget: "object"
-            fields:
-              - { label: "بالعربية", name: "ar", widget: "text" }
-              - { label: "English",   name: "en", widget: "text" }
-
-      - label: "صور من الميدان"
-        name: "photos"
-        widget: "list"
-        required: false
-        summary: "{{fields.caption.ar}}"
-        fields:
-          - { label: "ملف صورة (اختياري)", name: "src", widget: "image", required: false, hint: "ارفع صورة، أو اترك فارغاً لاستخدام رسم توضيحي مولّد" }
-          - label: "نوع المشهد المولّد (إذا لم ترفع صورة)"
-            name: "scene"
-            widget: "select"
-            required: false
-            options:
-              - { label: "طريق — Road", value: "road" }
-              - { label: "مياه — Water", value: "water" }
-              - { label: "صرف صحي — Sewer", value: "sewer" }
-              - { label: "إنارة — Light", value: "light" }
-              - { label: "إنترنت — Internet", value: "internet" }
-              - { label: "مبنى — Building", value: "building" }
-              - { label: "حديقة — Park", value: "park" }
-          - label: "الحالة"
-            name: "status"
-            widget: "select"
-            options:
-              - { label: "يسير جيداً — Going well", value: "healthy" }
-              - { label: "تأخير — Delayed", value: "warning" }
-              - { label: "متعثّر — Stalled", value: "stalled" }
-              - { label: "مكتمل — Completed", value: "completed" }
-          - label: "تعليق على الصورة"
-            name: "caption"
-            widget: "object"
-            fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
-          - label: "تاريخ التقاط الصورة"
-            name: "date"
-            widget: "object"
-            fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
-
-      - label: "الفريق والمهندسون — Team & Engineers"
+      # ─── 8. الفريق والمهندسون ───────────────────────────────────
+      - label: "👷 الفريق والمهندسون"
         name: "engineers"
         widget: "list"
         required: false
+        hint: "اختياري: أضف المهندسين والمقاولين المسؤولين عن المشروع"
         summary: "{{fields.name.ar}} — {{fields.role.ar}}"
         fields:
           - label: "الاسم"
             name: "name"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
+              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: م. أحمد الخالد" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - label: "الدور"
             name: "role"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string", hint: "مثلاً: مهندس مشرف، مقاول رئيسي" }
-              - { label: "English",   name: "en", widget: "string", hint: "e.g. Supervising engineer, Lead contractor" }
-          - { label: "الهاتف (اختياري)", name: "phone", widget: "string", required: false }
-          - { label: "البريد (اختياري)", name: "email", widget: "string", required: false }
+              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: مهندس مشرف، مقاول رئيسي" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - { label: "الهاتف (اختياري)",          name: "phone", widget: "string", required: false }
+          - { label: "البريد الإلكتروني (اختياري)", name: "email", widget: "string", required: false }
 
-      - label: "ملاحظات وتعليقات — Comments"
+      # ─── 9. تحديثات ميدانية ─────────────────────────────────────
+      - label: "📝 تحديثات ميدانية"
+        name: "updates"
+        widget: "list"
+        required: false
+        hint: "تقارير دورية من الميدان مع تواريخها"
+        summary: "{{fields.body.ar}}"
+        fields:
+          - label: "التاريخ"
+            name: "date"
+            widget: "object"
+            fields:
+              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: منذ ٣ أيام، ١٥ نيسان ٢٠٢٦" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - label: "الكاتب"
+            name: "author"
+            widget: "object"
+            fields:
+              - { label: "بالعربية ★",    name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - label: "نص التحديث"
+            name: "body"
+            widget: "object"
+            fields:
+              - { label: "بالعربية ★",    name: "ar", widget: "text" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "text", required: false, default: "" }
+
+      # ─── 10. ملاحظات وتعليقات ────────────────────────────────────
+      - label: "💬 ملاحظات وتعليقات"
         name: "comments"
         widget: "list"
         required: false
+        hint: "ملاحظات عامة (مخاطر، اعتمادات، ملاحظات المقاولين)"
         summary: "{{fields.body.ar}}"
-        hint: "ملاحظات عامة حول المشروع (مخاطر، اعتمادات، ملاحظات المقاولين). للتحديثات الميدانية المؤرّخة استخدم 'تحديثات ميدانية' أعلاه."
         fields:
           - label: "الكاتب"
             name: "author"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
+              - { label: "بالعربية ★",    name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - label: "النص"
             name: "body"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "text" }
-              - { label: "English",   name: "en", widget: "text" }
-          - { label: "التاريخ (اختياري)", name: "date", widget: "string", required: false, hint: "YYYY-MM-DD" }
+              - { label: "بالعربية ★",    name: "ar", widget: "text" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "text", required: false, default: "" }
+          - { label: "التاريخ (اختياري)",  name: "date", widget: "string", required: false, hint: "YYYY-MM-DD" }
 
-      - label: "نص إضافي (اختياري)"
+      # ─── 11. صور من الميدان ─────────────────────────────────────
+      - label: "📷 صور من الميدان"
+        name: "photos"
+        widget: "list"
+        required: false
+        hint: "ارفع صوراً حقيقية أو اختر نوع المشهد المولّد. الصور الحقيقية تحلّ محل المشاهد التوضيحية تلقائياً"
+        summary: "{{fields.caption.ar}}"
+        fields:
+          - label: "ملف الصورة"
+            name: "src"
+            widget: "image"
+            required: false
+            hint: "اختياري — ارفع صورة حقيقية. إذا تركتها فارغة سيتم استخدام رسم توضيحي حسب نوع المشهد"
+
+          - label: "نوع المشهد"
+            name: "scene"
+            widget: "select"
+            required: false
+            hint: "يُستخدم فقط إذا لم ترفع صورة حقيقية"
+            options:
+              - { label: "🛣️  طريق",     value: "road" }
+              - { label: "💧 مياه",      value: "water" }
+              - { label: "🚿 صرف صحي",   value: "sewer" }
+              - { label: "💡 إنارة",     value: "light" }
+              - { label: "📡 إنترنت",    value: "internet" }
+              - { label: "🏛️  مبنى",     value: "building" }
+              - { label: "🌳 حديقة",     value: "park" }
+
+          - label: "الحالة المرئية"
+            name: "status"
+            widget: "select"
+            default: "healthy"
+            options:
+              - { label: "🟢 يسير جيداً",       value: "healthy" }
+              - { label: "🟡 تأخير",             value: "warning" }
+              - { label: "🔴 متعثّر",            value: "stalled" }
+              - { label: "⚫ مكتمل",             value: "completed" }
+
+          - label: "تعليق على الصورة"
+            name: "caption"
+            widget: "object"
+            fields:
+              - { label: "بالعربية ★",    name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - label: "تاريخ التقاط الصورة"
+            name: "date"
+            widget: "object"
+            fields:
+              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: منذ يومين" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+
+      # ─── 12. نص حر (نادراً ما يُستخدم) ──────────────────────────
+      - label: "نص إضافي حر (نادر الاستخدام)"
         name: "body"
         widget: "markdown"
         required: false
+        hint: "نادراً ما يستخدم — للتوسعات النصية حول المشروع"
 
-  # ----- SITE SETTINGS -----
+  # ─────────────────────────────────────────────────────────────────
+  # SITE SETTINGS
+  # ─────────────────────────────────────────────────────────────────
   - name: "site"
-    label: "إعدادات الموقع"
+    label: "⚙️  إعدادات الموقع"
     files:
       - name: "settings"
         label: "إعدادات عامة"
@@ -259,13 +365,13 @@ collections:
             name: "title"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
+              - { label: "بالعربية ★",    name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - label: "الشعار النصي"
             name: "tagline"
             widget: "object"
             fields:
-              - { label: "بالعربية", name: "ar", widget: "string" }
-              - { label: "English",   name: "en", widget: "string" }
+              - { label: "بالعربية ★",    name: "ar", widget: "string" }
+              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - { label: "بريد التواصل", name: "contactEmail", widget: "string" }
           - { label: "هاتف التواصل",  name: "contactPhone", widget: "string" }

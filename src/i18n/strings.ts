@@ -380,10 +380,13 @@ export function fmtNum(lang: Lang, n: number): string {
 
 /**
  * Pick the right localized field from an object that has { ar, en } subfields.
+ * Falls back to AR when EN is missing or empty — supports the CMS workflow
+ * where staff only fill Arabic and leave English blank.
  */
-export function loc<T extends { ar: string; en: string }>(lang: Lang, obj: T | undefined): string {
+export function loc<T extends { ar: string; en?: string }>(lang: Lang, obj: T | undefined): string {
   if (!obj) return '';
-  return obj[lang] || obj.ar;
+  if (lang === 'en') return obj.en || obj.ar;
+  return obj.ar;
 }
 
 /**

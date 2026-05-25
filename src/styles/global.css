@@ -1004,6 +1004,210 @@ html[dir="rtl"] .comment {
 }
 .admin-stat-val .unit { font-size: 13px; opacity: 0.7; margin-right: 4px; }
 
+/* Needs Attention strip — surfaces underfunded/stalled projects at top */
+.needs-attention {
+  max-width: 1280px;
+  margin: 0 auto 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEDD0 100%);
+  border: 1px solid var(--sy-gold-lt);
+  border-radius: var(--r-lg);
+  border-inline-start: 5px solid var(--sy-gold);
+}
+html[dir="rtl"] .needs-attention {
+  border-inline-start: none;
+  border-inline-end: 5px solid var(--sy-gold);
+}
+.needs-attention-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.needs-attention-icon {
+  font-size: 1.4rem;
+  color: var(--sy-gold);
+}
+.needs-attention-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--sy-green-dk);
+  font-weight: 700;
+}
+.needs-attention-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.5rem;
+}
+.needs-attention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: var(--r-md);
+  text-decoration: none;
+  color: inherit;
+  transition: all 160ms ease;
+  gap: 0.5rem;
+}
+.needs-attention-item:hover {
+  background: var(--sy-paper-pure);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(201, 161, 74, 0.2);
+}
+.needs-attention-name {
+  font-weight: 700;
+  color: var(--sy-green-dk);
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.needs-attention-meta {
+  font-size: 12px;
+  color: var(--sy-muted);
+}
+.needs-attention-action {
+  font-size: 12px;
+  color: var(--sy-green-dk);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Toolbar — search, filter, sort above the project table */
+.admin-toolbar {
+  max-width: 1280px;
+  margin: 0 auto 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-lg);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.admin-search {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+}
+.admin-search-icon {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 0.75rem;
+  transform: translateY(-50%);
+  font-size: 14px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.admin-search-input {
+  width: 100%;
+  padding: 0.55rem 2.25rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: 999px;
+  background: var(--sy-paper);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--sy-ink);
+  transition: all 160ms ease;
+}
+.admin-search-input:focus {
+  outline: none;
+  border-color: var(--sy-green);
+  background: var(--sy-paper-pure);
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
+}
+.admin-search-clear {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 0.5rem;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: var(--sy-rule-soft);
+  color: var(--sy-ink);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 160ms ease;
+}
+.admin-search-clear:hover {
+  background: var(--sy-ink-soft);
+  color: var(--sy-paper-pure);
+}
+
+.admin-filter-chips {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.admin-filter-chip {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--sy-rule-soft);
+  background: transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sy-ink-soft);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.admin-filter-chip:hover {
+  border-color: var(--sy-green);
+  color: var(--sy-green-dk);
+}
+.admin-filter-chip.active {
+  background: var(--sy-green-dk);
+  border-color: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+}
+
+.admin-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.admin-sort-label {
+  font-size: 13px;
+  color: var(--sy-muted);
+  font-weight: 600;
+}
+.admin-sort-select {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  background: var(--sy-paper);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--sy-ink);
+  cursor: pointer;
+}
+.admin-sort-select:focus {
+  outline: none;
+  border-color: var(--sy-green);
+}
+
+.admin-results-count {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--sy-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table-empty {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--sy-muted);
+  font-size: 1rem;
+}
+
 /* Actions bar above the project table — New Project & Open CMS buttons */
 .admin-actions-bar {
   max-width: 1280px;

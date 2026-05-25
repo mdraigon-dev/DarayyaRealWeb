@@ -61,6 +61,12 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   const [currency] = useState<'USD' | 'SYP'>('USD');
   const { donations, alerts, activities, topDonors, weekData } = adminData(lang);
 
+  // Search & filter state for the project table — makes the dashboard feel
+  // like a real working tool for non-technical staff
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'active' | 'completed' | 'stalled'>('all');
+  const [sortBy, setSortBy] = useState<'default' | 'pct' | 'donors' | 'amount'>('default');
+
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const openCount = projects.filter(p => p.status === 'funding').length;
@@ -68,6 +74,57 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   const maxBar = Math.max(...weekData.map(d => d.amount));
   // Today's donations from feed approximation (first 3 entries' sum, since they're "minutes ago")
   const todayDonations = donations.slice(0, 4).reduce((s, d) => s + d.amountUSD, 0);
+
+  // "Needs attention" — projects that are at risk and should be acted on
+  // (under-funded with little time left, stalled, or with low donor count)
+  const needsAttention = projects
+    .map(p => {
+      const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
+      const reasons: string[] = [];
+      if (p.status === 'funding' && pct < 20 && p.daysLeft < 30 && p.daysLeft > 0) {
+        reasons.push(lang === 'ar' ? 'تمويل منخفض ووقت قليل' : 'Low funding, little time');
+      }
+      if (p.status === 'funding' && pct < 10) {
+        reasons.push(lang === 'ar' ? 'لم يبدأ التمويل بعد' : 'Funding not yet started');
+      }
+      // Cast for status comparison — runtime check is what matters
+      if ((p as any).health === 'stalled') {
+        reasons.push(lang === 'ar' ? 'متعثّر' : 'Stalled');
+      }
+      return reasons.length > 0 ? { project: p, reasons, pct } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .slice(0, 3);
+
+  // Apply search, filter, and sort to the project list before rendering the table
+  const filteredProjects = projects
+    .filter(p => {
+      if (statusFilter !== 'all') {
+        // Stalled is health, not status — separate logic
+        if (statusFilter === 'stalled') return (p as any).health === 'stalled';
+        if (p.status !== statusFilter) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          p.title.ar.toLowerCase().includes(q) ||
+          (p.title.en || '').toLowerCase().includes(q) ||
+          p.id.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'pct') {
+        const pa = a.raisedUSD / a.budgetUSD;
+        const pb = b.raisedUSD / b.budgetUSD;
+        return pb - pa;
+      }
+      if (sortBy === 'donors') return b.donors - a.donors;
+      if (sortBy === 'amount') return b.raisedUSD - a.raisedUSD;
+      return 0;
+    });
 
   const initials = (name: string) => {
     if (name.includes('مجهول') || name.toLowerCase().includes('anonymous')) return '?';
@@ -107,6 +164,31 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
       <div className="admin-demo-banner">
         {t(lang, 'admin_demo_note')}
       </div>
+
+      {/* Needs Attention — projects requiring action.
+          Helps staff start their day by seeing what's at risk. */}
+      {needsAttention.length > 0 && (
+        <div className="needs-attention">
+          <div className="needs-attention-header">
+            <span className="needs-attention-icon">⚠</span>
+            <h3>{lang === 'ar' ? 'مشاريع تحتاج اهتمامك' : 'Projects needing your attention'}</h3>
+          </div>
+          <div className="needs-attention-list">
+            {needsAttention.map(({ project: p, reasons, pct }) => {
+              const cmsUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/entries/${p.id}`;
+              return (
+                <a key={p.id} href={cmsUrl} className="needs-attention-item">
+                  <div className="needs-attention-name">{loc(lang, p.title)}</div>
+                  <div className="needs-attention-meta">
+                    {reasons.join(' · ')} · {fmtNum(lang, pct)}% {lang === 'ar' ? 'ممول' : 'funded'}
+                  </div>
+                  <div className="needs-attention-action">✎ {t(lang, 'admin_btn_edit')}</div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="admin-hero">
         <h2>{t(lang, 'admin_welcome')}</h2>
@@ -281,6 +363,71 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
         <span className="admin-actions-hint">{t(lang, 'admin_actions_hint')}</span>
       </div>
 
+      {/* Search + filter + sort toolbar */}
+      <div className="admin-toolbar">
+        <div className="admin-search">
+          <span className="admin-search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder={lang === 'ar' ? 'ابحث عن مشروع…' : 'Search projects…'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="admin-search-input"
+            aria-label={lang === 'ar' ? 'البحث عن مشروع' : 'Search projects'}
+          />
+          {searchQuery && (
+            <button
+              className="admin-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label={lang === 'ar' ? 'مسح البحث' : 'Clear search'}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="admin-filter-chips">
+          {([
+            { v: 'all',       label_ar: 'الكل',        label_en: 'All' },
+            { v: 'funding',   label_ar: 'مفتوح للتبرع', label_en: 'Funding' },
+            { v: 'active',    label_ar: 'قيد التنفيذ',  label_en: 'Active' },
+            { v: 'completed', label_ar: 'مكتمل',        label_en: 'Done' },
+            { v: 'stalled',   label_ar: 'متعثّر',       label_en: 'Stalled' },
+          ] as const).map(o => (
+            <button
+              key={o.v}
+              className={`admin-filter-chip ${statusFilter === o.v ? 'active' : ''}`}
+              onClick={() => setStatusFilter(o.v)}
+            >
+              {lang === 'ar' ? o.label_ar : o.label_en}
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-sort">
+          <label className="admin-sort-label">
+            {lang === 'ar' ? 'الترتيب:' : 'Sort:'}
+          </label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="admin-sort-select"
+            aria-label={lang === 'ar' ? 'ترتيب المشاريع' : 'Sort projects'}
+          >
+            <option value="default">{lang === 'ar' ? 'افتراضي' : 'Default'}</option>
+            <option value="pct">{lang === 'ar' ? 'الأكثر تمويلاً %' : 'Most funded %'}</option>
+            <option value="donors">{lang === 'ar' ? 'الأكثر متبرعين' : 'Most donors'}</option>
+            <option value="amount">{lang === 'ar' ? 'الأكثر تحصيلاً $' : 'Most raised $'}</option>
+          </select>
+        </div>
+
+        <div className="admin-results-count">
+          {lang === 'ar'
+            ? `${fmtNum(lang, filteredProjects.length)} من ${fmtNum(lang, projects.length)}`
+            : `${fmtNum(lang, filteredProjects.length)} of ${fmtNum(lang, projects.length)}`}
+        </div>
+      </div>
+
       <div className="admin-table">
         <div className="admin-table-head">
           <div>{t(lang, 'admin_col_project')}</div>
@@ -290,7 +437,11 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
           <div>{t(lang, 'admin_col_status')}</div>
           <div></div>
         </div>
-        {projects.map(p => {
+        {filteredProjects.length === 0 ? (
+          <div className="admin-table-empty">
+            {lang === 'ar' ? 'لا توجد مشاريع تطابق البحث' : 'No projects match your search'}
+          </div>
+        ) : filteredProjects.map(p => {
           const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
           const statusLabel = t(lang, `status_${p.status}` as any);
           const categoryLabel = t(lang, `cat_${p.category}` as any);
