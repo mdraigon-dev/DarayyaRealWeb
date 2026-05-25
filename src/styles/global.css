@@ -728,6 +728,70 @@ html[dir="ltr"] .project-card-urgent-badge {
 .update-author { font-weight: 600; color: var(--sy-green-dk); font-size: 14px; }
 .update-body { color: var(--sy-ink-soft); line-height: 1.75; font-size: 15px; }
 
+/* Engineers / team grid on project detail */
+.engineers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.engineer-card {
+  display: flex;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  align-items: flex-start;
+  transition: border-color 160ms ease;
+}
+.engineer-card:hover { border-color: var(--sy-green-lt); }
+.engineer-avatar {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sy-green) 0%, var(--sy-green-dk) 100%);
+  color: var(--sy-paper-pure);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.engineer-info { flex: 1; min-width: 0; }
+.engineer-name { font-weight: 700; color: var(--sy-green-dk); font-size: 15px; }
+.engineer-role { font-size: 13px; color: var(--sy-muted); margin-top: 2px; }
+.engineer-contact {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.engineer-contact a { color: var(--sy-green-dk); text-decoration: none; }
+.engineer-contact a:hover { text-decoration: underline; }
+
+/* Comments / general notes list */
+.comments-list { margin-bottom: 2rem; }
+.comment {
+  background: var(--sy-gold-wash);
+  border-inline-start: 3px solid var(--sy-gold);
+  padding: 0.85rem 1rem;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  margin-bottom: 0.65rem;
+}
+html[dir="rtl"] .comment {
+  border-inline-start: none;
+  border-inline-end: 3px solid var(--sy-gold);
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+.comment-head {
+  display: flex; justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 0.4rem;
+}
+.comment-author { font-weight: 700; color: var(--sy-green-dk); }
+.comment-date { color: var(--sy-muted); font-variant-numeric: tabular-nums; }
+.comment-body { color: var(--sy-ink-soft); line-height: 1.65; font-size: 14px; }
+
 /* ==================== ADMIN DASHBOARD ==================== */
 
 /* Auth gate — shown when not signed in */
@@ -940,6 +1004,27 @@ html[dir="ltr"] .project-card-urgent-badge {
 }
 .admin-stat-val .unit { font-size: 13px; opacity: 0.7; margin-right: 4px; }
 
+/* Actions bar above the project table — New Project & Open CMS buttons */
+.admin-actions-bar {
+  max-width: 1280px;
+  margin: 0 auto 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.admin-new-project-btn {
+  font-size: 1rem;
+  padding: 0.7rem 1.4rem;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.admin-actions-hint {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--sy-muted);
+  font-style: italic;
+}
+
 .admin-table {
   background: var(--sy-paper-pure);
   border: 1px solid var(--sy-rule-soft);
@@ -948,7 +1033,7 @@ html[dir="ltr"] .project-card-urgent-badge {
 }
 .admin-table-head {
   display: grid;
-  grid-template-columns: 3fr 1.5fr 1.5fr 1.5fr 1fr;
+  grid-template-columns: 2.5fr 1.2fr 1.2fr 0.9fr 1.1fr 1.4fr;
   padding: 1rem 1.25rem;
   background: var(--sy-green-dk);
   color: var(--sy-paper-pure);
@@ -957,26 +1042,117 @@ html[dir="ltr"] .project-card-urgent-badge {
 }
 .admin-table-row {
   display: grid;
-  grid-template-columns: 3fr 1.5fr 1.5fr 1.5fr 1fr;
+  grid-template-columns: 2.5fr 1.2fr 1.2fr 0.9fr 1.1fr 1.4fr;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--sy-rule-soft);
   align-items: center;
   font-size: 15px;
   transition: background 140ms ease;
+  gap: 0.5rem;
 }
 .admin-table-row:hover { background: var(--sy-gold-wash); }
 .admin-table-row:last-child { border-bottom: none; }
 .admin-table-name { font-weight: 600; color: var(--sy-green-dk); }
 .admin-table-cat { font-size: 13px; color: var(--sy-muted); margin-top: 2px; }
-.admin-edit {
-  background: var(--sy-green-pale);
-  color: var(--sy-green-dk);
-  padding: 0.4rem 0.85rem;
-  border-radius: var(--r-md);
-  font-size: 13px; font-weight: 600;
-  transition: all 160ms ease;
+
+/* Status chips in the table */
+.status-chip {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
-.admin-edit:hover { background: var(--sy-green-dk); color: var(--sy-paper-pure); }
+.status-chip-funding   { background: var(--sy-gold-pale);   color: #6A5018; }
+.status-chip-active    { background: var(--sy-green-pale);  color: var(--sy-green-dk); }
+.status-chip-completed { background: #E5E7EB;               color: #374151; }
+.status-chip-planning  { background: #FCE7F3;               color: #831843; }
+
+/* Action buttons (edit + view) in the row */
+.admin-table-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.admin-edit, .admin-view {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 160ms ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.admin-edit {
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+}
+.admin-edit:hover {
+  background: var(--sy-green-darker);
+}
+.admin-view {
+  background: transparent;
+  color: var(--sy-green-dk);
+  border: 1px solid var(--sy-rule-soft);
+}
+.admin-view:hover {
+  background: var(--sy-gold-wash);
+  border-color: var(--sy-gold);
+}
+
+/* Help card beneath the table */
+.admin-help-card {
+  max-width: 1280px;
+  margin: 1.5rem auto 0;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, var(--sy-paper-pure) 0%, var(--sy-green-pale) 100%);
+  border: 1px solid var(--sy-green-lt);
+  border-radius: var(--r-lg);
+}
+.admin-help-card h4 {
+  font-size: 1rem;
+  color: var(--sy-green-dk);
+  margin: 0 0 0.75rem 0;
+  font-weight: 700;
+}
+.admin-help-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.5rem;
+}
+.admin-help-card li {
+  padding-inline-start: 1.25rem;
+  position: relative;
+  font-size: 14px;
+  color: var(--sy-ink-soft);
+  line-height: 1.5;
+}
+.admin-help-card li::before {
+  content: '✓';
+  position: absolute;
+  inset-inline-start: 0;
+  color: var(--sy-green);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .admin-table-head, .admin-table-row {
+    grid-template-columns: 2fr 1fr 1fr 1.2fr;
+  }
+  .admin-table-head > *:nth-child(4),
+  .admin-table-row > *:nth-child(4) {
+    display: none; /* hide donors column on mobile */
+  }
+  .admin-help-card ul { grid-template-columns: 1fr; }
+  .admin-actions-bar { flex-direction: column; align-items: stretch; }
+  .admin-actions-hint { margin: 0; text-align: center; }
+}
 
 /* ==================== TRANSPARENCY ==================== */
 .transparency-grid {

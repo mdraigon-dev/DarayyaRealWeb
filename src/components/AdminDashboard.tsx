@@ -256,22 +256,29 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
         </div>
       </div>
 
-      {/* Project management — read-only list with link to Decap CMS */}
+      {/* Project management — fast access to Decap CMS for editing */}
       <div className="section-header" style={{ marginTop: '0.5rem' }}>
         <h2 className="section-title" style={{ fontSize: '1.6rem' }}>{t(lang, 'admin_manage')}</h2>
         <p className="section-desc" style={{ fontSize: '1rem' }}>
-          {t(lang, 'admin_manage_desc').split('{link}').map((part, i, arr) => (
-            <span key={i}>
-              {part}
-              {i < arr.length - 1 && (
-                <a href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/`}
-                   style={{ color: 'var(--sy-green-dk)', fontWeight: 700, textDecoration: 'underline' }}>
-                  {t(lang, 'admin_cms_link')}
-                </a>
-              )}
-            </span>
-          ))}
+          {t(lang, 'admin_manage_desc_v2')}
         </p>
+      </div>
+
+      {/* Primary action: create a new project. Links straight to Decap's new-entry form. */}
+      <div className="admin-actions-bar">
+        <a
+          className="btn-primary admin-new-project-btn"
+          href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/new`}
+        >
+          + {t(lang, 'admin_new_project')}
+        </a>
+        <a
+          className="btn-secondary"
+          href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects`}
+        >
+          {t(lang, 'admin_open_cms')}
+        </a>
+        <span className="admin-actions-hint">{t(lang, 'admin_actions_hint')}</span>
       </div>
 
       <div className="admin-table">
@@ -280,17 +287,20 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
           <div>{t(lang, 'admin_col_budget')}</div>
           <div>{t(lang, 'admin_col_raised')}</div>
           <div>{t(lang, 'admin_col_donors')}</div>
+          <div>{t(lang, 'admin_col_status')}</div>
           <div></div>
         </div>
         {projects.map(p => {
           const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
           const statusLabel = t(lang, `status_${p.status}` as any);
           const categoryLabel = t(lang, `cat_${p.category}` as any);
+          const cmsEditUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/entries/${p.id}`;
+          const publicUrl = `${basePath}/projects/${p.id}/`;
           return (
             <div className="admin-table-row" key={p.id}>
               <div>
                 <div className="admin-table-name">{loc(lang, p.title)}</div>
-                <div className="admin-table-cat">{categoryLabel} • {statusLabel}</div>
+                <div className="admin-table-cat">{categoryLabel}</div>
               </div>
               <div>{fmtMoney(lang, currency, p.budgetUSD)}</div>
               <div>
@@ -299,13 +309,32 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
               </div>
               <div>{fmtNum(lang, p.donors)}</div>
               <div>
-                <a className="admin-edit" href={`${basePath}/projects/${p.id}/`}>
-                  {t(lang, 'admin_btn_edit')}
+                <span className={`status-chip status-chip-${p.status}`}>{statusLabel}</span>
+              </div>
+              <div className="admin-table-actions">
+                <a className="admin-edit" href={cmsEditUrl} title={t(lang, 'admin_btn_edit_hint')}>
+                  ✎ {t(lang, 'admin_btn_edit')}
+                </a>
+                <a className="admin-view" href={publicUrl} title={t(lang, 'admin_btn_view_hint')}>
+                  {t(lang, 'admin_btn_view')}
                 </a>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Help footer — what staff can edit in the CMS */}
+      <div className="admin-help-card">
+        <h4>{t(lang, 'admin_help_title')}</h4>
+        <ul>
+          <li>{t(lang, 'admin_help_funding')}</li>
+          <li>{t(lang, 'admin_help_status')}</li>
+          <li>{t(lang, 'admin_help_photos')}</li>
+          <li>{t(lang, 'admin_help_engineers')}</li>
+          <li>{t(lang, 'admin_help_comments')}</li>
+          <li>{t(lang, 'admin_help_new')}</li>
+        </ul>
       </div>
     </section>
   );

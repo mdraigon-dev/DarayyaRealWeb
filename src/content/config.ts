@@ -83,6 +83,27 @@ const projectCollection = defineCollection({
           date: z.object({ ar: z.string(), en: z.string() }),
         })
       ).default([]),
+
+      // Team — engineers, contractors, supervisors assigned to the project
+      engineers: z.array(
+        z.object({
+          name: z.object({ ar: z.string(), en: z.string() }),
+          role: z.object({ ar: z.string(), en: z.string() }),
+          phone: z.string().optional(),
+          email: z.string().optional(),
+        })
+      ).default([]),
+
+      // General notes/comments — free-form remarks visible to staff and donors.
+      // Different from `updates`: updates are dated field reports, comments are
+      // general remarks (risks, dependencies, contractor notes, etc.)
+      comments: z.array(
+        z.object({
+          author: z.object({ ar: z.string(), en: z.string() }),
+          body: z.object({ ar: z.string(), en: z.string() }),
+          date: z.string().optional(), // ISO YYYY-MM-DD
+        })
+      ).default([]),
     }),
 });
 

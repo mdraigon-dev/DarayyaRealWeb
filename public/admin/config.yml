@@ -199,6 +199,48 @@ collections:
               - { label: "بالعربية", name: "ar", widget: "string" }
               - { label: "English",   name: "en", widget: "string" }
 
+      - label: "الفريق والمهندسون — Team & Engineers"
+        name: "engineers"
+        widget: "list"
+        required: false
+        summary: "{{fields.name.ar}} — {{fields.role.ar}}"
+        fields:
+          - label: "الاسم"
+            name: "name"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "الدور"
+            name: "role"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string", hint: "مثلاً: مهندس مشرف، مقاول رئيسي" }
+              - { label: "English",   name: "en", widget: "string", hint: "e.g. Supervising engineer, Lead contractor" }
+          - { label: "الهاتف (اختياري)", name: "phone", widget: "string", required: false }
+          - { label: "البريد (اختياري)", name: "email", widget: "string", required: false }
+
+      - label: "ملاحظات وتعليقات — Comments"
+        name: "comments"
+        widget: "list"
+        required: false
+        summary: "{{fields.body.ar}}"
+        hint: "ملاحظات عامة حول المشروع (مخاطر، اعتمادات، ملاحظات المقاولين). للتحديثات الميدانية المؤرّخة استخدم 'تحديثات ميدانية' أعلاه."
+        fields:
+          - label: "الكاتب"
+            name: "author"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "النص"
+            name: "body"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "text" }
+              - { label: "English",   name: "en", widget: "text" }
+          - { label: "التاريخ (اختياري)", name: "date", widget: "string", required: false, hint: "YYYY-MM-DD" }
+
       - label: "نص إضافي (اختياري)"
         name: "body"
         widget: "markdown"

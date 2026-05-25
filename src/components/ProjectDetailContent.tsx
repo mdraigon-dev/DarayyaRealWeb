@@ -21,6 +21,19 @@ type Photo = {
   date: Bilingual;
 };
 
+type Engineer = {
+  name: Bilingual;
+  role: Bilingual;
+  phone?: string;
+  email?: string;
+};
+
+type Comment = {
+  author: Bilingual;
+  body: Bilingual;
+  date?: string;
+};
+
 type ProjectFull = {
   id: string;
   category: string;
@@ -36,6 +49,8 @@ type ProjectFull = {
   subs: Sub[];
   updates: Update[];
   photos: Photo[];
+  engineers?: Engineer[];
+  comments?: Comment[];
 };
 
 type Props = {
@@ -178,6 +193,46 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               </div>
             </>
           )}
+
+          {project.engineers && project.engineers.length > 0 && (
+            <>
+              <h3>{t(lang, 'engineers_title')}</h3>
+              <div className="engineers-grid">
+                {project.engineers.map((e, i) => (
+                  <div className="engineer-card" key={i}>
+                    <div className="engineer-avatar">{getInitials(loc(lang, e.name))}</div>
+                    <div className="engineer-info">
+                      <div className="engineer-name">{loc(lang, e.name)}</div>
+                      <div className="engineer-role">{loc(lang, e.role)}</div>
+                      {(e.phone || e.email) && (
+                        <div className="engineer-contact">
+                          {e.phone && <span>📞 {e.phone}</span>}
+                          {e.email && <a href={`mailto:${e.email}`}>✉ {e.email}</a>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {project.comments && project.comments.length > 0 && (
+            <>
+              <h3>{t(lang, 'comments_title')}</h3>
+              <div className="comments-list">
+                {project.comments.map((c, i) => (
+                  <div className="comment" key={i}>
+                    <div className="comment-head">
+                      <span className="comment-author">{loc(lang, c.author)}</span>
+                      {c.date && <span className="comment-date">{c.date}</span>}
+                    </div>
+                    <div className="comment-body">{loc(lang, c.body)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div>
@@ -277,4 +332,17 @@ function gatherCreditsLocal(
     }
   });
   return credits;
+}
+
+/**
+ * First-letter initials for an engineer's avatar circle.
+ * Handles both Arabic and Latin names; falls back to '?' if empty.
+ */
+function getInitials(name: string): string {
+  const n = (name || '').trim();
+  if (!n) return '?';
+  const parts = n.split(/\s+/);
+  const first = parts[0].charAt(0);
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+  return first + last;
 }

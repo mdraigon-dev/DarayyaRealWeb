@@ -91,4 +91,44 @@ photos:
     date:
       ar: "منذ أسبوع"
       en: "1 week ago"
+
+engineers:
+  - name:
+      ar: "م. أحمد الخالد"
+      en: "Eng. Ahmad Al-Khaled"
+    role:
+      ar: "المهندس المشرف"
+      en: "Supervising Engineer"
+    phone: "+963 11 445 1230"
+    email: "a.khaled@darayya-council.sy"
+  - name:
+      ar: "أ. محمود الجابر"
+      en: "Mr. Mahmoud Al-Jaber"
+    role:
+      ar: "مقاول الترميم الرئيسي"
+      en: "Lead Restoration Contractor"
+    phone: "+963 11 445 5566"
+  - name:
+      ar: "م. ليلى الشامي"
+      en: "Eng. Leila Al-Shami"
+    role:
+      ar: "أخصّائية الهندسة المعمارية التراثية"
+      en: "Heritage Architecture Specialist"
+    email: "l.shami@darayya-council.sy"
+
+comments:
+  - author:
+      ar: "المجلس المحلي"
+      en: "Local Council"
+    body:
+      ar: "تم اعتماد الجامع الكبير كمعلم تراثي وفقاً لتوجيهات مديرية الآثار. أعمال الترميم تتبع المعايير التاريخية."
+      en: "The Grand Mosque has been designated a heritage landmark per Directorate of Antiquities guidelines. Restoration work follows historical standards."
+    date: "2026-04-15"
+  - author:
+      ar: "م. أحمد الخالد"
+      en: "Eng. Ahmad Al-Khaled"
+    body:
+      ar: "حجارة المئذنة الأصلية محفوظة في المخزن المركزي وسيتم إعادة استخدامها بنسبة ٧٠٪. الباقي بحجارة جديدة مطابقة."
+      en: "Original minaret stones are stored at the central warehouse; 70% will be reused. The remainder will be matched with new stones."
+    date: "2026-05-02"
 ---

@@ -2,9 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AdminDashboard from '../../../components/AdminDashboard.tsx';
-import AuthGate from '../../../components/AuthGate.tsx';
 import { t } from '../../../i18n/strings';
-import { NETLIFY_IDENTITY_URL } from '../../../data/netlify-config';
 
 const projects = await getCollection('projects');
 const projectData = projects.map(p => p.data).sort((a, b) => a.order - b.order);
@@ -20,34 +18,14 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
   lang={lang}
   currentPage="admin"
 >
-  {/* Point the widget at the Netlify-hosted Identity service before the script loads.
-      This is what fixes the "Failed to load settings from /.netlify/identity" error
-      when the site is hosted on GitHub Pages. */}
-  <script is:inline define:vars={{ NETLIFY_IDENTITY_URL }}>
-    window.netlifyIdentityConfig = window.netlifyIdentityConfig || {};
-    if (NETLIFY_IDENTITY_URL) {
-      window.netlifyIdentityConfig.APIUrl = NETLIFY_IDENTITY_URL + '/.netlify/identity';
-    }
-  </script>
-
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
-
   {/*
-    Why client:only="react" instead of client:load?
-    With client:load, Astro server-renders the dashboard HTML at build time,
-    embedding sample donation data and other sensitive bits in the static
-    HTML. The auth gate would only hide it visually, but anyone could view
-    the source. With client:only, the dashboard's HTML is NEVER on the page
-    until the user is authenticated client-side.
-  */}
-  <AuthGate lang={lang} client:only="react">
-    <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:only="react" />
+    Per user request: AuthGate removed. Dashboard is now publicly viewable.
+    Editing actions still require Decap CMS login at /admin/.
 
-    <div slot="fallback" class="auth-gate-screen">
-      <div class="auth-gate-card">
-        <div class="auth-gate-spinner"></div>
-        <p style="color: var(--sy-muted); margin-top: 1rem;">{t(lang, 'auth_loading')}</p>
-      </div>
-    </div>
-  </AuthGate>
+    NOTE: Sensitive data (donor names, amounts, alert notes) used to be hidden
+    behind auth. Now they will be visible to anyone with the dashboard URL.
+    Current data is sample/illustrative; when v2 adds real donations, revisit
+    this decision so real financial info isn't exposed.
+  */}
+  <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:load />
 </BaseLayout>
