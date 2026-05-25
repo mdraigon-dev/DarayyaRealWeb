@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { adminData } from '../data/admin-sample';
 
@@ -15,12 +15,49 @@ type Project = {
 };
 
 type Props = {
-  lang: Lang;
+  lang: Lang;          // URL-based default
   basePath: string;
   projects: Project[];
 };
 
-export default function AdminDashboard({ lang, basePath, projects }: Props) {
+// Where we persist the admin's preferred dashboard language
+const ADMIN_LANG_STORAGE_KEY = 'darayya-admin-lang';
+
+export default function AdminDashboard({ lang: urlLang, basePath, projects }: Props) {
+  // Effective dashboard language. Priority:
+  //   1. Saved preference in localStorage (if any)
+  //   2. The URL-based language passed as prop
+  const [lang, setLang] = useState<Lang>(urlLang);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Read preference on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_LANG_STORAGE_KEY);
+      if (saved === 'ar' || saved === 'en') {
+        setLang(saved);
+      }
+    } catch {
+      // localStorage might be disabled; fall back to URL lang
+    }
+    setPrefsLoaded(true);
+  }, []);
+
+  // Persist whenever the admin changes their preference
+  const changeLang = (newLang: Lang) => {
+    setLang(newLang);
+    try {
+      localStorage.setItem(ADMIN_LANG_STORAGE_KEY, newLang);
+    } catch {
+      // localStorage might be disabled; the change still takes effect for this session
+    }
+    // Also update the document direction so RTL/LTR layout flips immediately
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = newLang;
+      document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+    }
+  };
+
   const [currency] = useState<'USD' | 'SYP'>('USD');
   const { donations, alerts, activities, topDonors, weekData } = adminData(lang);
 
@@ -40,6 +77,32 @@ export default function AdminDashboard({ lang, basePath, projects }: Props) {
 
   return (
     <section className="section">
+      {/* Preference bar — language picker for the admin */}
+      <div className="admin-prefs-bar">
+        <span className="admin-prefs-label">
+          {lang === 'ar' ? 'لغة لوحة المجلس:' : 'Dashboard language:'}
+        </span>
+        <div className="admin-prefs-toggle">
+          <button
+            className={lang === 'ar' ? 'active' : ''}
+            onClick={() => changeLang('ar')}
+            aria-pressed={lang === 'ar'}
+          >
+            العربية
+          </button>
+          <button
+            className={lang === 'en' ? 'active' : ''}
+            onClick={() => changeLang('en')}
+            aria-pressed={lang === 'en'}
+          >
+            English
+          </button>
+        </div>
+        <span className="admin-prefs-hint">
+          {lang === 'ar' ? '★ يُحفَظ تفضيلك تلقائياً' : '★ Your preference is saved automatically'}
+        </span>
+      </div>
+
       {/* Demo data warning */}
       <div className="admin-demo-banner">
         {t(lang, 'admin_demo_note')}
