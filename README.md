@@ -11,13 +11,21 @@ A bilingual (Arabic/English) reconstruction platform for the Darayya City Counci
 Three things in one repo:
 
 1. **Public website** at `https://USERNAME.github.io/darayya-platform/` — bilingual site showing reconstruction projects with map, photos, transparency reports.
-2. **Admin panel** at `https://USERNAME.github.io/darayya-platform/admin/` — Decap CMS friendly editor for council staff to add/edit projects without touching code.
-3. **Static content** in `src/content/projects/` — one Markdown file per project, edited via the admin panel.
+2. **Council Dashboard** at `/ar/admin/` and `/en/admin/` — **staff-only**, requires login. Shows live overview: donations feed, weekly chart, alerts, activity log, top donors, project management table.
+3. **Decap CMS editor** at `/admin/` — **staff-only**, requires login. Friendly forms for editing project content. Saves directly to GitHub.
 
-When staff edit a project in the admin and click "Publish":
+Both staff pages share the same login session. Staff log in once and can use both.
+
+When staff edit a project in Decap and click "Publish":
 - Decap commits the change to GitHub
 - GitHub Actions rebuilds the site automatically
 - The public site updates in about 60 seconds
+
+## Authentication model
+
+The dashboard and CMS use **Netlify Identity** for login. This is a free service that handles user accounts, password resets, and session management without requiring you to run a server.
+
+**Security note**: The dashboard's auth check happens client-side because GitHub Pages can only serve static HTML. Sample dashboard data (donor names, donation amounts, activity log) is **only loaded after authentication** — it's not in the static HTML that visitors can view-source. However, this protection level is appropriate for v1 because the data is illustrative sample data anyway. When v2 adds real donation processing, that data must come from a backend API that does proper server-side authorization — never embed real financial data in static HTML.
 
 ---
 
@@ -71,18 +79,32 @@ If using a custom domain (e.g. `darayya-council.org`):
 3. Push any commit to `main` — the included workflow (`.github/workflows/deploy.yml`) will build and deploy automatically.
 4. First build takes ~2 minutes. After that, the URL is live.
 
-### Step 4 — Set up Decap CMS GitHub OAuth (required for staff to log in)
+### Step 4 — Set up authentication (required for admin login)
 
-The admin panel needs an OAuth proxy so staff can authenticate with GitHub. The simplest free option:
+Both the **Decap CMS editor** at `/admin/` and the **Council Dashboard** at `/ar/admin/` require staff to log in. They share the same login session.
 
-**Option A — Use Sebastian Gierlinger's free proxy** (recommended for getting started fast):
-1. Register a new OAuth App at https://github.com/settings/applications/new
-   - Application name: `Darayya CMS`
+**Recommended setup: Netlify Identity** (5 minutes, no Cloudflare needed)
+
+1. Sign up at https://netlify.com (free)
+2. Click **Add new site** → **Import from Git** → connect your GitHub repo. Netlify will detect this is an Astro project; the build settings should auto-fill (build command `npm run build`, publish directory `dist`).
+3. After the first Netlify deploy completes, go to **Site settings** → **Identity** → **Enable Identity**
+4. Under **Identity → Registration preferences**, set to **"Invite only"** so random people can't sign up
+5. Under **Identity → Services**, scroll to **Git Gateway** → **Enable Git Gateway**. This is what lets Decap commit content changes back to your GitHub repo.
+6. Under **Identity**, click **Invite users** and add each staff member by email. They'll receive an invite link.
+7. **Use the Netlify URL** (e.g. `your-site.netlify.app`) for the admin features. The GitHub Pages URL will still work for the public site, but authenticated features (Decap, Dashboard) only work through Netlify because that's where Identity is hosted.
+
+**About the dual hosting**: You'll effectively have two URLs for the same site — GitHub Pages (`username.github.io/darayya-platform/`) and Netlify (`your-site.netlify.app`). Both serve identical content. You can:
+- Use **only Netlify** and turn off GitHub Pages — simpler, recommended
+- Or **use both** — GitHub Pages for the public, Netlify for staff
+
+**Alternative: Pure GitHub OAuth** (more complex, no Netlify dependency)
+
+If you want to avoid Netlify entirely:
+1. Register a GitHub OAuth App at https://github.com/settings/applications/new
    - Homepage URL: `https://YOUR_USERNAME.github.io/darayya-platform/`
-   - Authorization callback URL: `https://api.netlify.com/auth/done` (yes, even without Netlify — this proxy just needs *any* URL)
-2. Note your **Client ID** and **Client Secret**
-3. Deploy your own free OAuth handler on Cloudflare Workers (5 minutes): https://github.com/sterlingwes/cloudflare-decap-oauth
-4. Update `public/admin/config.yml` to point to your worker URL:
+   - Authorization callback URL: `https://YOUR_WORKER.workers.dev/callback`
+2. Deploy a Cloudflare Worker OAuth handler — there's a one-click template at https://github.com/sterlingwes/cloudflare-decap-oauth
+3. Update `public/admin/config.yml`:
    ```yaml
    backend:
      name: github
@@ -90,23 +112,9 @@ The admin panel needs an OAuth proxy so staff can authenticate with GitHub. The 
      branch: main
      base_url: https://YOUR_WORKER.workers.dev
    ```
+4. The Council Dashboard's auth won't work with this setup out of the box — it expects Netlify Identity. You'd need a separate auth mechanism (e.g., a check against a hardcoded list of authorized GitHub usernames after they sign in to Decap).
 
-**Option B — Quick test using Netlify Identity** (no Cloudflare needed):
-- Sign up at https://netlify.com (free)
-- Connect your GitHub repo → enable **Identity** in the site settings
-- Invite council staff by email
-- Replace the backend section of `config.yml` with:
-  ```yaml
-  backend:
-    name: git-gateway
-    branch: main
-  ```
-- Add the Netlify Identity widget to `public/admin/index.html`:
-  ```html
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  ```
-
-Either way works. **Option A is purer GitHub Pages; Option B is easier for non-technical setup.**
+**Recommendation**: Use Netlify Identity unless you have a specific reason not to. It's free, takes 5 minutes, and the dashboard auth works automatically.
 
 ---
 

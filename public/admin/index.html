@@ -9,7 +9,30 @@
   </style>
 </head>
 <body>
-  <!-- Decap CMS — friendly admin UI that saves to GitHub -->
+  <!-- Netlify Identity widget — handles staff login for both Decap CMS and the
+       Council Dashboard. Loading it here ensures the same login session works
+       across both /admin/ (this page) and /ar/admin/ + /en/admin/ (dashboard).
+
+       If you instead chose pure GitHub OAuth (Option A in README), this widget
+       won't be used and you should switch config.yml's backend to 'github' with
+       a custom base_url. -->
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+
+  <!-- Decap CMS — friendly admin UI that saves edits back to GitHub -->
   <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+
+  <script>
+    // When a Netlify Identity user logs in to Decap, redirect them to the
+    // dashboard. When they log out, send them to the home page.
+    if (window.netlifyIdentity) {
+      window.netlifyIdentity.on('init', user => {
+        if (!user) {
+          window.netlifyIdentity.on('login', () => {
+            document.location.href = '/admin/';
+          });
+        }
+      });
+    }
+  </script>
 </body>
 </html>

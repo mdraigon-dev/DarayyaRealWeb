@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AdminDashboard from '../../../components/AdminDashboard.tsx';
+import AuthGate from '../../../components/AuthGate.tsx';
 import { t } from '../../../i18n/strings';
 
 const projects = await getCollection('projects');
@@ -18,5 +19,16 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
   lang={lang}
   currentPage="admin"
 >
-  <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:load />
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
+
+  <AuthGate lang={lang} client:only="react">
+    <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:only="react" />
+
+    <div slot="fallback" class="auth-gate-screen">
+      <div class="auth-gate-card">
+        <div class="auth-gate-spinner"></div>
+        <p style="color: var(--sy-muted); margin-top: 1rem;">{t(lang, 'auth_loading')}</p>
+      </div>
+    </div>
+  </AuthGate>
 </BaseLayout>

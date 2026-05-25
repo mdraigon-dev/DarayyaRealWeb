@@ -2,17 +2,27 @@
 # Decap CMS Configuration
 # Defines the friendly admin UI fields that map to our content files.
 #
-# IMPORTANT: Replace YOUR_GITHUB_USERNAME with your actual GitHub username
-# and YOUR_REPO_NAME with the repo name (e.g. darayya-platform).
+# AUTHENTICATION:
+# This config uses Netlify Identity ("git-gateway") which is the simplest
+# auth setup for staff and works with our Council Dashboard's shared login.
+#
+# SETUP (one-time):
+#   1. Sign up at https://netlify.com (free)
+#   2. Connect your GitHub repo
+#   3. In Netlify site settings → Identity → Enable Identity
+#   4. Under Identity → Registration → set "Invite only"
+#   5. Under Identity → Services → Git Gateway → Enable Git Gateway
+#   6. Invite each staff member by email under Identity → Invite users
+#   7. Done. The dashboard at /ar/admin/ and Decap at /admin/ will both use
+#      the same login.
+#
+# ALTERNATIVE (pure GitHub OAuth, no Netlify):
+#   See README for the Cloudflare Worker setup.
 # =====================================================================
 
 backend:
-  name: github
-  repo: YOUR_GITHUB_USERNAME/YOUR_REPO_NAME
+  name: git-gateway
   branch: main
-  # Use a custom OAuth backend (decap-server) when developing locally,
-  # or set up Netlify Identity / Cloudflare Workers for production auth.
-  # See: https://decapcms.org/docs/external-oauth-clients/
 
 # Where uploaded photos are stored
 media_folder: "public/images/uploads"

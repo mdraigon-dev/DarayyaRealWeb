@@ -45,6 +45,7 @@ The user should use the Decap CMS UI at `/admin/`. If they ask you to add one pr
 - **Currency is always stored as USD** in the data. Display conversion happens at render time via `fmtMoney(lang, currency, usdAmount)`.
 - **Map and other Leaflet code only runs client-side** because Leaflet needs `window`. All map components use `client:load`.
 - **The logo is an SVG symbol** embedded once in `BaseLayout.astro`, referenced via `<use href="#darayya-logo">`. This is why `_logo_symbol.html.txt` exists — it gets inlined at build time.
+- **The Council Dashboard at `/ar/admin/` is auth-gated.** It uses Netlify Identity (loaded via `<script>` in the page) and `<AuthGate>` component. The dashboard uses `client:only="react"` (not `client:load`) so its HTML and data are NEVER server-rendered — they only appear in the page after the user is authenticated client-side. This is important: if you change it to `client:load`, sample donation data leaks into static HTML.
 
 ## Things to NOT do without asking the user
 

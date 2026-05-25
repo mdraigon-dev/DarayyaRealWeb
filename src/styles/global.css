@@ -729,6 +729,110 @@ html[dir="ltr"] .project-card-urgent-badge {
 .update-body { color: var(--sy-ink-soft); line-height: 1.75; font-size: 15px; }
 
 /* ==================== ADMIN DASHBOARD ==================== */
+
+/* Auth gate — shown when not signed in */
+.auth-gate-screen {
+  min-height: calc(100vh - 200px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 2rem 1rem;
+}
+.auth-gate-card {
+  max-width: 480px;
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-md);
+  padding: 2.5rem 2.25rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.auth-gate-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--sy-gold), var(--sy-green), var(--sy-green-dk));
+}
+.auth-gate-logo {
+  margin: 0 auto 1.25rem;
+  display: flex; justify-content: center;
+  opacity: 0.92;
+}
+.auth-gate-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--sy-green-dk);
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+}
+.auth-gate-desc {
+  color: var(--sy-ink-soft);
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+.auth-gate-btn {
+  font-size: 1.05rem;
+  padding: 0.85rem 2rem;
+  margin: 0 auto;
+}
+.auth-gate-note {
+  margin-top: 1rem;
+  font-size: 13px;
+  color: var(--sy-muted);
+}
+.auth-gate-spinner {
+  width: 48px; height: 48px;
+  border: 4px solid var(--sy-green-pale);
+  border-top-color: var(--sy-green);
+  border-radius: 50%;
+  margin: 0 auto;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Signed-in strip above dashboard */
+.auth-signed-bar {
+  max-width: 1280px;
+  margin: 0 auto 1rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--sy-green-pale);
+  border: 1px solid var(--sy-green-lt);
+  border-radius: var(--r-md);
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px;
+  color: var(--sy-green-darker);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.auth-signed-info {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.auth-signed-dot {
+  width: 8px; height: 8px;
+  background: var(--sy-green);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.18);
+}
+.auth-signed-out-btn {
+  background: transparent;
+  border: 1px solid var(--sy-green-dk);
+  color: var(--sy-green-dk);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.auth-signed-out-btn:hover {
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+}
+
 /* Demo data warning banner above admin dashboard */
 .admin-demo-banner {
   max-width: 1280px;

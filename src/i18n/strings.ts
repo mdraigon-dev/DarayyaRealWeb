@@ -140,6 +140,17 @@ export const STRINGS = {
     admin_btn_edit: 'تعديل',
     admin_demo_note: '⚠ هذه البيانات تجريبية للعرض. ستُستبدل ببيانات حقيقية عندما تُفعَّل المدفوعات في الإصدار الثاني.',
 
+    // Auth gate
+    auth_required_title: 'هذه الصفحة مخصّصة لطاقم المجلس',
+    auth_required_desc: 'تتطلب لوحة المجلس تسجيل الدخول. يستخدم الموظفون نفس حساب التحرير الخاص بهم.',
+    auth_signin_btn: 'تسجيل الدخول ←',
+    auth_signin_note: 'ستفتح نافذة تسجيل الدخول من GitHub.',
+    auth_loading: 'جاري التحقق…',
+    auth_no_access_title: 'ليس لديك صلاحية للوصول',
+    auth_no_access_desc: 'تم تسجيل دخولك، لكنك لست عضواً في طاقم المجلس. يرجى التواصل مع المشرف لمنحك الصلاحية.',
+    auth_signout_btn: 'تسجيل الخروج',
+    auth_signed_in_as: 'مسجّل دخوله كـ',
+
     // Footer
     footer_brand: 'مَعَاً نَبْنِي داريَّا',
     footer_about: 'منصة المجلس المحلي لمدينة داريّا لإعادة الإعمار بمشاركة المجتمع المحلي وأبناء المدينة في المهجر. نعمل بشفافية كاملة لاستعادة مدينتنا، حجراً حجراً.',
@@ -282,6 +293,16 @@ export const STRINGS = {
     admin_col_donors: 'Donors',
     admin_btn_edit: 'Edit',
     admin_demo_note: '⚠ This data is illustrative for the demo. It will be replaced with real data when payments are activated in v2.',
+
+    auth_required_title: 'This page is for council staff',
+    auth_required_desc: 'The Council Dashboard requires sign-in. Staff use the same account they use to edit content.',
+    auth_signin_btn: 'Sign in →',
+    auth_signin_note: 'A GitHub sign-in window will open.',
+    auth_loading: 'Checking…',
+    auth_no_access_title: 'You don\'t have access',
+    auth_no_access_desc: 'You are signed in, but you are not part of the council staff. Please contact your administrator to be granted access.',
+    auth_signout_btn: 'Sign out',
+    auth_signed_in_as: 'Signed in as',
 
     footer_brand: 'Together We Rebuild Darayya',
     footer_about: 'The Darayya City Council\'s platform for reconstruction with participation from the local community and the diaspora. We work with complete transparency to restore our city, stone by stone.',
