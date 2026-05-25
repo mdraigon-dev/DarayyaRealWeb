@@ -1,0 +1,207 @@
+import { useState } from 'react';
+import HealthPill from './HealthPill';
+import ProjectPhoto from './ProjectPhoto';
+import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
+
+type Bilingual = { ar: string; en: string };
+type Sub = {
+  id: string;
+  title: Bilingual;
+  length: Bilingual;
+  budgetUSD: number;
+  raisedUSD: number;
+};
+type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
+type Photo = {
+  src?: string;
+  scene?: 'road' | 'water' | 'sewer' | 'light' | 'internet' | 'building' | 'park';
+  status: 'healthy' | 'warning' | 'stalled' | 'completed';
+  caption: Bilingual;
+  date: Bilingual;
+};
+
+type ProjectFull = {
+  id: string;
+  category: string;
+  status: 'funding' | 'active' | 'completed' | 'planning';
+  health: 'healthy' | 'warning' | 'stalled' | 'completed';
+  title: Bilingual;
+  location: Bilingual;
+  description: Bilingual;
+  budgetUSD: number;
+  raisedUSD: number;
+  donors: number;
+  daysLeft: number;
+  subs: Sub[];
+  updates: Update[];
+  photos: Photo[];
+};
+
+type Props = {
+  project: ProjectFull;
+  lang: Lang;
+  basePath: string;
+};
+
+export default function ProjectDetailContent({ project, lang, basePath }: Props) {
+  const [currency] = useState<'USD' | 'SYP'>('USD');
+  const pct = Math.round((project.raisedUSD / project.budgetUSD) * 100);
+
+  return (
+    <section className="section">
+      <div className="detail-hero">
+        <div className="breadcrumb">
+          <a href={`${basePath}/`}>{t(lang, 'breadcrumb_home')}</a>
+          <span className="breadcrumb-sep">/</span>
+          <a href={`${basePath}/projects/`}>{t(lang, 'breadcrumb_projects')}</a>
+          <span className="breadcrumb-sep">/</span>
+          <span>{t(lang, `cat_${project.category}` as any)}</span>
+        </div>
+        <div className="project-card-header">
+          <span className="project-category">{t(lang, `cat_${project.category}` as any)}</span>
+          <span className={`project-status status-${project.status}`}>{t(lang, `status_${project.status}` as any)}</span>
+        </div>
+        <h1 className="detail-title">{loc(lang, project.title)}</h1>
+        <div style={{ marginBottom: '0.75rem' }}>
+          <HealthPill health={project.health} lang={lang} />
+        </div>
+        <div className="detail-loc">
+          <span className="detail-loc-item">
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            {loc(lang, project.location)}
+          </span>
+          {project.daysLeft > 0 && (
+            <span className="detail-loc-item">
+              <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              {fmtNum(lang, project.daysLeft)} {t(lang, 'days_remaining')}
+            </span>
+          )}
+          <span className="detail-loc-item">
+            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+            </svg>
+            {fmtNum(lang, project.donors)} {project.donors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
+          </span>
+        </div>
+      </div>
+
+      <div className="detail-grid">
+        <div className="detail-main">
+          <p style={{ fontSize: '1.1rem', color: 'var(--sy-ink-soft)' }}>{loc(lang, project.description)}</p>
+
+          <div className="hierarchy">
+            <div className="hierarchy-title">
+              <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+              {t(lang, 'hierarchy_title')}
+            </div>
+            <div className="tree">
+              {project.subs.map((s, i) => {
+                const subPct = Math.round((s.raisedUSD / s.budgetUSD) * 100);
+                const isLast = i === project.subs.length - 1;
+                return (
+                  <div key={s.id} className={`tree-node ${isLast ? 'last' : 'continues'}`}>
+                    <div className="tree-line"></div>
+                    <div className="tree-node-content">
+                      <div className="tree-node-row">
+                        <div>
+                          <div className="tree-node-title">{loc(lang, s.title)}</div>
+                          <div className="tree-node-meta">{loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%</div>
+                        </div>
+                        <div className="tree-node-amount">
+                          {fmtMoney(lang, currency, s.raisedUSD)} / {fmtMoney(lang, currency, s.budgetUSD)}
+                        </div>
+                      </div>
+                      <div className="tree-mini-progress">
+                        <div className="tree-mini-fill" style={{ width: `${subPct}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--sy-muted)' }}>
+              {t(lang, 'hierarchy_hint')}
+            </p>
+          </div>
+
+          {project.photos && project.photos.length > 0 && (
+            <div className="photo-section">
+              <div className="photo-section-title">
+                <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+                {t(lang, 'photos_title')}
+              </div>
+              <div className="photo-grid">
+                {project.photos.map((photo, i) => (
+                  <ProjectPhoto
+                    key={i}
+                    scene={photo.scene}
+                    src={photo.src}
+                    status={photo.status}
+                    caption={loc(lang, photo.caption)}
+                    date={loc(lang, photo.date)}
+                    lang={lang}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {project.updates && project.updates.length > 0 && (
+            <>
+              <h3>{t(lang, 'updates_title')}</h3>
+              <div className="timeline">
+                {project.updates.map((u, i) => (
+                  <div className="update" key={i}>
+                    <div className="update-head">
+                      <span className="update-author">{loc(lang, u.author)}</span>
+                      <span className="update-date">{loc(lang, u.date)}</span>
+                    </div>
+                    <div className="update-body">{loc(lang, u.body)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div>
+          <div className="donate-card">
+            <h3>{t(lang, 'donate_title')}</h3>
+            <div className="donate-stat">
+              <div className="donate-stat-big">{fmtMoney(lang, currency, project.raisedUSD)}</div>
+              <div className="donate-stat-of">
+                {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, project.budgetUSD)}</strong>
+              </div>
+              <div className="progress" style={{ marginTop: '0.75rem' }}>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${pct}%` }}></div>
+                </div>
+                <div className="progress-meta">
+                  <span className="progress-percent">{fmtNum(lang, pct)}%</span>
+                  <span className="progress-amount">
+                    {fmtNum(lang, project.donors)} {project.donors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button className="btn-donate-full" disabled>
+              {t(lang, 'donate_btn')}
+            </button>
+
+            <div className="donate-options">
+              {t(lang, 'donate_coming_soon')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

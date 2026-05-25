@@ -1,0 +1,52 @@
+# =====================================================================
+# Deploy Astro site to GitHub Pages
+# Triggers: push to main, or manual run
+# =====================================================================
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Required permissions for GitHub Pages deploy
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only allow one deploy at a time; cancel in-progress runs
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install, build & upload
+        uses: withastro/action@v3
+        # Optional inputs (only set if you customized the layout):
+        #   path: .                  # project root
+        #   node-version: 20
+        #   package-manager: npm
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

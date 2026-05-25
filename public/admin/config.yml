@@ -1,0 +1,219 @@
+# =====================================================================
+# Decap CMS Configuration
+# Defines the friendly admin UI fields that map to our content files.
+#
+# IMPORTANT: Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+# and YOUR_REPO_NAME with the repo name (e.g. darayya-platform).
+# =====================================================================
+
+backend:
+  name: github
+  repo: YOUR_GITHUB_USERNAME/YOUR_REPO_NAME
+  branch: main
+  # Use a custom OAuth backend (decap-server) when developing locally,
+  # or set up Netlify Identity / Cloudflare Workers for production auth.
+  # See: https://decapcms.org/docs/external-oauth-clients/
+
+# Where uploaded photos are stored
+media_folder: "public/images/uploads"
+public_folder: "/images/uploads"
+
+# Show site logo in the CMS sidebar
+logo_url: /logos/darayya-emblem.svg
+
+# Use Arabic UI labels (Decap detects this automatically based on collection labels)
+locale: ar
+
+# =====================================================================
+# COLLECTIONS — what staff can edit
+# =====================================================================
+collections:
+  # ----- PROJECTS -----
+  - name: "projects"
+    label: "المشاريع — Projects"
+    label_singular: "مشروع"
+    folder: "src/content/projects"
+    format: "frontmatter"
+    extension: "md"
+    create: true
+    slug: "{{id}}"
+    identifier_field: id
+    summary: "{{title.ar}} — {{title.en}}"
+    fields:
+      - { label: "المعرّف الفريد (لا تغيّره بعد الإنشاء)", name: "id", widget: "string", hint: "Unique slug, e.g. roads-jalaa" }
+      - { label: "الترتيب", name: "order", widget: "number", default: 0, value_type: int }
+      - { label: "مشروع بارز (على الصفحة الرئيسية)؟", name: "featured", widget: "boolean", default: false }
+
+      - label: "القطاع"
+        name: "category"
+        widget: "select"
+        options:
+          - { label: "الطرقات والتعبيد — Roads", value: "roads" }
+          - { label: "المياه النظيفة — Water",   value: "water" }
+          - { label: "الصرف الصحي — Sewer",      value: "sewer" }
+          - { label: "الإنارة — Lighting",        value: "lighting" }
+          - { label: "الاتصالات — Communications", value: "communications" }
+          - { label: "المرافق العامة — Facilities", value: "facilities" }
+
+      - label: "الحالة"
+        name: "status"
+        widget: "select"
+        options:
+          - { label: "مفتوح للتبرع — Open for funding", value: "funding" }
+          - { label: "قيد التنفيذ — Active",            value: "active" }
+          - { label: "مكتمل — Completed",                value: "completed" }
+          - { label: "قيد التخطيط — Planning",           value: "planning" }
+
+      - label: "صحة المشروع"
+        name: "health"
+        widget: "select"
+        options:
+          - { label: "يسير بشكل ممتاز — Healthy", value: "healthy" }
+          - { label: "يحتاج متابعة — Warning",     value: "warning" }
+          - { label: "متعثّر — Stalled",            value: "stalled" }
+          - { label: "مكتمل — Completed",           value: "completed" }
+
+      - label: "العنوان"
+        name: "title"
+        widget: "object"
+        fields:
+          - { label: "بالعربية", name: "ar", widget: "string" }
+          - { label: "English",   name: "en", widget: "string" }
+
+      - label: "الموقع"
+        name: "location"
+        widget: "object"
+        fields:
+          - { label: "بالعربية", name: "ar", widget: "string" }
+          - { label: "English",   name: "en", widget: "string" }
+
+      - label: "الوصف"
+        name: "description"
+        widget: "object"
+        fields:
+          - { label: "بالعربية", name: "ar", widget: "text" }
+          - { label: "English",   name: "en", widget: "text" }
+
+      - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: int, min: 0 }
+      - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: int, min: 0 }
+      - { label: "عدد المتبرعين",        name: "donors",    widget: "number", value_type: int, min: 0, default: 0 }
+      - { label: "الأيام المتبقية",       name: "daysLeft",  widget: "number", value_type: int, min: 0, default: 0 }
+
+      - { label: "خط العرض (Latitude)", name: "lat", widget: "number", value_type: float, hint: "حوالي 33.45 لداريّا" }
+      - { label: "خط الطول (Longitude)", name: "lng", widget: "number", value_type: float, hint: "حوالي 36.25 لداريّا" }
+
+      - label: "المشاريع الفرعية"
+        name: "subs"
+        widget: "list"
+        required: false
+        summary: "{{fields.title.ar}}"
+        fields:
+          - { label: "المعرّف", name: "id", widget: "string" }
+          - label: "العنوان"
+            name: "title"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "الطول / التفصيل"
+            name: "length"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: int, min: 0 }
+          - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: int, min: 0 }
+
+      - label: "تحديثات ميدانية"
+        name: "updates"
+        widget: "list"
+        required: false
+        summary: "{{fields.body.ar}}"
+        fields:
+          - label: "التاريخ"
+            name: "date"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string", hint: "مثلاً: منذ ٣ أيام" }
+              - { label: "English",   name: "en", widget: "string", hint: "e.g. 3 days ago" }
+          - label: "الكاتب"
+            name: "author"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "نص التحديث"
+            name: "body"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "text" }
+              - { label: "English",   name: "en", widget: "text" }
+
+      - label: "صور من الميدان"
+        name: "photos"
+        widget: "list"
+        required: false
+        summary: "{{fields.caption.ar}}"
+        fields:
+          - { label: "ملف صورة (اختياري)", name: "src", widget: "image", required: false, hint: "ارفع صورة، أو اترك فارغاً لاستخدام رسم توضيحي مولّد" }
+          - label: "نوع المشهد المولّد (إذا لم ترفع صورة)"
+            name: "scene"
+            widget: "select"
+            required: false
+            options:
+              - { label: "طريق — Road", value: "road" }
+              - { label: "مياه — Water", value: "water" }
+              - { label: "صرف صحي — Sewer", value: "sewer" }
+              - { label: "إنارة — Light", value: "light" }
+              - { label: "إنترنت — Internet", value: "internet" }
+              - { label: "مبنى — Building", value: "building" }
+              - { label: "حديقة — Park", value: "park" }
+          - label: "الحالة"
+            name: "status"
+            widget: "select"
+            options:
+              - { label: "يسير جيداً — Going well", value: "healthy" }
+              - { label: "تأخير — Delayed", value: "warning" }
+              - { label: "متعثّر — Stalled", value: "stalled" }
+              - { label: "مكتمل — Completed", value: "completed" }
+          - label: "تعليق على الصورة"
+            name: "caption"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "تاريخ التقاط الصورة"
+            name: "date"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+
+      - label: "نص إضافي (اختياري)"
+        name: "body"
+        widget: "markdown"
+        required: false
+
+  # ----- SITE SETTINGS -----
+  - name: "site"
+    label: "إعدادات الموقع"
+    files:
+      - name: "settings"
+        label: "إعدادات عامة"
+        file: "src/content/site/settings.json"
+        format: "json"
+        fields:
+          - label: "اسم الموقع"
+            name: "title"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - label: "الشعار النصي"
+            name: "tagline"
+            widget: "object"
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "string" }
+              - { label: "English",   name: "en", widget: "string" }
+          - { label: "بريد التواصل", name: "contactEmail", widget: "string" }
+          - { label: "هاتف التواصل",  name: "contactPhone", widget: "string" }

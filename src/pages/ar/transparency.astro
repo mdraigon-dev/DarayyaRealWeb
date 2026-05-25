@@ -1,0 +1,20 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TransparencyContent from '../../components/TransparencyContent.tsx';
+import { t } from '../../i18n/strings';
+
+const projects = await getCollection('projects');
+const projectData = projects.map(p => p.data);
+
+const lang = 'ar' as const;
+---
+
+<BaseLayout
+  title={`${t(lang, 'trans_title')} — ${t(lang, 'brand_title')}`}
+  description={t(lang, 'trans_desc')}
+  lang={lang}
+  currentPage="transparency"
+>
+  <TransparencyContent projects={projectData} lang={lang} client:load />
+</BaseLayout>

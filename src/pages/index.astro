@@ -1,0 +1,20 @@
+---
+const base = import.meta.env.BASE_URL;
+const target = `${base}ar/`;
+---
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content={`0; url=${target}`} />
+  <link rel="canonical" href={target} />
+  <title>معاً نبني داريّا</title>
+</head>
+<body>
+  <p>
+    <a href={target}>العربية</a> |
+    <a href={`${base}en/`}>English</a>
+  </p>
+  <script set:html={`window.location.replace('${target}');`} />
+</body>
+</html>

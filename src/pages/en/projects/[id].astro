@@ -1,0 +1,28 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ProjectDetailContent from '../../../components/ProjectDetailContent.tsx';
+import { t, loc } from '../../../i18n/strings';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map(p => ({
+    params: { id: p.data.id },
+    props: { project: p.data },
+  }));
+}
+
+const { project } = Astro.props;
+const lang = 'en' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
+---
+
+<BaseLayout
+  title={`${loc(lang, project.title)} — ${t(lang, 'brand_title')}`}
+  description={loc(lang, project.description)}
+  lang={lang}
+  currentPage="projects"
+>
+  <ProjectDetailContent project={project} lang={lang} basePath={basePath} client:load />
+</BaseLayout>
