@@ -729,6 +729,20 @@ html[dir="ltr"] .project-card-urgent-badge {
 .update-body { color: var(--sy-ink-soft); line-height: 1.75; font-size: 15px; }
 
 /* ==================== ADMIN DASHBOARD ==================== */
+/* Demo data warning banner above admin dashboard */
+.admin-demo-banner {
+  max-width: 1280px;
+  margin: 0 auto 1.25rem;
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(90deg, var(--sy-gold-pale), var(--sy-gold-wash));
+  border: 1px solid var(--sy-gold-lt);
+  border-radius: var(--r-md);
+  font-size: 14px;
+  color: #6A5018;
+  text-align: center;
+  font-weight: 600;
+}
+
 .admin-hero {
   background: linear-gradient(135deg, var(--sy-green-darker) 0%, var(--sy-green-dk) 100%);
   color: var(--sy-paper-pure);

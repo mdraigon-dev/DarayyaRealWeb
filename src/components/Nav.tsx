@@ -21,6 +21,7 @@ export default function Nav({ lang, currentPage }: Props) {
     { id: 'home',         label: t(lang, 'nav_home'),         href: link('/') },
     { id: 'projects',     label: t(lang, 'nav_projects'),     href: link('/projects/') },
     { id: 'transparency', label: t(lang, 'nav_transparency'), href: link('/transparency/') },
+    { id: 'admin',        label: t(lang, 'nav_admin'),        href: link('/admin/') },
   ];
 
   return (
