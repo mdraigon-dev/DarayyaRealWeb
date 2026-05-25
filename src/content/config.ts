@@ -4,11 +4,13 @@ import { defineCollection, z } from 'astro:content';
 // Bilingual string helper
 // AR is required; EN defaults to empty string when blank.
 // At render time, loc(lang, obj) falls back to AR when EN is empty.
-// This lets staff fill only Arabic in the CMS without breaking the build.
+// en_auto is set by scripts/auto-translate.mjs to mark MyMemory output;
+// the public site shows a small "auto-translated" badge for those fields.
 // ============================================================
 const bilingual = z.object({
   ar: z.string().min(1, 'العربية مطلوبة'),
   en: z.string().optional().default(''),
+  en_auto: z.boolean().optional(),
 });
 
 // ============================================================

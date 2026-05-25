@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { adminData } from '../data/admin-sample';
+import TranslateHelper from './TranslateHelper';
 
 type Bilingual = { ar: string; en: string };
 type Project = {
@@ -337,6 +338,9 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
           </div>
         </div>
       </div>
+
+      {/* Translation helper — quick AR→EN spot-check tool for staff */}
+      <TranslateHelper lang={lang} />
 
       {/* Project management — fast access to Decap CMS for editing */}
       <div className="section-header" style={{ marginTop: '0.5rem' }}>

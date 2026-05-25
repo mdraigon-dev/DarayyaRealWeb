@@ -1,12 +1,14 @@
-import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
+import { t, loc, fmtNum, fmtMoney, isAutoTranslated, type Lang } from '../i18n/strings';
+
+type BilingualMaybeAuto = { ar: string; en?: string; en_auto?: boolean };
 
 export type ProjectCardData = {
   id: string;
   status: 'funding' | 'active' | 'completed' | 'planning';
   category: string; // enum value
-  title: { ar: string; en: string };
-  location: { ar: string; en: string };
-  description: { ar: string; en: string };
+  title: BilingualMaybeAuto;
+  location: BilingualMaybeAuto;
+  description: BilingualMaybeAuto;
   budgetUSD: number;
   raisedUSD: number;
   donors: number;
@@ -25,6 +27,14 @@ export default function ProjectCard({ project, href, lang, currency }: Props) {
   const categoryLabel = t(lang, `cat_${project.category}` as any);
   const statusLabel = t(lang, `status_${project.status}` as any);
 
+  // If any of the displayed bilingual fields is machine-translated for this
+  // language, show a single small badge so readers know to take rough phrasing
+  // with a grain of salt and report mistranslations.
+  const hasAutoTranslation =
+    isAutoTranslated(lang, project.title) ||
+    isAutoTranslated(lang, project.location) ||
+    isAutoTranslated(lang, project.description);
+
   return (
     <a className={`project-card ${isUrgent ? 'urgent' : ''}`} href={href}>
       {isUrgent && <span className="project-card-urgent-badge">{t(lang, 'urgent_badge')}</span>}
@@ -33,6 +43,11 @@ export default function ProjectCard({ project, href, lang, currency }: Props) {
         <span className={`project-status status-${project.status}`}>{statusLabel}</span>
       </div>
       <h3 className="project-card-title">{loc(lang, project.title)}</h3>
+      {hasAutoTranslation && (
+        <span className="auto-translated-pill" title={t(lang, 'auto_translated_hint')}>
+          ⚙ {t(lang, 'auto_translated_label')}
+        </span>
+      )}
       <div className="project-card-location">
         <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>

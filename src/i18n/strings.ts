@@ -87,6 +87,8 @@ export const STRINGS = {
     updates_title: 'آخر التحديثات الميدانية',
     engineers_title: 'الفريق والمهندسون',
     comments_title: 'ملاحظات وتعليقات',
+    auto_translated_label: 'ترجمة آلية',
+    auto_translated_hint: 'تم توليد بعض النصوص الإنجليزية تلقائياً عبر MyMemory. يرجى الإبلاغ عن أي ترجمة غير دقيقة.',
     donate_title: '★ ساهم في هذا المشروع',
     donate_raised_of: 'تم جمعه من أصل',
     donate_btn: 'تبرّع لهذا المشروع',
@@ -260,6 +262,8 @@ export const STRINGS = {
     updates_title: 'Latest Field Updates',
     engineers_title: 'Team & Engineers',
     comments_title: 'Notes & Comments',
+    auto_translated_label: 'Auto-translated',
+    auto_translated_hint: 'Some English text on this page was auto-translated via MyMemory and may be imperfect. Please report any mistranslations.',
     donate_title: '★ Support this Project',
     donate_raised_of: 'raised out of',
     donate_btn: 'Donate to this project',
@@ -387,6 +391,16 @@ export function loc<T extends { ar: string; en?: string }>(lang: Lang, obj: T | 
   if (!obj) return '';
   if (lang === 'en') return obj.en || obj.ar;
   return obj.ar;
+}
+
+/**
+ * Returns true when the EN string for this object was filled by the MyMemory
+ * auto-translator (not by a human). UI components use this to show a small
+ * "auto-translated" indicator that asks readers to flag mistranslations.
+ */
+export function isAutoTranslated(lang: Lang, obj: { en_auto?: boolean } | undefined): boolean {
+  if (!obj || lang !== 'en') return false;
+  return obj.en_auto === true;
 }
 
 /**

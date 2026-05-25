@@ -389,6 +389,28 @@ html[dir="ltr"] .project-card-urgent-badge {
   left: auto; right: 1rem;
 }
 
+/* "Auto-translated" indicator — shown when MyMemory filled an EN field.
+   Subtle but visible; staff and readers should know which strings to review. */
+.auto-translated-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0.5rem;
+  padding: 2px 8px;
+  background: rgba(201, 161, 74, 0.12);
+  color: #8B6F1F;
+  border: 1px dashed rgba(201, 161, 74, 0.5);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: help;
+  width: fit-content;
+}
+.auto-translated-pill:hover {
+  background: rgba(201, 161, 74, 0.22);
+}
+
 .project-card-header {
   display: flex; justify-content: space-between; align-items: start;
   gap: 0.75rem;
@@ -1315,6 +1337,99 @@ html[dir="rtl"] .needs-attention {
   background: linear-gradient(135deg, var(--sy-paper-pure) 0%, var(--sy-green-pale) 100%);
   border: 1px solid var(--sy-green-lt);
   border-radius: var(--r-lg);
+}
+
+/* Translation helper — Arabic→English spot-check tool */
+.translate-helper {
+  max-width: 1280px;
+  margin: 1.5rem auto 1rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-lg);
+}
+.translate-helper-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.translate-helper-header h3 {
+  font-size: 1.1rem;
+  color: var(--sy-green-dk);
+  margin: 0;
+  font-weight: 700;
+}
+.translate-helper-desc {
+  font-size: 13px;
+  color: var(--sy-muted);
+  margin: 0 0 1rem 0;
+}
+.translate-helper-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.translate-helper-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.translate-helper-col label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sy-green-dk);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.translate-helper-col textarea {
+  padding: 0.75rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  background: var(--sy-paper);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--sy-ink);
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 160ms ease;
+}
+.translate-helper-col textarea:focus {
+  outline: none;
+  border-color: var(--sy-green);
+  background: var(--sy-paper-pure);
+}
+.translate-helper-col textarea[readonly] {
+  background: var(--sy-gold-wash);
+  cursor: text;
+}
+.translate-helper-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--sy-muted);
+  min-height: 32px;
+}
+.translate-helper-btn {
+  padding: 0.4rem 0.85rem;
+  font-size: 13px;
+}
+.translate-helper-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.translate-helper-footer {
+  margin: 0.75rem 0 0;
+  font-size: 11px;
+  color: var(--sy-muted);
+  text-align: center;
+  font-style: italic;
+}
+@media (max-width: 700px) {
+  .translate-helper-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .admin-help-card h4 {
   font-size: 1rem;

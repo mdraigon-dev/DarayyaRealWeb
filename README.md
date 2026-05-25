@@ -115,6 +115,43 @@ To fix: regenerate your PAT with `workflow` scope checked, or use SSH/`gh auth l
 
 ---
 
+### Step 6 — Auto-translation (optional but recommended)
+
+The CMS lets staff fill only Arabic and leave English blank. By default, EN visitors then see Arabic on the English pages (functional but ugly). To get real English output, the workflow can call **MyMemory** (free translation API) to fill in the blanks before each build.
+
+**How it works:**
+
+1. Staff create/edit a project in Decap CMS, filling only Arabic
+2. Staff click "Publish" → commits to GitHub
+3. GitHub Actions workflow runs:
+   - Scans `src/content/projects/*.md` for any bilingual fields with empty `en:`
+   - For each, calls MyMemory: `https://api.mymemory.translated.net/get?q=...&langpair=ar|en`
+   - Fills the `en:` field with the result, plus sets `en_auto: true` to mark it as machine-translated
+   - Commits the filled translations back to `main` with message `chore: auto-translate empty EN fields via MyMemory [skip ci]`
+   - Builds and deploys
+4. Visitors on EN pages now see English. Any field that was auto-translated displays a small **"⚙ Auto-translated"** pill so readers know to take rough phrasing with a grain of salt.
+
+**Free tier limits** (from MyMemory docs):
+- Anonymous: **5,000 chars/day per IP**
+- With registered email: **50,000 chars/day**
+
+For the 17 starter projects with sub-projects and updates, total Arabic content is roughly 8,000–15,000 chars. The anonymous limit may be tight on the first deploy.
+
+**To raise the limit:**
+1. Pick any email address (a council inbox is fine — MyMemory doesn't verify it)
+2. In your GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**
+3. Name: `MYMEMORY_EMAIL`, value: the email
+4. The workflow will pass it to MyMemory and your daily limit goes to 50,000 chars
+
+**To turn auto-translation off entirely:** delete the `Auto-translate AR → EN` and `Commit translations back to main` steps from `.github/workflows/deploy.yml`. The build still works; EN pages just show Arabic for empty fields.
+
+**Reviewing & fixing translations:**
+- Every auto-translation lives in `src/content/projects/*.md` under the `en:` field with a sibling `en_auto: true`. You can `grep -r "en_auto: true" src/content/projects/` to find all of them.
+- To fix a wrong translation, edit the project in Decap CMS and fill the English field manually. The script never overwrites a non-empty EN field, so your fix sticks.
+- On the dashboard at `/ar/admin/`, there's a **Translation Helper** widget where staff can paste Arabic and get a quick English preview from MyMemory before saving in Decap — useful for sanity-checking tricky technical terms.
+
+---
+
 ## Local development
 
 ```bash
