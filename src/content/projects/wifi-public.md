@@ -47,10 +47,10 @@ subs:
   - id: wf3
     title:
       ar: "ساحة الجامع الكبير"
-      en: "ساحة الجامع الكبير"
+      en: "Grand Mosque square"
     length:
       ar: "نقطتان"
-      en: "نقطتان"
+      en: "2 hotspots"
     budgetUSD: 2500
     raisedUSD: 400
   - id: wf4

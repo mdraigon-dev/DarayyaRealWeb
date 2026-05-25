@@ -9,21 +9,36 @@
   </style>
 </head>
 <body>
-  <!-- Netlify Identity widget — handles staff login for both Decap CMS and the
-       Council Dashboard. Loading it here ensures the same login session works
-       across both /admin/ (this page) and /ar/admin/ + /en/admin/ (dashboard).
+  <!--
+    IMPORTANT: Keep this URL in sync with src/data/netlify-config.ts
+    (NETLIFY_IDENTITY_URL). This file is plain HTML and can't import the
+    TypeScript config, so the URL is duplicated. If you change the Netlify
+    site name, update both places.
 
-       If you instead chose pure GitHub OAuth (Option A in README), this widget
-       won't be used and you should switch config.yml's backend to 'github' with
-       a custom base_url. -->
+    This is the Netlify-hosted Identity service, which lives separately from
+    the GitHub Pages public site. See netlify-config.ts for setup steps.
+  -->
+  <script>
+    window.netlifyIdentity = window.netlifyIdentity || {};
+    window.netlifyIdentityConfig = { APIUrl: 'https://darayya-platform.netlify.app/.netlify/identity' };
+  </script>
+
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 
   <!-- Decap CMS — friendly admin UI that saves edits back to GitHub -->
   <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
 
   <script>
-    // When a Netlify Identity user logs in to Decap, redirect them to the
-    // dashboard. When they log out, send them to the home page.
+    // Initialize widget with the explicit Identity URL (so it works on GitHub Pages)
+    if (window.netlifyIdentity && typeof window.netlifyIdentity.init === 'function') {
+      try {
+        window.netlifyIdentity.init({ APIUrl: window.netlifyIdentityConfig.APIUrl });
+      } catch (e) {
+        // Already initialized
+      }
+    }
+
+    // When a Netlify Identity user logs in to Decap, send them on with the session.
     if (window.netlifyIdentity) {
       window.netlifyIdentity.on('init', user => {
         if (!user) {

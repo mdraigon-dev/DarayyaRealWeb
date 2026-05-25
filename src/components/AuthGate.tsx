@@ -56,9 +56,16 @@ export default function AuthGate({ lang, children }: Props) {
         return;
       }
 
-      // Initialize the widget
+      // Initialize the widget. If the inline script earlier on the page set
+      // window.netlifyIdentityConfig.APIUrl (because the site is on GitHub Pages
+      // and Identity lives on a Netlify site), pass that explicitly here.
       try {
-        ni.init();
+        const cfg = (window as any).netlifyIdentityConfig;
+        if (cfg && cfg.APIUrl) {
+          ni.init({ APIUrl: cfg.APIUrl });
+        } else {
+          ni.init();
+        }
       } catch (e) {
         // Already initialized, that's fine
       }

@@ -1,14 +1,11 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 
-// IMPORTANT: When deploying to GitHub Pages, replace these with your repo info.
-// For a repo at https://github.com/USERNAME/darayya-platform :
-//   site: 'https://USERNAME.github.io'
-//   base: '/darayya-platform'
-// If you use a custom domain, set `site` to that domain and remove `base`.
+// Deployment config for: https://mdraigon-dev.github.io/DarayyaRealWeb/
+// To redeploy elsewhere, update `site` and `base` to match the new location.
 export default defineConfig({
-  site: 'https://USERNAME.github.io',
-  base: '/darayya-platform',
+  site: 'https://mdraigon-dev.github.io',
+  base: '/DarayyaRealWeb',
   output: 'static',
   trailingSlash: 'always',
 

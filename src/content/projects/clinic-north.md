@@ -38,10 +38,10 @@ subs:
   - id: cl2
     title:
       ar: "تجهيز غرف الفحص"
-      en: "تجهيز غرف الفحص"
+      en: "Equipping examination rooms"
     length:
       ar: "٦ غرف"
-      en: "٦ غرف"
+      en: "6 rooms"
     budgetUSD: 18000
     raisedUSD: 3000
   - id: cl3

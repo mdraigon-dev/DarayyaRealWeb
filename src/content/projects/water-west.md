@@ -38,10 +38,10 @@ subs:
   - id: ww2
     title:
       ar: "محطة الضخ الفرعية"
-      en: "محطة الضخ الفرعية"
+      en: "Sub pumping station"
     length:
       ar: "محطة"
-      en: "محطة"
+      en: "1 station"
     budgetUSD: 10000
     raisedUSD: 1600
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Logo from './Logo';
 import { t, type Lang } from '../i18n/strings';
 
@@ -12,10 +12,30 @@ export default function Nav({ lang, currentPage }: Props) {
 
   // Build paths preserving the current locale and respecting the configured base
   const base = (import.meta as any).env?.BASE_URL ?? '/';
-  const otherLang: Lang = lang === 'ar' ? 'en' : 'ar';
-  const otherLangHref = `${base}${otherLang}/`;
-
   const link = (path: string) => `${base}${lang}${path}`;
+
+  // Track the current path so the language toggle can preserve it
+  // (e.g. /ar/projects/water-east/ ↔ /en/projects/water-east/).
+  // Falls back to home of the other locale during SSR / first paint.
+  const [currentPath, setCurrentPath] = useState<string>(`${base}${lang}/`);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentPath(window.location.pathname);
+    }
+  }, []);
+
+  // Build the AR/EN toggle URLs. Replace the locale segment in the current path;
+  // if the segment isn't present (e.g. on a route without a locale), fall back
+  // to the locale homepage.
+  const swapLocaleHref = (target: Lang): string => {
+    const src = `/${lang}/`;
+    if (currentPath.includes(src)) {
+      return currentPath.replace(src, `/${target}/`);
+    }
+    return `${base}${target}/`;
+  };
+  const arHref = swapLocaleHref('ar');
+  const enHref = swapLocaleHref('en');
 
   const links: Array<{ id: typeof currentPage; label: string; href: string }> = [
     { id: 'home',         label: t(lang, 'nav_home'),         href: link('/') },
@@ -53,8 +73,8 @@ export default function Nav({ lang, currentPage }: Props) {
           ))}
         </div>
         <div className="lang-toggle" title="Language / اللغة">
-          <a className={lang === 'ar' ? 'active' : ''} href={`${base}ar/`}>عر</a>
-          <a className={lang === 'en' ? 'active' : ''} href={`${base}en/`}>EN</a>
+          <a className={lang === 'ar' ? 'active' : ''} href={arHref}>عر</a>
+          <a className={lang === 'en' ? 'active' : ''} href={enHref}>EN</a>
         </div>
         <a className="btn-donate-nav" href={link('/projects/')}>
           {t(lang, 'nav_donate')}

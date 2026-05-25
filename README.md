@@ -83,38 +83,35 @@ If using a custom domain (e.g. `darayya-council.org`):
 
 Both the **Decap CMS editor** at `/admin/` and the **Council Dashboard** at `/ar/admin/` require staff to log in. They share the same login session.
 
-**Recommended setup: Netlify Identity** (5 minutes, no Cloudflare needed)
+**This site is hosted on GitHub Pages**, which doesn't run server-side services. Authentication uses **Netlify Identity** — a free service hosted on Netlify that handles user accounts. You'll set up one tiny Netlify site whose only job is hosting the Identity service. The public site stays on GitHub Pages.
+
+#### One-time setup (~5 min)
 
 1. Sign up at https://netlify.com (free)
-2. Click **Add new site** → **Import from Git** → connect your GitHub repo. Netlify will detect this is an Astro project; the build settings should auto-fill (build command `npm run build`, publish directory `dist`).
-3. After the first Netlify deploy completes, go to **Site settings** → **Identity** → **Enable Identity**
-4. Under **Identity → Registration preferences**, set to **"Invite only"** so random people can't sign up
-5. Under **Identity → Services**, scroll to **Git Gateway** → **Enable Git Gateway**. This is what lets Decap commit content changes back to your GitHub repo.
-6. Under **Identity**, click **Invite users** and add each staff member by email. They'll receive an invite link.
-7. **Use the Netlify URL** (e.g. `your-site.netlify.app`) for the admin features. The GitHub Pages URL will still work for the public site, but authenticated features (Decap, Dashboard) only work through Netlify because that's where Identity is hosted.
+2. Click **Add new site** → **Import from Git** → connect this same GitHub repo (`mdraigon-dev/DarayyaRealWeb`). Netlify will detect Astro and auto-fill build settings. Click Deploy.
+3. Wait ~2 min for the first deploy. Netlify gives you a URL like `https://random-name-12345.netlify.app`.
+4. In Netlify dashboard → **Site settings** → **Site details** → **Change site name** to something stable like `darayya-platform`. URL becomes `https://darayya-platform.netlify.app`.
+5. **Site settings** → **Identity** → **Enable Identity**
+6. **Identity** → **Registration preferences** → set to **"Invite only"**
+7. **Identity** → **Services** → **Git Gateway** → **Enable Git Gateway**
+8. **Identity** → **Invite users** → add each staff member by email
+9. Open `src/data/netlify-config.ts` and confirm `NETLIFY_IDENTITY_URL` matches your Netlify site URL (currently set to `https://darayya-platform.netlify.app`). If you used a different site name in step 4, update this constant **and** the URL in `public/admin/index.html` (both files are commented to remind you they need to match). Commit and push.
 
-**About the dual hosting**: You'll effectively have two URLs for the same site — GitHub Pages (`username.github.io/darayya-platform/`) and Netlify (`your-site.netlify.app`). Both serve identical content. You can:
-- Use **only Netlify** and turn off GitHub Pages — simpler, recommended
-- Or **use both** — GitHub Pages for the public, Netlify for staff
+After that, login on `https://mdraigon-dev.github.io/DarayyaRealWeb/admin/` and `/ar/admin/` and `/en/admin/` will work.
 
-**Alternative: Pure GitHub OAuth** (more complex, no Netlify dependency)
+#### Why this setup?
 
-If you want to avoid Netlify entirely:
-1. Register a GitHub OAuth App at https://github.com/settings/applications/new
-   - Homepage URL: `https://YOUR_USERNAME.github.io/darayya-platform/`
-   - Authorization callback URL: `https://YOUR_WORKER.workers.dev/callback`
-2. Deploy a Cloudflare Worker OAuth handler — there's a one-click template at https://github.com/sterlingwes/cloudflare-decap-oauth
-3. Update `public/admin/config.yml`:
-   ```yaml
-   backend:
-     name: github
-     repo: YOUR_USERNAME/darayya-platform
-     branch: main
-     base_url: https://YOUR_WORKER.workers.dev
-   ```
-4. The Council Dashboard's auth won't work with this setup out of the box — it expects Netlify Identity. You'd need a separate auth mechanism (e.g., a check against a hardcoded list of authorized GitHub usernames after they sign in to Decap).
+GitHub Pages serves static files only — there's no `/.netlify/identity` endpoint. The Netlify Identity widget tries to auto-detect that URL from `window.location.origin`, which on GitHub Pages resolves wrong and produces the error: *"Failed to load settings from /.netlify/identity"*. Our admin pages set `window.netlifyIdentityConfig.APIUrl` to point at the Netlify site explicitly, fixing the error.
 
-**Recommendation**: Use Netlify Identity unless you have a specific reason not to. It's free, takes 5 minutes, and the dashboard auth works automatically.
+---
+
+### Step 5 — Push the workflow file
+
+The `.github/workflows/deploy.yml` file is included in the repo. **If you push with a Personal Access Token (PAT), the PAT must have the `workflow` scope** — otherwise GitHub rejects the push with:
+
+> refusing to allow a Personal Access Token to create or update workflow `.github/workflows/deploy.yml` without `workflow` scope
+
+To fix: regenerate your PAT with `workflow` scope checked, or use SSH/`gh auth login`. After the first successful push, the workflow auto-deploys on every push to `main`.
 
 ---
 

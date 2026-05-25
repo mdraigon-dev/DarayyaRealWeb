@@ -4,6 +4,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AdminDashboard from '../../../components/AdminDashboard.tsx';
 import AuthGate from '../../../components/AuthGate.tsx';
 import { t } from '../../../i18n/strings';
+import { NETLIFY_IDENTITY_URL } from '../../../data/netlify-config';
 
 const projects = await getCollection('projects');
 const projectData = projects.map(p => p.data).sort((a, b) => a.order - b.order);
@@ -19,6 +20,13 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
   lang={lang}
   currentPage="admin"
 >
+  <script is:inline define:vars={{ NETLIFY_IDENTITY_URL }}>
+    window.netlifyIdentityConfig = window.netlifyIdentityConfig || {};
+    if (NETLIFY_IDENTITY_URL) {
+      window.netlifyIdentityConfig.APIUrl = NETLIFY_IDENTITY_URL + '/.netlify/identity';
+    }
+  </script>
+
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
 
   <AuthGate lang={lang} client:only="react">
