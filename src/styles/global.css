@@ -1515,6 +1515,60 @@ html[dir="ltr"] .project-card-urgent-badge {
 .photo-status-badge.stalled { background: rgba(206,17,38,0.92); }
 .photo-status-badge.completed { background: rgba(70,70,70,0.85); }
 
+/* "ILLUSTRATIVE" badge — permanently visible on Unsplash stock photos.
+   Non-dismissible by design: viewers must always know these aren't real
+   project photos. Bold red so it can't be missed. */
+.photo-illustrative-badge {
+  position: absolute;
+  top: 0.75rem; left: 0.75rem;
+  padding: 4px 9px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: white;
+  background: rgba(206, 17, 38, 0.92); /* Syrian red for high contrast */
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  z-index: 3; /* above the status badge if they overlap */
+  cursor: help;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+html[dir="rtl"] .photo-illustrative-badge {
+  left: auto; right: 0.75rem;
+}
+html[dir="rtl"] .photo-status-badge {
+  right: auto; left: 0.75rem;
+}
+
+/* Photo credits footer beneath the gallery */
+.photo-credits {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--sy-paper-pure);
+  border: 1px dashed var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  color: var(--sy-ink-soft);
+  line-height: 1.7;
+}
+.photo-credits-policy {
+  margin: 0 0 0.5rem 0;
+  color: var(--sy-ink-soft);
+  font-style: italic;
+}
+.photo-credits-list {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sy-muted);
+}
+.photo-credits-list a {
+  color: var(--sy-green-dk);
+  text-decoration: underline;
+  font-weight: 600;
+}
+.photo-credits-list a:hover { color: var(--sy-green); }
+
 /* Health status pill on project detail */
 .health-pill {
   display: inline-flex; align-items: center; gap: 0.4rem;

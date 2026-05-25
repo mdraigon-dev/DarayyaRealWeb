@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { t, type Lang } from '../i18n/strings';
+import { pickPhoto, unsplashUrl, type SceneType as USceneType } from '../data/unsplash-photos';
 
 type SceneType = 'road' | 'water' | 'sewer' | 'light' | 'internet' | 'building' | 'park';
 type Status = 'healthy' | 'warning' | 'stalled' | 'completed';
@@ -10,6 +12,10 @@ type Props = {
   caption: string;
   date: string;
   lang: Lang;
+  /** Used to pick a stable Unsplash photo per project. Falls back to scene if absent. */
+  projectId?: string;
+  /** Position of this photo within the project's photo list, for variety. */
+  photoIndex?: number;
 };
 
 const TINTS: Record<Status, { sky1: string; sky2: string; ground: string; mood: string }> = {
@@ -19,8 +25,22 @@ const TINTS: Record<Status, { sky1: string; sky2: string; ground: string; mood: 
   completed: { sky1: '#B8C5BE', sky2: '#8FA39A', ground: '#A8A095', mood: '#D8D2C0' },
 };
 
-export default function ProjectPhoto({ scene, src, status, caption, date, lang }: Props) {
-  // Prefer uploaded image if provided
+const ILLUSTRATIVE_LABEL: Record<Lang, string> = {
+  ar: 'صورة توضيحية',
+  en: 'ILLUSTRATIVE',
+};
+
+export default function ProjectPhoto({
+  scene,
+  src,
+  status,
+  caption,
+  date,
+  lang,
+  projectId,
+  photoIndex = 0,
+}: Props) {
+  // Prefer uploaded image if provided — no illustrative badge needed for real photos
   if (src) {
     return (
       <div className="photo-card">
@@ -37,43 +57,129 @@ export default function ProjectPhoto({ scene, src, status, caption, date, lang }
     );
   }
 
-  // Otherwise, generated scene
-  const sceneKey = scene || 'building';
-  const tint = TINTS[status];
+  // Try Unsplash — but if there's no verified photo for this scene, or if
+  // the photo fails to load (broken hash, offline), fall back to the
+  // generated SVG scene.
+  const sceneKey: SceneType = scene || 'building';
+  const photo = pickPhoto(projectId || sceneKey, sceneKey as USceneType, photoIndex);
+
+  // If no Unsplash photo for this scene type yet, show the SVG scene
+  // (no illustrative badge needed — abstract SVGs aren't claiming to be real)
+  if (!photo) {
+    return (
+      <div className="photo-card">
+        <span className={`photo-status-badge ${status}`}>{t(lang, `photo_status_${status}` as any)}</span>
+        <GeneratedScene sceneKey={sceneKey} status={status} />
+        <div className="photo-meta">
+          <div className="photo-caption">{caption}</div>
+          <div className="photo-date">
+            <span>{date}</span>
+            <span style={{ color: 'var(--sy-gold)', fontWeight: 600 }}>{t(lang, 'photo_caption_credit')}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <UnsplashOrFallback
+      photo={photo}
+      sceneKey={sceneKey}
+      status={status}
+      caption={caption}
+      date={date}
+      lang={lang}
+    />
+  );
+}
+
+/**
+ * Renders an Unsplash photo with an unmissable "ILLUSTRATIVE" badge.
+ * If the photo fails to load, falls back to the generated SVG scene.
+ */
+function UnsplashOrFallback({
+  photo,
+  sceneKey,
+  status,
+  caption,
+  date,
+  lang,
+}: {
+  photo: NonNullable<ReturnType<typeof pickPhoto>>;
+  sceneKey: SceneType;
+  status: Status;
+  caption: string;
+  date: string;
+  lang: Lang;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <div className="photo-card">
       <span className={`photo-status-badge ${status}`}>{t(lang, `photo_status_${status}` as any)}</span>
-      <svg className="photo-scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
-        <defs>
-          <linearGradient id={`sky-${sceneKey}-${status}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={tint.sky1} />
-            <stop offset="100%" stopColor={tint.sky2} />
-          </linearGradient>
-        </defs>
-        <rect width="320" height="120" fill={`url(#sky-${sceneKey}-${status})`} />
-        <circle cx="260" cy="40" r="22" fill={tint.mood} opacity="0.7" />
-        <circle cx="260" cy="40" r="14" fill={tint.mood} />
-        <path d="M 0 80 L 40 55 L 70 70 L 110 45 L 150 65 L 200 50 L 250 70 L 320 60 L 320 120 L 0 120 Z" fill="rgba(0, 88, 44, 0.18)" />
-        <path d="M 0 95 L 50 75 L 100 90 L 160 72 L 220 88 L 280 78 L 320 85 L 320 120 L 0 120 Z" fill="rgba(0, 88, 44, 0.3)" />
-        <rect x="0" y="120" width="320" height="60" fill={tint.ground} />
 
-        {sceneKey === 'road' && <RoadScene status={status} />}
-        {sceneKey === 'water' && <WaterScene status={status} />}
-        {sceneKey === 'sewer' && <SewerScene status={status} />}
-        {sceneKey === 'light' && <LightScene status={status} />}
-        {sceneKey === 'internet' && <InternetScene status={status} />}
-        {sceneKey === 'building' && <BuildingScene status={status} />}
-        {sceneKey === 'park' && <ParkScene status={status} />}
-      </svg>
+      {/* Persistent ILLUSTRATIVE badge — non-dismissible, top-left */}
+      <span className="photo-illustrative-badge" title={lang === 'ar'
+        ? 'هذه ليست صورة من داريّا — صورة توضيحية من مكتبة Unsplash'
+        : 'This is not a Darayya photo — illustrative stock image from Unsplash'}>
+        ★ {ILLUSTRATIVE_LABEL[lang]}
+      </span>
+
+      {!imgFailed ? (
+        <img
+          className="photo-scene"
+          src={unsplashUrl(photo)}
+          alt={`${caption} (${ILLUSTRATIVE_LABEL[lang]})`}
+          style={{ width: '100%', height: 180, objectFit: 'cover' }}
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        // Fallback: generated SVG scene if Unsplash photo failed to load
+        <GeneratedScene sceneKey={sceneKey} status={status} />
+      )}
+
       <div className="photo-meta">
         <div className="photo-caption">{caption}</div>
         <div className="photo-date">
           <span>{date}</span>
-          <span style={{ color: 'var(--sy-gold)', fontWeight: 600 }}>{t(lang, 'photo_caption_credit')}</span>
+          <span style={{ color: 'var(--sy-muted)', fontSize: '11px' }}>
+            📷 {photo.photographer} · Unsplash
+          </span>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Generated SVG scene — kept as a fallback for when Unsplash photos can't load.
+ * (Previously this was the default visualization.)
+ */
+function GeneratedScene({ sceneKey, status }: { sceneKey: SceneType; status: Status }) {
+  const tint = TINTS[status];
+  return (
+    <svg className="photo-scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id={`sky-${sceneKey}-${status}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={tint.sky1} />
+          <stop offset="100%" stopColor={tint.sky2} />
+        </linearGradient>
+      </defs>
+      <rect width="320" height="120" fill={`url(#sky-${sceneKey}-${status})`} />
+      <circle cx="260" cy="40" r="22" fill={tint.mood} opacity="0.7" />
+      <circle cx="260" cy="40" r="14" fill={tint.mood} />
+      <path d="M 0 80 L 40 55 L 70 70 L 110 45 L 150 65 L 200 50 L 250 70 L 320 60 L 320 120 L 0 120 Z" fill="rgba(0, 88, 44, 0.18)" />
+      <path d="M 0 95 L 50 75 L 100 90 L 160 72 L 220 88 L 280 78 L 320 85 L 320 120 L 0 120 Z" fill="rgba(0, 88, 44, 0.3)" />
+      <rect x="0" y="120" width="320" height="60" fill={tint.ground} />
+      {sceneKey === 'road' && <RoadScene status={status} />}
+      {sceneKey === 'water' && <WaterScene status={status} />}
+      {sceneKey === 'sewer' && <SewerScene status={status} />}
+      {sceneKey === 'light' && <LightScene status={status} />}
+      {sceneKey === 'internet' && <InternetScene status={status} />}
+      {sceneKey === 'building' && <BuildingScene status={status} />}
+      {sceneKey === 'park' && <ParkScene status={status} />}
+    </svg>
   );
 }
 

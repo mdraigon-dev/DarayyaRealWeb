@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
+import { pickPhoto } from '../data/unsplash-photos';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
 type Bilingual = { ar: string; en: string };
@@ -147,9 +148,17 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                     caption={loc(lang, photo.caption)}
                     date={loc(lang, photo.date)}
                     lang={lang}
+                    projectId={project.id}
+                    photoIndex={i}
                   />
                 ))}
               </div>
+              {/* Credits footer — explains the illustrative photo policy */}
+              <PhotoCreditsFooter
+                photos={project.photos}
+                projectId={project.id}
+                lang={lang}
+              />
             </div>
           )}
 
@@ -204,4 +213,68 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
       </div>
     </section>
   );
+}
+
+/**
+ * Photo credits footer — shown beneath the photo grid when Unsplash photos
+ * are in use. Makes the illustrative-photo policy clear to visitors and
+ * credits the photographers (a courtesy beyond the Unsplash license terms).
+ */
+function PhotoCreditsFooter({
+  photos,
+  projectId,
+  lang,
+}: {
+  photos: Photo[];
+  projectId: string;
+  lang: Lang;
+}) {
+  // Import the helper to gather credits
+  // (top-level import would be circular-ish for typings; inline import is cleaner)
+  const credits = gatherCreditsLocal(photos, projectId);
+  if (credits.length === 0) return null;
+
+  return (
+    <div className="photo-credits">
+      <p className="photo-credits-policy">
+        {lang === 'ar'
+          ? '★ هذه الصور توضيحية من مكتبة Unsplash المجانية، لا تمثّل مواقع المشاريع الفعلية. سيتم استبدالها بصور حقيقية من الميدان عندما يرفعها المجلس عبر لوحة الإدارة.'
+          : '★ These are illustrative stock photos from Unsplash, not real photos of the project sites. They will be replaced with actual field photos when the council uploads them via the admin panel.'}
+      </p>
+      <p className="photo-credits-list">
+        {lang === 'ar' ? 'تصوير: ' : 'Photos by: '}
+        {credits.map((c, i) => (
+          <span key={c.hash}>
+            <a href={c.link} target="_blank" rel="noopener noreferrer">
+              {c.photographer}
+            </a>
+            {i < credits.length - 1 ? ', ' : ''}
+          </span>
+        ))}
+        {' · '}
+        <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer">Unsplash</a>
+      </p>
+    </div>
+  );
+}
+
+// Local helper to gather credits.
+// Mirrors gatherCredits in data/unsplash-photos.ts but uses inline type.
+function gatherCreditsLocal(
+  photos: Photo[],
+  projectId: string,
+): Array<{ hash: string; photographer: string; link: string }> {
+  const seen = new Set<string>();
+  const credits: Array<{ hash: string; photographer: string; link: string }> = [];
+  photos.forEach((p, i) => {
+    if (p.src) return;
+    if (!p.scene) return;
+    const photo = pickPhoto(projectId, p.scene as any, i);
+    if (!photo) return; // No Unsplash photo for this scene — nothing to credit
+    if (!seen.has(photo.hash)) {
+      seen.add(photo.hash);
+      credits.push(photo);
+    }
+  });
+  return credits;
 }
