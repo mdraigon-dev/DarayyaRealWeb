@@ -732,6 +732,327 @@ html[dir="ltr"] .project-card-urgent-badge {
 .donate-options a { color: var(--sy-green-dk); cursor: pointer; font-weight: 600; }
 .donate-options a:hover { text-decoration: underline; }
 
+/* Demo Mode note under donate button */
+.donate-demo-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  font-style: italic;
+  font-size: 12px;
+}
+.donate-demo-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  background: #FFF3C4;
+  color: #6A5018;
+  border: 1px solid #E8C547;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-style: normal;
+}
+.donate-reset-row {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--sy-rule-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 12px;
+  color: var(--sy-muted);
+  text-align: center;
+}
+.donate-reset-btn {
+  border: 1px solid var(--sy-rule-soft);
+  background: transparent;
+  color: var(--sy-ink-soft);
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+  font-family: inherit;
+}
+.donate-reset-btn:hover {
+  border-color: var(--sy-red);
+  color: var(--sy-red);
+  background: rgba(206, 17, 38, 0.05);
+}
+
+/* ====================================================================
+   DEMO DONATION MODAL
+   Match the public site's visual language: Syrian green/gold,
+   the same paper background, same rounded corners.
+   ==================================================================== */
+
+.donate-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+  animation: donateBackdropFade 200ms ease;
+}
+@keyframes donateBackdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.donate-modal {
+  position: relative;
+  background: var(--sy-paper);
+  border-radius: var(--r-lg);
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(201, 161, 74, 0.2);
+  animation: donateModalSlide 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes donateModalSlide {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Demo Mode banner — bright, non-dismissible, top of modal */
+.donate-modal-demo-banner {
+  background: linear-gradient(135deg, #FFE89A 0%, #FFD86E 100%);
+  color: #6A5018;
+  padding: 0.75rem 1.25rem;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border-bottom: 2px solid #C9A14A;
+  line-height: 1.5;
+}
+
+.donate-modal-close {
+  position: absolute;
+  top: 3.5rem;
+  inset-inline-end: 0.85rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--sy-rule-soft);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  color: var(--sy-ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 140ms ease;
+  z-index: 2;
+}
+.donate-modal-close:hover {
+  background: var(--sy-red);
+  color: white;
+  border-color: var(--sy-red);
+}
+
+.donate-modal form {
+  padding: 1.5rem 1.75rem 1.75rem;
+}
+
+.donate-modal-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.25rem;
+  color: var(--sy-green-dk);
+  font-weight: 700;
+  line-height: 1.4;
+  padding-inline-end: 2.5rem; /* keep clear of close button */
+}
+.donate-modal-project {
+  color: var(--sy-gold-dk);
+  display: inline-block;
+}
+
+.donate-modal-section {
+  margin-bottom: 1.25rem;
+}
+.donate-modal-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sy-green-dk);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.donate-modal-label-small {
+  display: block;
+  font-size: 12px;
+  color: var(--sy-muted);
+  margin: 0.5rem 0 0.35rem;
+}
+
+.donate-modal-amount-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 0.4rem;
+}
+.donate-modal-amount-chip {
+  padding: 0.65rem 0.5rem;
+  border: 2px solid var(--sy-rule-soft);
+  background: var(--sy-paper-pure);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sy-green-dk);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.donate-modal-amount-chip:hover {
+  border-color: var(--sy-gold);
+  transform: translateY(-1px);
+}
+.donate-modal-amount-chip.active {
+  border-color: var(--sy-green-dk);
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  box-shadow: 0 4px 10px rgba(0, 88, 44, 0.25);
+}
+
+.donate-modal-custom-row {
+  margin-top: 0.5rem;
+}
+.donate-modal-custom-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.donate-modal-currency-prefix {
+  position: absolute;
+  inset-inline-start: 0.85rem;
+  color: var(--sy-muted);
+  font-weight: 600;
+  pointer-events: none;
+}
+.donate-modal-custom-input input {
+  width: 100%;
+  padding: 0.65rem 0.85rem 0.65rem 2rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--sy-ink);
+  background: var(--sy-paper-pure);
+}
+.donate-modal-custom-input input:focus {
+  outline: none;
+  border-color: var(--sy-green);
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
+}
+html[dir="rtl"] .donate-modal-custom-input input {
+  padding: 0.65rem 2rem 0.65rem 0.85rem;
+}
+
+.donate-modal-select,
+.donate-modal-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--sy-ink);
+  background: var(--sy-paper-pure);
+  box-sizing: border-box;
+}
+.donate-modal-select:focus,
+.donate-modal-input:focus {
+  outline: none;
+  border-color: var(--sy-green);
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
+}
+
+.donate-modal-submit {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  border: none;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+  letter-spacing: 0.02em;
+}
+.donate-modal-submit:hover:not(:disabled) {
+  background: var(--sy-green);
+  box-shadow: var(--shadow-gold);
+  transform: translateY(-2px);
+}
+.donate-modal-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.donate-modal-footnote {
+  margin: 0.85rem 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--sy-muted);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Success state inside the modal */
+.donate-modal-success {
+  padding: 2.5rem 1.75rem;
+  text-align: center;
+}
+.donate-modal-success-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 1rem;
+  background: var(--sy-green);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 122, 61, 0.3);
+  animation: donateSuccessPop 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes donateSuccessPop {
+  from { transform: scale(0.2); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.donate-modal-success h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: var(--sy-green-dk);
+}
+.donate-modal-success-name {
+  color: var(--sy-gold-dk);
+}
+.donate-modal-success p {
+  margin: 0.4rem 0;
+  color: var(--sy-ink-soft);
+  line-height: 1.6;
+}
+.donate-modal-success-hint {
+  font-size: 12px !important;
+  color: var(--sy-muted) !important;
+  font-style: italic;
+  margin-top: 0.85rem !important;
+}
+
 /* Updates timeline */
 .timeline { margin-top: 2rem; }
 .update {

@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
+import DonationModal from './DonationModal';
 import { pickPhoto } from '../data/unsplash-photos';
+import { sumForProject, clearAllDonations } from '../data/demo-donations';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
 type Bilingual = { ar: string; en: string };
@@ -62,7 +64,37 @@ type Props = {
 
 export default function ProjectDetailContent({ project, lang, basePath }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
-  const pct = Math.round((project.raisedUSD / project.budgetUSD) * 100);
+  const [modalOpen, setModalOpen] = useState(false);
+  // Track demo donations: amount and count contributed via localStorage on this device
+  const [demoDelta, setDemoDelta] = useState<{ amount: number; count: number }>({ amount: 0, count: 0 });
+
+  // Load demo donation totals after mount (localStorage isn't available during SSR)
+  useEffect(() => {
+    setDemoDelta(sumForProject(project.id));
+  }, [project.id]);
+
+  // Displayed values include the original raised + this browser's demo donations
+  const displayedRaised = project.raisedUSD + demoDelta.amount;
+  const displayedDonors = project.donors + demoDelta.count;
+  const pct = Math.min(
+    100,
+    Math.round((displayedRaised / Math.max(1, project.budgetUSD)) * 100)
+  );
+
+  const refreshDemoDelta = () => {
+    setDemoDelta(sumForProject(project.id));
+  };
+
+  const handleResetDemo = () => {
+    if (typeof window === 'undefined') return;
+    const confirmMsg = lang === 'ar'
+      ? 'هل تريد حذف جميع التبرعات التجريبية من هذا الجهاز؟'
+      : 'Clear all demo donations from this device?';
+    if (window.confirm(confirmMsg)) {
+      clearAllDonations();
+      refreshDemoDelta();
+    }
+  };
 
   return (
     <section className="section">
@@ -244,7 +276,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
           <div className="donate-card">
             <h3>{t(lang, 'donate_title')}</h3>
             <div className="donate-stat">
-              <div className="donate-stat-big">{fmtMoney(lang, currency, project.raisedUSD)}</div>
+              <div className="donate-stat-big">{fmtMoney(lang, currency, displayedRaised)}</div>
               <div className="donate-stat-of">
                 {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, project.budgetUSD)}</strong>
               </div>
@@ -255,22 +287,58 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 <div className="progress-meta">
                   <span className="progress-percent">{fmtNum(lang, pct)}%</span>
                   <span className="progress-amount">
-                    {fmtNum(lang, project.donors)} {project.donors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
+                    {fmtNum(lang, displayedDonors)}{' '}
+                    {displayedDonors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
                   </span>
                 </div>
               </div>
             </div>
 
-            <button className="btn-donate-full" disabled>
+            <button
+              className="btn-donate-full"
+              onClick={() => setModalOpen(true)}
+            >
               {t(lang, 'donate_btn')}
             </button>
 
-            <div className="donate-options">
-              {t(lang, 'donate_coming_soon')}
+            <div className="donate-options donate-demo-note">
+              <span className="donate-demo-pill">★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}</span>{' '}
+              {lang === 'ar'
+                ? 'التبرعات تُحفظ في متصفحك فقط — للعرض التجريبي'
+                : 'Donations are saved in your browser only — for demonstration'}
             </div>
+
+            {demoDelta.amount > 0 && (
+              <div className="donate-reset-row">
+                <span className="donate-reset-note">
+                  {lang === 'ar'
+                    ? `أضفت ${fmtMoney(lang, currency, demoDelta.amount)} تجريبياً (${fmtNum(lang, demoDelta.count)} تبرع)`
+                    : `You've added ${fmtMoney(lang, currency, demoDelta.amount)} in demo donations (${fmtNum(lang, demoDelta.count)})`}
+                </span>
+                <button
+                  type="button"
+                  className="donate-reset-btn"
+                  onClick={handleResetDemo}
+                >
+                  ↺ {lang === 'ar' ? 'إعادة تعيين' : 'Reset'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Demo donation modal */}
+      <DonationModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onDonated={refreshDemoDelta}
+        projectId={project.id}
+        projectTitle={project.title}
+        subs={project.subs}
+        lang={lang}
+        currency={currency}
+      />
     </section>
   );
 }
