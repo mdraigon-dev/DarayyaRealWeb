@@ -4,6 +4,13 @@ import { adminData } from '../data/admin-sample';
 import { loadDonations, type DemoDonation } from '../data/demo-donations';
 import { applyDemoToProjects, displayStatus } from '../data/donation-math';
 import { buildActivityFeed } from '../data/activity-feed';
+import { classifyUser, canPost, type AuthUser } from '../data/permissions';
+
+declare global {
+  interface Window {
+    netlifyIdentity: any;
+  }
+}
 
 type Bilingual = { ar: string; en: string };
 type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
@@ -35,6 +42,40 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   const lang: Lang = urlLang;
 
   const [currency] = useState<'USD' | 'SYP'>('USD');
+
+  // Authentication state — used to gate the Project Management section.
+  // The public top half of the dashboard (hero stats, chart, recent
+  // donations, top donors, activity log) stays visible to everyone;
+  // only the admin-tool table at the bottom is gated.
+  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    let tries = 0;
+    const init = () => {
+      if (cancelled) return;
+      const ni = window.netlifyIdentity;
+      if (!ni) {
+        tries++;
+        if (tries < 40) setTimeout(init, 100);
+        else setAuthUser(null);
+        return;
+      }
+      try { ni.init(); } catch {}
+      setAuthUser(ni.currentUser() || null);
+      ni.on('login', (u: any) => setAuthUser(u));
+      ni.on('logout', () => setAuthUser(null));
+    };
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Anyone classified as 'admin' OR 'engineer-of-project' may see and
+  // use the Project Management section. (We pass [] for engineers since
+  // this dashboard is project-list-level, not single-project. Engineers
+  // who are signed in but aren't admin can't see the table here — they
+  // operate via the inline forms on their own project pages.)
+  const dashboardRole = classifyUser(authUser, []);
+  const canSeePM = dashboardRole === 'admin';
   const { donations: sampleDonations, alerts, activities: sampleActivities, topDonors, weekData: sampleWeekData } = adminData(lang);
 
   // Load demo donations on mount. The dashboard reads them in three ways:
@@ -474,7 +515,12 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
         </div>
       </div>
 
-      {/* Project management — fast access to Decap CMS for editing */}
+      {/* Project management — admin-only, hidden until authenticated.
+          Public visitors don't need the edit/view actions, search/filter
+          toolbar, or "+ New project" link. When not logged in, we show
+          a small banner with a Login button instead. */}
+      {canSeePM ? (
+        <>
       <div className="section-header" style={{ marginTop: '0.5rem' }}>
         <h2 className="section-title" style={{ fontSize: '1.6rem' }}>{t(lang, 'admin_manage')}</h2>
         <p className="section-desc" style={{ fontSize: '1rem' }}>
@@ -624,6 +670,34 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
           <li>{t(lang, 'admin_help_new')}</li>
         </ul>
       </div>
+        </>
+      ) : authUser === undefined ? null : (
+        // Authenticated check finished, user is anonymous (or non-admin) —
+        // show a locked banner explaining the gate.
+        <div className="admin-pm-locked">
+          <div className="admin-pm-locked-icon">🔒</div>
+          <div className="admin-pm-locked-body">
+            <strong>
+              {lang === 'ar' ? 'إدارة المشاريع — للمسؤولين فقط' : 'Project Management — admins only'}
+            </strong>
+            <p>
+              {lang === 'ar'
+                ? 'هذا القسم يحتوي على أدوات تحرير المشاريع وإنشاء مشاريع جديدة، متاح فقط لأعضاء المجلس. سجّل دخولك لرؤيته.'
+                : 'This section contains the project editor and new-project tools, available to council members only. Sign in to see it.'}
+            </p>
+            <button
+              type="button"
+              className="admin-pm-locked-btn"
+              onClick={() => {
+                const ni = window.netlifyIdentity;
+                if (ni && ni.open) ni.open('login');
+              }}
+            >
+              {lang === 'ar' ? '🔑 تسجيل الدخول' : '🔑 Sign in'}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

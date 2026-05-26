@@ -4715,3 +4715,163 @@ input[type="number"] {
   padding-top: 3rem;
   padding-bottom: 3rem;
 }
+
+/* ====================================================================
+   NAV AUTH BUTTON / CHIP
+   - Login button (anonymous): subtle outlined button between lang toggle
+     and the donate CTA. Small, low-emphasis — it's a secondary action
+     for staff, not the primary CTA.
+   - Auth chip (logged in): an avatar circle + first name + a small
+     logout icon. Same overall size as the Login button so the nav
+     doesn't reflow when state changes.
+   Both are hidden during the brief loading window so we don't flash
+   "Login" to an authenticated user.
+   ==================================================================== */
+.nav-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.95rem;
+  background: transparent;
+  color: var(--sy-green-dk);
+  border: 1px solid var(--sy-green-lt);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+  white-space: nowrap;
+  line-height: 1;
+}
+.nav-auth-btn:hover {
+  background: var(--sy-green-pale);
+  border-color: var(--sy-green-dk);
+}
+.nav-auth-btn:focus-visible {
+  outline: 2px solid var(--sy-green);
+  outline-offset: 2px;
+}
+.nav-auth-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.nav-auth-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.3rem;
+  background: var(--sy-green-pale);
+  border: 1px solid var(--sy-green-lt);
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.nav-auth-chip-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.nav-auth-chip-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sy-green-dk);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-auth-chip-logout {
+  background: transparent;
+  border: none;
+  color: var(--sy-green-dk);
+  font-size: 14px;
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+  border-radius: 999px;
+  opacity: 0.6;
+  transition: all 160ms ease;
+  line-height: 1;
+}
+.nav-auth-chip-logout:hover {
+  opacity: 1;
+  background: rgba(206, 17, 38, 0.1);
+  color: var(--sy-red);
+}
+
+/* On small screens, hide the user's name but keep the avatar + logout */
+@media (max-width: 720px) {
+  .nav-auth-chip-name { display: none; }
+}
+
+/* ====================================================================
+   LOCKED PROJECT MANAGEMENT BANNER
+   Shown on the dashboard when an anonymous (or non-admin) user reaches
+   the spot where the Project Management table would normally appear.
+   Explains the gate and offers a Sign in button.
+   ==================================================================== */
+.admin-pm-locked {
+  margin: 2rem 0 1rem;
+  padding: 2rem 1.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  background: linear-gradient(135deg, var(--sy-paper-pure) 0%, var(--sy-gold-wash) 100%);
+  border: 1px dashed var(--sy-gold);
+  border-radius: var(--r-md);
+}
+.admin-pm-locked-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: saturate(0.8);
+}
+.admin-pm-locked-body { flex: 1; }
+.admin-pm-locked-body strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--sy-green-dk);
+  margin-bottom: 0.5rem;
+}
+.admin-pm-locked-body p {
+  margin: 0 0 1rem;
+  color: var(--sy-ink-soft);
+  line-height: 1.7;
+}
+.admin-pm-locked-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.4rem;
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.admin-pm-locked-btn:hover {
+  background: var(--sy-green);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 88, 44, 0.3);
+}
+
+@media (max-width: 600px) {
+  .admin-pm-locked {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
