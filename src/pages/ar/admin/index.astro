@@ -18,14 +18,6 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
   lang={lang}
   currentPage="admin"
 >
-  {/*
-    Per user request: AuthGate removed. Dashboard is now publicly viewable.
-    Editing actions still require Decap CMS login at /admin/.
-
-    NOTE: Sensitive data (donor names, amounts, alert notes) used to be hidden
-    behind auth. Now they will be visible to anyone with the dashboard URL.
-    Current data is sample/illustrative; when v2 adds real donations, revisit
-    this decision so real financial info isn't exposed.
-  */}
+  {/* Dashboard is public. Editing actions require Decap CMS login. */}
   <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:load />
 </BaseLayout>

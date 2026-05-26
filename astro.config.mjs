@@ -1,11 +1,16 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 
-// Deployment config for: https://mdraigon-dev.github.io/DarayyaRealWeb/
-// To redeploy elsewhere, update `site` and `base` to match the new location.
+// Deployment config for Netlify.
+// Netlify serves the site at the domain root (e.g. https://your-site.netlify.app/),
+// so we don't need a `base` path prefix.
+//
+// If you ever switch to GitHub Pages, change to:
+//   site: 'https://USERNAME.github.io',
+//   base: '/REPO_NAME',
 export default defineConfig({
-  site: 'https://mdraigon-dev.github.io',
-  base: '/DarayyaRealWeb',
+  site: 'https://luminous-sunshine-7432ff.netlify.app',
+  // No base path — Netlify serves from the root.
   output: 'static',
   trailingSlash: 'always',
 

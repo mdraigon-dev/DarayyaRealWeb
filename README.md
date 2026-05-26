@@ -17,138 +17,94 @@ Three things in one repo:
 Both staff pages share the same login session. Staff log in once and can use both.
 
 When staff edit a project in Decap and click "Publish":
-- Decap commits the change to GitHub
-- GitHub Actions rebuilds the site automatically
+When staff edit a project in Decap and click "Publish":
+- Decap commits the change to GitHub via Git Gateway
+- Netlify rebuilds the site automatically
 - The public site updates in about 60 seconds
 
 ## Authentication model
 
-The dashboard and CMS use **Netlify Identity** for login. This is a free service that handles user accounts, password resets, and session management without requiring you to run a server.
+The dashboard and CMS use **Netlify Identity** for login (configured in the Netlify dashboard, see Step 4 below).
 
-**Security note**: The dashboard's auth check happens client-side because GitHub Pages can only serve static HTML. Sample dashboard data (donor names, donation amounts, activity log) is **only loaded after authentication** — it's not in the static HTML that visitors can view-source. However, this protection level is appropriate for v1 because the data is illustrative sample data anyway. When v2 adds real donation processing, that data must come from a backend API that does proper server-side authorization — never embed real financial data in static HTML.
+The dashboard at `/ar/admin/` is publicly viewable — anyone can see the project list, donations feed, and activity. Editing actions (✎ Edit, + New Project) link to Decap CMS at `/admin/`, which requires login.
+
+When v2 adds real donation processing, the dashboard should be moved behind authentication and real financial data should come from a backend API — never embed real financial data in static HTML.
 
 ---
 
-## Quick deploy guide (for Claude Code or manual setup)
+## Quick deploy guide (Netlify)
 
-### Step 1 — Create the GitHub repository
+This site deploys to **Netlify**. One platform, one URL — simpler than dual-hosting.
+
+### Step 1 — Push the code to GitHub
 
 ```bash
 # From inside this folder
 git init -b main
 git add .
-git commit -m "Initial commit: Darayya platform v1"
+git commit -m "Initial commit: Darayya platform"
 gh repo create darayya-platform --public --source=. --remote=origin --push
 ```
 
 Or, if not using the `gh` CLI:
 1. Go to https://github.com/new
-2. Create a repo named **`darayya-platform`** (public, no README/gitignore/license — we have them)
+2. Create a public repo
 3. Run:
    ```bash
    git init -b main
-   git remote add origin https://github.com/YOUR_USERNAME/darayya-platform.git
+   git remote add origin https://github.com/YOUR_USERNAME/REPO_NAME.git
    git add . && git commit -m "Initial commit"
    git push -u origin main
    ```
 
-### Step 2 — Replace placeholders
-
-Before the first deploy, replace `YOUR_GITHUB_USERNAME` and `USERNAME` in these files:
-
-- **`astro.config.mjs`** — update `site` and `base`:
-  ```js
-  site: 'https://YOUR_USERNAME.github.io',
-  base: '/darayya-platform',
-  ```
-
-- **`public/admin/config.yml`** — update the `backend.repo`:
-  ```yaml
-  repo: YOUR_USERNAME/darayya-platform
-  ```
-
-If using a custom domain (e.g. `darayya-council.org`):
-- Set `site` to `https://darayya-council.org`
-- Remove or set `base: '/'`
-- Add a `CNAME` file in `public/` with just the domain name
-
-### Step 3 — Enable GitHub Pages
-
-1. Go to your repo on GitHub → **Settings** → **Pages**
-2. Under **Source**, select **GitHub Actions** (not "Deploy from branch")
-3. Push any commit to `main` — the included workflow (`.github/workflows/deploy.yml`) will build and deploy automatically.
-4. First build takes ~2 minutes. After that, the URL is live.
-
-### Step 4 — Set up authentication (required for admin login)
-
-Both the **Decap CMS editor** at `/admin/` and the **Council Dashboard** at `/ar/admin/` require staff to log in. They share the same login session.
-
-**This site is hosted on GitHub Pages**, which doesn't run server-side services. Authentication uses **Netlify Identity** — a free service hosted on Netlify that handles user accounts. You'll set up one tiny Netlify site whose only job is hosting the Identity service. The public site stays on GitHub Pages.
-
-#### One-time setup (~5 min)
+### Step 2 — Connect Netlify
 
 1. Sign up at https://netlify.com (free)
-2. Click **Add new site** → **Import from Git** → connect this same GitHub repo (`mdraigon-dev/DarayyaRealWeb`). Netlify will detect Astro and auto-fill build settings. Click Deploy.
-3. Wait ~2 min for the first deploy. Netlify gives you a URL like `https://random-name-12345.netlify.app`.
-4. In Netlify dashboard → **Site settings** → **Site details** → **Change site name** to something stable like `darayya-platform`. URL becomes `https://darayya-platform.netlify.app`.
-5. **Site settings** → **Identity** → **Enable Identity**
-6. **Identity** → **Registration preferences** → set to **"Invite only"**
-7. **Identity** → **Services** → **Git Gateway** → **Enable Git Gateway**
-8. **Identity** → **Invite users** → add each staff member by email
-9. Open `src/data/netlify-config.ts` and confirm `NETLIFY_IDENTITY_URL` matches your Netlify site URL (currently set to `https://darayya-platform.netlify.app`). If you used a different site name in step 4, update this constant **and** the URL in `public/admin/index.html` (both files are commented to remind you they need to match). Commit and push.
+2. **Add new site → Import from Git** → connect your GitHub repo
+3. Netlify reads `netlify.toml` from the repo for build settings — no manual config needed
+4. First deploy takes ~2 min. You'll get a URL like `https://random-name-12345.netlify.app`
+5. Optional: **Site settings → Site details → Change site name** to something memorable like `darayya-platform`
 
-After that, login on `https://mdraigon-dev.github.io/DarayyaRealWeb/admin/` and `/ar/admin/` and `/en/admin/` will work.
+### Step 3 — Update `astro.config.mjs` with your real URL
 
-#### Why this setup?
+Edit `astro.config.mjs` and change the `site:` value to your actual Netlify URL (or your custom domain if you have one). This is used for SEO and absolute links — it doesn't affect routing.
 
-GitHub Pages serves static files only — there's no `/.netlify/identity` endpoint. The Netlify Identity widget tries to auto-detect that URL from `window.location.origin`, which on GitHub Pages resolves wrong and produces the error: *"Failed to load settings from /.netlify/identity"*. Our admin pages set `window.netlifyIdentityConfig.APIUrl` to point at the Netlify site explicitly, fixing the error.
+```js
+site: 'https://YOUR-SITE-NAME.netlify.app',
+```
 
----
+Commit and push. Netlify redeploys automatically.
 
-### Step 5 — Push the workflow file
+### Step 4 — Enable Netlify Identity (login for admin)
 
-The `.github/workflows/deploy.yml` file is included in the repo. **If you push with a Personal Access Token (PAT), the PAT must have the `workflow` scope** — otherwise GitHub rejects the push with:
+The Decap CMS editor at `/admin/` and Council Dashboard at `/ar/admin/` require staff to log in.
 
-> refusing to allow a Personal Access Token to create or update workflow `.github/workflows/deploy.yml` without `workflow` scope
+1. In Netlify dashboard → **Site settings → Identity → Enable Identity**
+2. **Identity → Registration preferences → Invite only** (so random people can't sign up)
+3. **Identity → Services → Git Gateway → Enable Git Gateway** (lets Decap commit content edits back to your repo)
+4. **Identity → Invite users** → add staff by email
 
-To fix: regenerate your PAT with `workflow` scope checked, or use SSH/`gh auth login`. After the first successful push, the workflow auto-deploys on every push to `main`.
+Staff receive an invite, set a password, then can log in at `/admin/` to edit content.
 
----
+### Step 5 — Auto-translation (optional)
 
-### Step 6 — Auto-translation (optional but recommended)
+The CMS lets staff fill only Arabic and leave English blank. Without this step, EN visitors see Arabic on EN pages.
 
-The CMS lets staff fill only Arabic and leave English blank. By default, EN visitors then see Arabic on the English pages (functional but ugly). To get real English output, the workflow can call **MyMemory** (free translation API) to fill in the blanks before each build.
+The included `scripts/auto-translate.mjs` runs as part of every Netlify build (see `netlify.toml`). It scans `src/content/projects/*.md`, finds any bilingual field where `en:` is empty, calls MyMemory's free API, and fills the field for the duration of that build.
 
-**How it works:**
-
-1. Staff create/edit a project in Decap CMS, filling only Arabic
-2. Staff click "Publish" → commits to GitHub
-3. GitHub Actions workflow runs:
-   - Scans `src/content/projects/*.md` for any bilingual fields with empty `en:`
-   - For each, calls MyMemory: `https://api.mymemory.translated.net/get?q=...&langpair=ar|en`
-   - Fills the `en:` field with the result, plus sets `en_auto: true` to mark it as machine-translated
-   - Commits the filled translations back to `main` with message `chore: auto-translate empty EN fields via MyMemory [skip ci]`
-   - Builds and deploys
-4. Visitors on EN pages now see English. Any field that was auto-translated displays a small **"⚙ Auto-translated"** pill so readers know to take rough phrasing with a grain of salt.
-
-**Free tier limits** (from MyMemory docs):
-- Anonymous: **5,000 chars/day per IP**
-- With registered email: **50,000 chars/day**
-
-For the 17 starter projects with sub-projects and updates, total Arabic content is roughly 8,000–15,000 chars. The anonymous limit may be tight on the first deploy.
-
-**To raise the limit:**
+**To raise MyMemory's daily limit from 5,000 → 50,000 chars:**
 1. Pick any email address (a council inbox is fine — MyMemory doesn't verify it)
-2. In your GitHub repo: **Settings → Secrets and variables → Actions → New repository secret**
+2. In Netlify dashboard → **Site settings → Environment variables → Add a variable**
 3. Name: `MYMEMORY_EMAIL`, value: the email
-4. The workflow will pass it to MyMemory and your daily limit goes to 50,000 chars
+4. Trigger a redeploy
 
-**To turn auto-translation off entirely:** delete the `Auto-translate AR → EN` and `Commit translations back to main` steps from `.github/workflows/deploy.yml`. The build still works; EN pages just show Arabic for empty fields.
+**Caveats** (honest):
+- Translations are NOT committed back to the repo — they're regenerated on every Netlify build. If MyMemory is rate-limited, the build still succeeds and EN pages fall back to Arabic.
+- If staff edit a translation manually in Decap and click Publish, that edit IS committed and the auto-translator will skip it from then on (it never overwrites a non-empty EN field).
+- Every auto-translation is marked with `en_auto: true` in source and displays a small "⚙ Auto-translated" pill on the public site so readers know to report mistranslations.
+- Use the **Translation Helper** widget on `/ar/admin/` to spot-check translations before saving in Decap.
 
-**Reviewing & fixing translations:**
-- Every auto-translation lives in `src/content/projects/*.md` under the `en:` field with a sibling `en_auto: true`. You can `grep -r "en_auto: true" src/content/projects/` to find all of them.
-- To fix a wrong translation, edit the project in Decap CMS and fill the English field manually. The script never overwrites a non-empty EN field, so your fix sticks.
-- On the dashboard at `/ar/admin/`, there's a **Translation Helper** widget where staff can paste Arabic and get a quick English preview from MyMemory before saving in Decap — useful for sanity-checking tricky technical terms.
+**To turn off auto-translation:** edit `netlify.toml` and change the `command =` line to just `"npm run build"`.
 
 ---
 

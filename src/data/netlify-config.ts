@@ -1,32 +1,26 @@
 /**
  * Netlify Identity configuration.
  *
- * WHEN TO EDIT THIS FILE:
+ * Since this site is now deployed on Netlify itself, the Netlify Identity widget
+ * automatically detects the right API URL from window.location.origin. No explicit
+ * URL needed.
  *
- * The site is hosted on GitHub Pages (https://mdraigon-dev.github.io/DarayyaRealWeb/),
- * but Netlify Identity is a server-side service that only works when hosted on Netlify.
- * To make staff login work, you need ONE Netlify site whose only job is hosting the
- * Identity service. Then you point this config at it.
+ * IF you ever want to deploy this site somewhere OTHER than Netlify (e.g. on
+ * GitHub Pages with Identity hosted on a separate Netlify site), set this
+ * constant to the Netlify site's URL (no trailing slash):
+ *     export const NETLIFY_IDENTITY_URL = 'https://your-netlify-site.netlify.app';
  *
- * SETUP STEPS (one-time, ~5 min):
+ * For Netlify-hosted deployments, leave it empty.
  *
- *  1. Sign up at https://netlify.com (free)
- *  2. Click "Add new site" → "Import from Git" → connect this same GitHub repo.
- *     Netlify will detect Astro and auto-fill build settings. Click Deploy.
- *  3. Wait ~2 min for first deploy. You'll get a URL like
- *     https://random-name-12345.netlify.app
- *  4. In the Netlify dashboard for that site, you can rename it under
- *     Site settings → Site details → Change site name to something like
- *     "darayya-platform". The URL becomes https://darayya-platform.netlify.app
- *  5. Site settings → Identity → Enable Identity
- *  6. Identity → Registration preferences → set to "Invite only"
- *  7. Identity → Services → Git Gateway → Enable Git Gateway
- *  8. Identity → Invite users → add each staff member by email
- *  9. Paste the Netlify URL (no trailing slash) into NETLIFY_IDENTITY_URL below
- *     and commit. The next deploy makes login work on the GitHub Pages site.
+ * IDENTITY SETUP STEPS (in the Netlify dashboard, ~5 min):
  *
- * If this constant is an empty string, the login screen will show a clear
- * configuration message instead of a broken widget.
+ *   1. Site settings → Identity → Enable Identity
+ *   2. Identity → Registration preferences → set to "Invite only"
+ *   3. Identity → Services → Git Gateway → Enable Git Gateway
+ *   4. Identity → Invite users → add each staff member by email
+ *
+ * Staff will receive an invite link, set a password, then can log in at
+ * /admin/ (Decap CMS) and /ar/admin/ (Dashboard).
  */
 
-export const NETLIFY_IDENTITY_URL: string = 'https://darayya-platform.netlify.app';
+export const NETLIFY_IDENTITY_URL: string = '';

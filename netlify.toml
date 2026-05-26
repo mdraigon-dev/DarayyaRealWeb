@@ -1,0 +1,61 @@
+# =====================================================================
+# Netlify build configuration for the Darayya platform
+#
+# Pipeline:
+#   1. npm ci              (install deps)
+#   2. auto-translate      (fill empty EN fields via MyMemory, best-effort)
+#   3. npm run build       (Astro static site)
+#
+# The translation step is best-effort: if MyMemory fails or is rate-limited,
+# the build proceeds and EN visitors see Arabic for any blank field
+# (the loc() helper handles that fallback).
+#
+# To raise MyMemory's daily limit from 5,000 → 50,000 chars, set the
+# MYMEMORY_EMAIL environment variable in the Netlify dashboard:
+#   Site settings → Environment variables → Add variable
+#   Name: MYMEMORY_EMAIL    Value: any email (no verification needed)
+# =====================================================================
+
+[build]
+  # Translation runs as part of the build. We use `||true` so a translation
+  # failure (rate-limit, network blip) doesn't block the deploy.
+  command = "node scripts/auto-translate.mjs || true && npm run build"
+  publish = "dist"
+  base = "."
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# =====================================================================
+# Redirects
+# =====================================================================
+
+# Trailing slash for /admin
+[[redirects]]
+  from = "/admin"
+  to = "/admin/"
+  status = 301
+
+# Send root "/" to the Arabic homepage
+[[redirects]]
+  from = "/"
+  to = "/ar/"
+  status = 302
+
+# SPA-style fallback for Decap CMS routes
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+# =====================================================================
+# Note: Netlify auto-commits the translation results would require an
+# additional Netlify build hook with write access to the repo, which adds
+# complexity. For now, translations are regenerated on every build (idempotent:
+# if a translation already exists in source, the script skips it). The downside
+# is they're not persisted in git — but that's actually fine because:
+#   - Staff can still edit them in Decap and the human edit sticks
+#   - Each Netlify build is reproducible from source
+#   - No risk of CI loop (which is what made the GitHub Actions approach
+#     more complex)
+# =====================================================================
