@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loc, fmtMoney, type Lang } from '../i18n/strings';
 import { saveDonation } from '../data/demo-donations';
+import { remainingRoom, type DemoBreakdown, type SubBudget } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
 type Sub = {
@@ -16,7 +17,12 @@ type Props = {
   onDonated: () => void;
   projectId: string;
   projectTitle: Bilingual;
+  projectBudgetUSD: number;
+  projectRaisedUSD: number;
   subs?: Sub[];
+  /** Current demo donation totals so we can compute the room
+   *  remaining for new donations. */
+  demoBreakdown: DemoBreakdown;
   lang: Lang;
   currency: 'USD' | 'SYP';
 };
@@ -29,7 +35,10 @@ export default function DonationModal({
   onDonated,
   projectId,
   projectTitle,
+  projectBudgetUSD,
+  projectRaisedUSD,
   subs,
+  demoBreakdown,
   lang,
   currency,
 }: Props) {
@@ -39,18 +48,45 @@ export default function DonationModal({
   const [subId, setSubId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string>('');
+
+  // Compute how much room is left for the currently selected target
+  // (a specific sub, or the whole project). Updates live as the user
+  // toggles the sub picker.
+  const subsArr: SubBudget[] = subs || [];
+  const room = remainingRoom(projectBudgetUSD, projectRaisedUSD, subsArr, demoBreakdown, subId || undefined);
+  const fullyFunded = room === 0;
 
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
-      setAmount(50);
+      // Pick a sensible default amount: $50 if there's room, else
+      // the amount that exactly fills the remaining
+      const startAmount = room >= 50 ? 50 : Math.max(1, room);
+      setAmount(startAmount);
       setCustomAmount('');
       setName('');
       setSubId('');
       setSubmitting(false);
       setSuccess(false);
+      setValidationError('');
     }
   }, [open]);
+
+  // When the user switches sub-project, if their current amount exceeds
+  // the new room, clamp it. Don't lose their custom amount entirely —
+  // just bring it down to the cap so they can see what they're getting.
+  useEffect(() => {
+    if (!open) return;
+    if (customAmount) {
+      const c = parseInt(customAmount, 10) || 0;
+      if (c > room) setCustomAmount(String(room));
+    } else if (amount > room && room > 0) {
+      setAmount(room);
+    }
+    setValidationError('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subId, room]);
 
   // ESC to close
   useEffect(() => {
@@ -70,7 +106,19 @@ export default function DonationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (effectiveAmount <= 0) return;
+    if (effectiveAmount <= 0) {
+      setValidationError(lang === 'ar' ? 'يرجى إدخال مبلغ أكبر من صفر.' : 'Please enter an amount greater than zero.');
+      return;
+    }
+    if (effectiveAmount > room) {
+      setValidationError(
+        lang === 'ar'
+          ? `المبلغ يتجاوز المتاح. الحد الأقصى: ${fmtMoney(lang, currency, room)}.`
+          : `Amount exceeds what's available. Maximum: ${fmtMoney(lang, currency, room)}.`
+      );
+      return;
+    }
+    setValidationError('');
     setSubmitting(true);
 
     // Brief processing delay so it feels like a real transaction
@@ -130,6 +178,20 @@ export default function DonationModal({
                 : 'Saved in your browser only — no one else can see it'}
             </p>
           </div>
+        ) : fullyFunded ? (
+          <div className="donate-modal-fullyfunded">
+            <div className="donate-modal-fullyfunded-icon">✓</div>
+            <h3>
+              {lang === 'ar'
+                ? (subId ? 'هذا البند ممول بالكامل' : 'تم تمويل هذا المشروع بالكامل')
+                : (subId ? 'This item is fully funded' : 'This project is fully funded')}
+            </h3>
+            <p>
+              {lang === 'ar'
+                ? 'شكراً للجميع! يمكنك دعم مشاريع أخرى بدلاً من ذلك.'
+                : 'Thank you to everyone! You can support other projects instead.'}
+            </p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <h3 id="donate-modal-title" className="donate-modal-title">
@@ -137,45 +199,8 @@ export default function DonationModal({
               <span className="donate-modal-project">{loc(lang, projectTitle)}</span>
             </h3>
 
-            {/* Amount selection */}
-            <div className="donate-modal-section">
-              <label className="donate-modal-label">
-                {lang === 'ar' ? 'اختر المبلغ' : 'Choose amount'}
-              </label>
-              <div className="donate-modal-amount-chips">
-                {PRESET_AMOUNTS.map((a) => (
-                  <button
-                    type="button"
-                    key={a}
-                    className={`donate-modal-amount-chip ${amount === a && !customAmount ? 'active' : ''}`}
-                    onClick={() => {
-                      setAmount(a);
-                      setCustomAmount('');
-                    }}
-                  >
-                    ${a}
-                  </button>
-                ))}
-              </div>
-              <div className="donate-modal-custom-row">
-                <label className="donate-modal-label-small">
-                  {lang === 'ar' ? 'أو أدخل مبلغاً مخصصاً:' : 'Or enter custom amount:'}
-                </label>
-                <div className="donate-modal-custom-input">
-                  <span className="donate-modal-currency-prefix">$</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={customAmount}
-                    onChange={(e) => setCustomAmount(e.target.value)}
-                    placeholder={lang === 'ar' ? 'مثلاً ٧٥' : 'e.g. 75'}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-project selection if any */}
+            {/* Sub-project selection FIRST — picking a target changes the cap,
+                so the user should pick before entering amount */}
             {subs && subs.length > 0 && (
               <div className="donate-modal-section">
                 <label className="donate-modal-label">
@@ -187,7 +212,7 @@ export default function DonationModal({
                   className="donate-modal-select"
                 >
                   <option value="">
-                    {lang === 'ar' ? 'المشروع بأكمله' : 'The whole project'}
+                    {lang === 'ar' ? 'المشروع بأكمله (يُملأ البنود بالترتيب)' : 'The whole project (fills items in order)'}
                   </option>
                   {subs.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -197,6 +222,76 @@ export default function DonationModal({
                 </select>
               </div>
             )}
+
+            {/* Remaining room indicator — updates live when sub selection changes */}
+            <div className="donate-modal-room">
+              <span className="donate-modal-room-label">
+                {lang === 'ar' ? 'المتاح للتبرع:' : 'Available to donate:'}
+              </span>
+              <strong className="donate-modal-room-amount">{fmtMoney(lang, currency, room)}</strong>
+            </div>
+
+            {/* Amount selection */}
+            <div className="donate-modal-section">
+              <label className="donate-modal-label">
+                {lang === 'ar' ? 'اختر المبلغ' : 'Choose amount'}
+              </label>
+              <div className="donate-modal-amount-chips">
+                {PRESET_AMOUNTS.map((a) => {
+                  const overCap = a > room;
+                  return (
+                    <button
+                      type="button"
+                      key={a}
+                      className={`donate-modal-amount-chip ${amount === a && !customAmount ? 'active' : ''}`}
+                      onClick={() => {
+                        setAmount(a);
+                        setCustomAmount('');
+                        setValidationError('');
+                      }}
+                      disabled={overCap}
+                      title={overCap
+                        ? (lang === 'ar' ? 'يتجاوز المتاح' : 'Exceeds what\'s available')
+                        : undefined}
+                    >
+                      ${a}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="donate-modal-custom-row">
+                <label className="donate-modal-label-small">
+                  {lang === 'ar'
+                    ? `أو أدخل مبلغاً مخصصاً (الحد: ${fmtMoney(lang, currency, room)}):`
+                    : `Or enter custom amount (max: ${fmtMoney(lang, currency, room)}):`}
+                </label>
+                <div className="donate-modal-custom-input">
+                  <span className="donate-modal-currency-prefix">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={room}
+                    step="1"
+                    value={customAmount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      // Clamp on input so the user can't visually overflow
+                      const n = parseInt(v, 10);
+                      if (!isNaN(n) && n > room) {
+                        setCustomAmount(String(room));
+                      } else {
+                        setCustomAmount(v);
+                      }
+                      setValidationError('');
+                    }}
+                    placeholder={lang === 'ar' ? 'مثلاً ٧٥' : 'e.g. 75'}
+                  />
+                </div>
+              </div>
+              {validationError && (
+                <div className="donate-modal-validation-error">{validationError}</div>
+              )}
+            </div>
 
             {/* Donor name */}
             <div className="donate-modal-section">
@@ -216,7 +311,7 @@ export default function DonationModal({
             <button
               type="submit"
               className="donate-modal-submit"
-              disabled={effectiveAmount <= 0 || submitting}
+              disabled={effectiveAmount <= 0 || effectiveAmount > room || submitting}
             >
               {submitting
                 ? (lang === 'ar' ? 'جاري المعالجة…' : 'Processing…')

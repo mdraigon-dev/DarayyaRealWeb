@@ -4,7 +4,8 @@ import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
 import DonationModal from './DonationModal';
 import { pickPhoto } from '../data/unsplash-photos';
-import { sumForProject, clearAllDonations } from '../data/demo-donations';
+import { loadDonations, sumForProject, clearAllDonations, type DemoDonation } from '../data/demo-donations';
+import { computeSubRaised, computeProjectRaised, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
 type Bilingual = { ar: string; en: string };
@@ -65,19 +66,14 @@ type Props = {
 export default function ProjectDetailContent({ project, lang, basePath }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
   const [modalOpen, setModalOpen] = useState(false);
-  // Project-level totals from localStorage donations on this device
-  const [demoDelta, setDemoDelta] = useState<{ amount: number; count: number }>({ amount: 0, count: 0 });
-  // Per-sub-project totals — keyed by sub id. Empty object = no demo donations yet.
-  const [subDeltas, setSubDeltas] = useState<Record<string, { amount: number; count: number }>>({});
+  // All demo donations for THIS project loaded on mount. We derive everything
+  // (project totals, sub-project waterfall, donor count) from this single
+  // array so the math stays consistent across the page and the modal.
+  const [allDemo, setAllDemo] = useState<DemoDonation[]>([]);
 
-  // Load all demo totals after mount (localStorage isn't available during SSR)
   const refreshDemoDelta = () => {
-    setDemoDelta(sumForProject(project.id));
-    const next: Record<string, { amount: number; count: number }> = {};
-    project.subs.forEach((s) => {
-      next[s.id] = sumForProject(project.id, s.id);
-    });
-    setSubDeltas(next);
+    const all = loadDonations().donations.filter(d => d.projectId === project.id);
+    setAllDemo(all);
   };
 
   useEffect(() => {
@@ -85,13 +81,35 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
-  // Displayed values include the original raised + this browser's demo donations
-  const displayedRaised = project.raisedUSD + demoDelta.amount;
-  const displayedDonors = project.donors + demoDelta.count;
+  // Build the breakdown: targeted-by-sub map + undirected total
+  const demoBreakdown: DemoBreakdown = (() => {
+    const targetedBySub: Record<string, number> = {};
+    let undirectedTotal = 0;
+    for (const d of allDemo) {
+      if (d.subId) {
+        targetedBySub[d.subId] = (targetedBySub[d.subId] || 0) + d.amountUSD;
+      } else {
+        undirectedTotal += d.amountUSD;
+      }
+    }
+    return { targetedBySub, undirectedTotal };
+  })();
+
+  // Waterfall-allocated displayed amount per sub
+  const subRaisedDisplayed = computeSubRaised(project.subs || [], demoBreakdown);
+  // True project-level total (= sum of waterfall'd sub totals, or fallback)
+  const displayedRaised = computeProjectRaised(project.raisedUSD, project.subs || [], demoBreakdown);
+  // Donor count is just the count of donations on this device
+  const displayedDonors = project.donors + allDemo.length;
+  // Total project budget = sum of subs when present, else project.budgetUSD
+  const totalBudget = (project.subs && project.subs.length > 0)
+    ? project.subs.reduce((s, x) => s + x.budgetUSD, 0)
+    : project.budgetUSD;
   const pct = Math.min(
     100,
-    Math.round((displayedRaised / Math.max(1, project.budgetUSD)) * 100)
+    Math.round((displayedRaised / Math.max(1, totalBudget)) * 100)
   );
+  const totalDemoAmount = allDemo.reduce((s, d) => s + d.amountUSD, 0);
 
   const handleResetDemo = () => {
     if (typeof window === 'undefined') return;
@@ -160,12 +178,15 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
             <div className="tree">
               {project.subs.map((s, i) => {
-                // Demo donations targeted at THIS sub specifically
-                const subDelta = subDeltas[s.id] || { amount: 0, count: 0 };
-                const subRaisedDisplayed = s.raisedUSD + subDelta.amount;
+                // Waterfall-applied raised amount (handles both targeted
+                // and undirected demo donations correctly)
+                const subDisplayedRaised = subRaisedDisplayed[s.id] ?? s.raisedUSD;
+                const subDemoDelta = subDisplayedRaised - s.raisedUSD;
+                const targetedDelta = demoBreakdown.targetedBySub[s.id] || 0;
+                const fromWaterfall = subDemoDelta - targetedDelta;
                 const subPct = Math.min(
                   100,
-                  Math.round((subRaisedDisplayed / Math.max(1, s.budgetUSD)) * 100)
+                  Math.round((subDisplayedRaised / Math.max(1, s.budgetUSD)) * 100)
                 );
                 const isLast = i === project.subs.length - 1;
                 return (
@@ -177,15 +198,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                           <div className="tree-node-title">{loc(lang, s.title)}</div>
                           <div className="tree-node-meta">
                             {loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%
-                            {subDelta.count > 0 && (
-                              <span className="tree-node-demo-tag">
-                                ★ +{fmtMoney(lang, currency, subDelta.amount)} {lang === 'ar' ? 'تجريبي' : 'demo'}
+                            {subDemoDelta > 0 && (
+                              <span className="tree-node-demo-tag" title={
+                                fromWaterfall > 0 && targetedDelta > 0
+                                  ? (lang === 'ar'
+                                      ? `موجّه: ${fmtMoney(lang, currency, targetedDelta)} • تلقائي: ${fmtMoney(lang, currency, fromWaterfall)}`
+                                      : `Targeted: ${fmtMoney(lang, currency, targetedDelta)} • Auto-fill: ${fmtMoney(lang, currency, fromWaterfall)}`)
+                                  : fromWaterfall > 0
+                                    ? (lang === 'ar' ? 'تم التعبئة تلقائياً من تبرعات المشروع العامة' : 'Auto-filled from project-wide donations')
+                                    : (lang === 'ar' ? 'تبرع موجّه لهذا البند' : 'Targeted to this item')
+                              }>
+                                ★ +{fmtMoney(lang, currency, subDemoDelta)} {lang === 'ar' ? 'تجريبي' : 'demo'}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="tree-node-amount">
-                          {fmtMoney(lang, currency, subRaisedDisplayed)} / {fmtMoney(lang, currency, s.budgetUSD)}
+                          {fmtMoney(lang, currency, subDisplayedRaised)} / {fmtMoney(lang, currency, s.budgetUSD)}
                         </div>
                       </div>
                       <div className="tree-mini-progress">
@@ -299,7 +328,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             <div className="donate-stat">
               <div className="donate-stat-big">{fmtMoney(lang, currency, displayedRaised)}</div>
               <div className="donate-stat-of">
-                {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, project.budgetUSD)}</strong>
+                {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, totalBudget)}</strong>
               </div>
               <div className="progress" style={{ marginTop: '0.75rem' }}>
                 <div className="progress-track">
@@ -318,8 +347,11 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             <button
               className="btn-donate-full"
               onClick={() => setModalOpen(true)}
+              disabled={displayedRaised >= totalBudget}
             >
-              {t(lang, 'donate_btn')}
+              {displayedRaised >= totalBudget
+                ? (lang === 'ar' ? '✓ ممول بالكامل' : '✓ Fully funded')
+                : t(lang, 'donate_btn')}
             </button>
 
             <div className="donate-options donate-demo-note">
@@ -329,12 +361,12 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 : 'Donations are saved in your browser only — for demonstration'}
             </div>
 
-            {demoDelta.amount > 0 && (
+            {totalDemoAmount > 0 && (
               <div className="donate-reset-row">
                 <span className="donate-reset-note">
                   {lang === 'ar'
-                    ? `أضفت ${fmtMoney(lang, currency, demoDelta.amount)} تجريبياً (${fmtNum(lang, demoDelta.count)} تبرع)`
-                    : `You've added ${fmtMoney(lang, currency, demoDelta.amount)} in demo donations (${fmtNum(lang, demoDelta.count)})`}
+                    ? `أضفت ${fmtMoney(lang, currency, totalDemoAmount)} تجريبياً (${fmtNum(lang, allDemo.length)} تبرع)`
+                    : `You've added ${fmtMoney(lang, currency, totalDemoAmount)} in demo donations (${fmtNum(lang, allDemo.length)})`}
                 </span>
                 <button
                   type="button"
@@ -356,7 +388,10 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
         onDonated={refreshDemoDelta}
         projectId={project.id}
         projectTitle={project.title}
+        projectBudgetUSD={project.budgetUSD}
+        projectRaisedUSD={project.raisedUSD}
         subs={project.subs}
+        demoBreakdown={demoBreakdown}
         lang={lang}
         currency={currency}
       />

@@ -1,0 +1,30 @@
+---
+import { getCollection } from 'astro:content';
+import '../../../../styles/global.css';
+import TransparencyPrintReport from '../../../../components/TransparencyPrintReport.tsx';
+import symbolHtml from '../../../../components/_logo_symbol.html.txt?raw';
+
+const projects = (await getCollection('projects')).map(p => p.data);
+const lang = 'en' as const;
+---
+
+<!DOCTYPE html>
+<html lang={lang} dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transparency Report — Together We Rebuild Darayya</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <Fragment set:html={symbolHtml} />
+  <TransparencyPrintReport
+    projects={projects}
+    lang={lang}
+    emblemSvg={symbolHtml}
+    client:load
+  />
+</body>
+</html>

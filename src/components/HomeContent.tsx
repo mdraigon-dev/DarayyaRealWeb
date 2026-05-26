@@ -1,8 +1,9 @@
 import Logo from './Logo';
 import DarayyaMap from './DarayyaMap';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
+import { sumAll } from '../data/demo-donations';
 
 type HomeProject = ProjectCardData & {
   lat: number;
@@ -21,9 +22,25 @@ type Props = {
 export default function HomeContent({ lang, basePath, baseUrl, projects }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
+  // Load demo donations on mount so the home stats reflect what this
+  // browser has demo-donated. Stays 0 during SSR; live values appear
+  // after hydration.
+  const [demo, setDemo] = useState<{ amount: number; count: number; uniqueProjects: number }>({
+    amount: 0,
+    count: 0,
+    uniqueProjects: 0,
+  });
+  useEffect(() => {
+    setDemo(sumAll());
+    const onVis = () => setDemo(sumAll());
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  const baseRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
+  const totalRaised = baseRaised + demo.amount;
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
+  const totalDonors = projects.reduce((s, p) => s + p.donors, 0) + demo.count;
   const completed = projects.filter(p => p.status === 'completed').length;
   const open = projects.filter(p => p.status === 'funding').length;
 

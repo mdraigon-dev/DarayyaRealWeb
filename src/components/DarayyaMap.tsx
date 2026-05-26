@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t, loc, fmtNum, type Lang } from '../i18n/strings';
+import { loadDonations } from '../data/demo-donations';
 
 // We declare L globally because Leaflet is loaded via CDN in BaseLayout
 declare const L: any;
@@ -26,6 +27,23 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
 
+  // Demo donation totals per project id, populated after mount
+  const [demoByProject, setDemoByProject] = useState<Record<string, { amount: number; count: number }>>({});
+  useEffect(() => {
+    const compute = () => {
+      const map: Record<string, { amount: number; count: number }> = {};
+      for (const d of loadDonations().donations) {
+        if (!map[d.projectId]) map[d.projectId] = { amount: 0, count: 0 };
+        map[d.projectId].amount += d.amountUSD;
+        map[d.projectId].count += 1;
+      }
+      setDemoByProject(map);
+    };
+    compute();
+    document.addEventListener('visibilitychange', compute);
+    return () => document.removeEventListener('visibilitychange', compute);
+  }, []);
+
   useEffect(() => {
     if (!mapRef.current || typeof L === 'undefined') return;
 
@@ -50,7 +68,10 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
 
     projects.forEach(p => {
       if (!p.lat || !p.lng) return;
-      const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
+      const delta = demoByProject[p.id] || { amount: 0, count: 0 };
+      const raised = p.raisedUSD + delta.amount;
+      const donors = p.donors + delta.count;
+      const pct = Math.min(100, Math.round((raised / Math.max(1, p.budgetUSD)) * 100));
       const fillColor: Record<string, string> = {
         healthy: '#007A3D',
         warning: '#C9A14A',
@@ -76,7 +97,7 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
           </div>
           <div class="popup-meta">
             <span>${fmtNum(lang, pct)}${t(lang, 'map_popup_funded')}</span>
-            <span><strong>${fmtNum(lang, p.donors)}</strong> ${t(lang, 'map_popup_donor')}</span>
+            <span><strong>${fmtNum(lang, donors)}</strong> ${t(lang, 'map_popup_donor')}</span>
           </div>
           <a class="popup-btn" href="${basePath}/projects/${p.id}/">${t(lang, 'map_popup_view')}</a>
         </div>
@@ -95,7 +116,7 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
         mapInstance.current = null;
       }
     };
-  }, [projects, lang, basePath]);
+  }, [projects, lang, basePath, demoByProject]);
 
   return (
     <div className="map-frame">

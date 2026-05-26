@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { t, type Lang } from '../i18n/strings';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { type Lang } from '../i18n/strings';
+import { getFileContent, commitFile } from '../data/git-gateway';
 
 declare global {
   interface Window {
@@ -17,37 +19,41 @@ type AuthState =
   | { kind: 'anonymous' }
   | { kind: 'authenticated'; user: { email: string; user_metadata?: { full_name?: string; roles?: string[] } } };
 
+type SaveState =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'success' }
+  | { kind: 'error'; message: string };
+
 /**
  * AuthAwareNoteAdder
  *
- * Renders an "✎ Add note" button on a project page IF the visitor is
- * logged into Netlify Identity. Clicking it deep-links them into Decap CMS
- * with the project preselected and scrolled to the comments section.
+ * Renders nothing to anonymous visitors. To logged-in staff, shows:
+ *   ● Signed in as <name> | [✎ Add quick note] [Full edit →]
  *
- * Why deep-link instead of inline form?
- * Posting a comment requires committing a file to GitHub via Git Gateway.
- * Decap already handles all of that auth + commit + validation correctly.
- * Rebuilding that in this component would be ~2 days of work and would
- * duplicate Decap. The deep-link is one click away from typing the note.
+ * Clicking "Add quick note" expands an inline form. On submit, we read the
+ * project file via Git Gateway, parse its YAML frontmatter, append a new
+ * comment to comments[], serialize, and commit. The note doesn't appear
+ * on the live page until Netlify rebuilds (~1-3 min); we show a success
+ * banner explaining that and collapse back after 6 seconds.
  *
- * Role-awareness: Netlify Identity supports user_metadata.roles. If you
- * want to restrict note-posting to specific roles (e.g. only "engineer"
- * or "manager"), set roles on each user in the Netlify dashboard
- * (Identity → Users → click user → User metadata → roles: ["engineer"]).
- * This component shows the button to anyone logged in by default; tweak
- * ALLOWED_ROLES below to restrict.
+ * Role-awareness: set ALLOWED_ROLES to e.g. ['engineer','manager'] to
+ * restrict to specific Identity roles. Defaults to any logged-in user.
  */
 
-const ALLOWED_ROLES: string[] | null = null; // null = any logged-in user
+const ALLOWED_ROLES: string[] | null = null;
 
 export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
+  const [expanded, setExpanded] = useState(false);
+  const [body, setBody] = useState('');
+  const [authorOverride, setAuthorOverride] = useState('');
+  const [save, setSave] = useState<SaveState>({ kind: 'idle' });
 
   useEffect(() => {
     let cancelled = false;
     let tries = 0;
     const maxTries = 40;
-
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
@@ -57,42 +63,94 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
           setTimeout(init, 100);
           return;
         }
-        // Widget never loaded — assume anonymous (no button)
         setAuth({ kind: 'anonymous' });
         return;
       }
-
       try { ni.init(); } catch {}
-
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
-
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));
       ni.on('logout', () => setAuth({ kind: 'anonymous' }));
     };
-
     init();
     return () => { cancelled = true; };
   }, []);
 
-  // Loading or anonymous — don't render anything (no flash)
   if (auth.kind !== 'authenticated') return null;
 
-  // Role check (if ALLOWED_ROLES is set)
   if (ALLOWED_ROLES) {
     const userRoles = auth.user.user_metadata?.roles || [];
     if (!ALLOWED_ROLES.some(r => userRoles.includes(r))) return null;
   }
 
-  // Edit link goes to the custom editor that visually matches the public site.
-  // The custom editor has an escape-hatch "Classic editor" link to Decap for
-  // advanced fields (photos, sub-projects, coordinates).
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
   const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
-  const userName = auth.user.user_metadata?.full_name || auth.user.email;
+  const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
 
-  const handleSignIn = () => {
-    if (window.netlifyIdentity) window.netlifyIdentity.open();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = body.trim();
+    if (!trimmed) {
+      setSave({
+        kind: 'error',
+        message: lang === 'ar' ? 'يرجى كتابة نص الملاحظة.' : 'Please enter note text.',
+      });
+      return;
+    }
+    const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
+    setSave({ kind: 'saving' });
+
+    try {
+      const path = `src/content/projects/${projectId}.md`;
+      const file = await getFileContent(path);
+      if (!file) {
+        throw new Error(lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found');
+      }
+
+      // Split YAML frontmatter from markdown body
+      const m = file.content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (!m) throw new Error(lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format');
+      const [, frontmatterText, markdownBody] = m;
+      const frontmatter = parseYaml(frontmatterText) as Record<string, unknown>;
+
+      // Build the new comment. Put the body in the language the user
+      // typed in; leave the other side empty so the build-time auto-
+      // translator fills it.
+      const existing = Array.isArray(frontmatter.comments) ? frontmatter.comments : [];
+      const newComment = {
+        author: { ar: effectiveAuthor, en: effectiveAuthor },
+        body: {
+          ar: lang === 'ar' ? trimmed : '',
+          en: lang === 'en' ? trimmed : '',
+        },
+        date: new Date().toISOString().slice(0, 10),
+      };
+      frontmatter.comments = [...existing, newComment];
+
+      const newFrontmatter = stringifyYaml(frontmatter, {
+        lineWidth: 0,
+        defaultStringType: 'QUOTE_DOUBLE',
+        defaultKeyType: 'PLAIN',
+      });
+      const newFileContent = `---\n${newFrontmatter}---\n${markdownBody}`;
+
+      const commitMessage = lang === 'ar'
+        ? `إضافة ملاحظة على ${projectId} بواسطة ${effectiveAuthor}`
+        : `Add note on ${projectId} by ${effectiveAuthor}`;
+      await commitFile(path, newFileContent, commitMessage);
+
+      setSave({ kind: 'success' });
+      setBody('');
+      setAuthorOverride('');
+      // Auto-collapse back to ready after a moment. We don't reload — the
+      // note won't appear until Netlify rebuilds.
+      setTimeout(() => {
+        setSave({ kind: 'idle' });
+        setExpanded(false);
+      }, 6000);
+    } catch (err: any) {
+      setSave({ kind: 'error', message: err?.message || 'Save failed' });
+    }
   };
 
   return (
@@ -100,12 +158,97 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
       <span className="auth-note-info">
         <span className="auth-note-dot"></span>
         {lang === 'ar'
-          ? <>مسجّل دخوله كـ <strong>{userName}</strong></>
-          : <>Signed in as <strong>{userName}</strong></>}
+          ? <>مسجّل دخوله كـ <strong>{defaultAuthor}</strong></>
+          : <>Signed in as <strong>{defaultAuthor}</strong></>}
       </span>
-      <a className="auth-note-btn" href={editUrl}>
-        ✎ {lang === 'ar' ? 'إضافة ملاحظة أو تعديل' : 'Add note / edit'}
-      </a>
+
+      {!expanded && save.kind !== 'success' && (
+        <div className="auth-note-actions">
+          <button
+            type="button"
+            className="auth-note-btn-inline"
+            onClick={() => setExpanded(true)}
+          >
+            ✎ {lang === 'ar' ? 'إضافة ملاحظة سريعة' : 'Add quick note'}
+          </button>
+          <a className="auth-note-btn-secondary" href={editUrl}>
+            {lang === 'ar' ? 'تعديل كامل ←' : 'Full edit →'}
+          </a>
+        </div>
+      )}
+
+      {expanded && save.kind !== 'success' && (
+        <form className="auth-note-form" onSubmit={handleSubmit}>
+          <div className="auth-note-form-row">
+            <input
+              type="text"
+              className="auth-note-form-author"
+              value={authorOverride}
+              onChange={(e) => setAuthorOverride(e.target.value)}
+              placeholder={defaultAuthor}
+              maxLength={80}
+              disabled={save.kind === 'saving'}
+            />
+            <span className="auth-note-form-hint">
+              {lang === 'ar' ? '(الاسم الذي سيظهر مع الملاحظة)' : '(name shown with the note)'}
+            </span>
+          </div>
+          <textarea
+            className="auth-note-form-body"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={lang === 'ar' ? 'اكتب الملاحظة هنا…' : 'Write your note here…'}
+            rows={3}
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            maxLength={500}
+            disabled={save.kind === 'saving'}
+            autoFocus
+          />
+          {save.kind === 'error' && (
+            <div className="auth-note-form-error">⚠ {save.message}</div>
+          )}
+          <div className="auth-note-form-actions">
+            <button
+              type="button"
+              className="auth-note-form-cancel"
+              onClick={() => {
+                setExpanded(false);
+                setBody('');
+                setAuthorOverride('');
+                setSave({ kind: 'idle' });
+              }}
+              disabled={save.kind === 'saving'}
+            >
+              {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button
+              type="submit"
+              className="auth-note-form-save"
+              disabled={save.kind === 'saving' || !body.trim()}
+            >
+              {save.kind === 'saving'
+                ? (lang === 'ar' ? 'جاري الحفظ…' : 'Saving…')
+                : (lang === 'ar' ? 'حفظ ونشر' : 'Save & publish')}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {save.kind === 'success' && (
+        <div className="auth-note-success">
+          <span className="auth-note-success-icon">✓</span>
+          <div>
+            <strong>
+              {lang === 'ar' ? 'تم حفظ الملاحظة' : 'Note saved'}
+            </strong>
+            <div className="auth-note-success-sub">
+              {lang === 'ar'
+                ? 'الموقع يُعاد بناؤه. ستظهر الملاحظة خلال ١–٣ دقائق.'
+                : 'Site is rebuilding. The note will appear in 1–3 minutes.'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

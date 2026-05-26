@@ -49,6 +49,39 @@ export async function getFileSha(path: string, branch = 'main'): Promise<string 
 }
 
 /**
+ * Fetch a file's text contents and SHA. The SHA is needed to commit an
+ * update later. Returns null if the file doesn't exist.
+ *
+ * Used by features that need to read-modify-write an existing project file,
+ * e.g. the inline "add note" form on a project page.
+ */
+export async function getFileContent(path: string, branch = 'main'): Promise<{ content: string; sha: string } | null> {
+  const token = await getToken();
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Failed to fetch file content: HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  // GitHub returns content as base64 with newlines
+  const b64 = (data.content || '').replace(/\n/g, '');
+  let content: string;
+  try {
+    // btoa/atob use Latin-1; need a UTF-8-safe decode for Arabic text
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    content = new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    content = atob(b64);
+  }
+  return { content, sha: data.sha };
+}
+
+/**
  * Commit a file change (create or update) via Git Gateway.
  *
  * @param path     The file path relative to repo root (e.g. "src/content/projects/foo.md")

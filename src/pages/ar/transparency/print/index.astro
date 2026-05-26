@@ -1,0 +1,32 @@
+---
+import { getCollection } from 'astro:content';
+import '../../../../styles/global.css';
+import TransparencyPrintReport from '../../../../components/TransparencyPrintReport.tsx';
+// Vite ?raw inlines the emblem SVG file at build time so the print page
+// has the Darayya logo embedded directly (no network request, prints clean)
+import symbolHtml from '../../../../components/_logo_symbol.html.txt?raw';
+
+const projects = (await getCollection('projects')).map(p => p.data);
+const lang = 'ar' as const;
+---
+
+<!DOCTYPE html>
+<html lang={lang} dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تقرير الشفافية — معاً نَبْنِي داريّا</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Markazi+Text:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <Fragment set:html={symbolHtml} />
+  <TransparencyPrintReport
+    projects={projects}
+    lang={lang}
+    emblemSvg={symbolHtml}
+    client:load
+  />
+</body>
+</html>

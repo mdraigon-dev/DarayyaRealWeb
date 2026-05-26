@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t, fmtNum, fmtMoney, loc, type Lang } from '../i18n/strings';
+import { sumAll, loadDonations } from '../data/demo-donations';
 
 type Bilingual = { ar: string; en: string };
 type Project = {
@@ -34,9 +35,24 @@ const REPORTS_EN = [
 
 export default function TransparencyContent({ projects, lang }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
-  const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
+
+  // Pull demo donations into the totals so this browser sees its full
+  // contributions reflected. SSR shows just the baseline; values pop in
+  // after hydration.
+  const [demo, setDemo] = useState<{ amount: number; count: number; uniqueProjects: number }>({
+    amount: 0, count: 0, uniqueProjects: 0,
+  });
+  useEffect(() => {
+    setDemo(sumAll());
+    const onVis = () => setDemo(sumAll());
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  const baseRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
+  const totalRaised = baseRaised + demo.amount;
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
+  const totalDonors = projects.reduce((s, p) => s + p.donors, 0) + demo.count;
   const completed = projects.filter(p => p.status === 'completed').length;
 
   // Generate a CSV of current project data and trigger a download.
@@ -168,14 +184,27 @@ Project details:
         <h2 className="section-title" style={{ fontSize: '1.6rem' }}>
           {lang === 'ar' ? 'التقارير الرسمية' : 'Official Reports'}
         </h2>
-        <button
-          type="button"
-          className="btn-download-csv"
-          onClick={downloadProjectsCSV}
-          title={lang === 'ar' ? 'تنزيل جميع بيانات المشاريع بصيغة CSV' : 'Download all project data as CSV'}
-        >
-          ↓ {lang === 'ar' ? 'تنزيل بيانات المشاريع (CSV)' : 'Download projects (CSV)'}
-        </button>
+        <div className="transparency-export-actions">
+          <button
+            type="button"
+            className="btn-export-pdf"
+            onClick={() => {
+              const url = lang === 'ar' ? '/ar/transparency/print/' : '/en/transparency/print/';
+              window.open(url, '_blank', 'noopener,noreferrer');
+            }}
+            title={lang === 'ar' ? 'فتح تقرير الشفافية في نافذة جديدة للطباعة أو الحفظ كـ PDF' : 'Open transparency report in a new window for printing or saving as PDF'}
+          >
+            🖨 {lang === 'ar' ? 'تصدير تقرير PDF' : 'Export PDF report'}
+          </button>
+          <button
+            type="button"
+            className="btn-download-csv"
+            onClick={downloadProjectsCSV}
+            title={lang === 'ar' ? 'تنزيل جميع بيانات المشاريع بصيغة CSV' : 'Download all project data as CSV'}
+          >
+            ↓ {lang === 'ar' ? 'تنزيل CSV' : 'Download CSV'}
+          </button>
+        </div>
       </div>
 
       <div className="reports-list">
