@@ -1,0 +1,71 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import ProjectEditor from '../../../../components/ProjectEditor.tsx';
+import { t } from '../../../../i18n/strings';
+
+// Generate one page per project at build time
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((p) => ({
+    params: { id: p.data.id },
+    props: { project: p.data },
+  }));
+}
+
+const { project } = Astro.props;
+const lang = 'ar' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const returnTo = `${baseUrl}${lang}/admin/`.replace(/\/+/g, '/');
+
+// Normalize all bilingual fields so en is always a string (not undefined)
+function fixBilingual(b: any): { ar: string; en: string } {
+  return { ar: b?.ar ?? '', en: b?.en ?? '' };
+}
+function fixList<T extends Record<string, any>>(items: any[] | undefined, fix: (item: any) => T): T[] {
+  return (items ?? []).map(fix);
+}
+
+const initial = {
+  ...project,
+  title: fixBilingual(project.title),
+  location: fixBilingual(project.location),
+  description: fixBilingual(project.description),
+  subs: fixList(project.subs, (s: any) => ({
+    ...s,
+    title: fixBilingual(s.title),
+    length: fixBilingual(s.length),
+  })),
+  updates: fixList(project.updates, (u: any) => ({
+    date: fixBilingual(u.date),
+    author: fixBilingual(u.author),
+    body: fixBilingual(u.body),
+  })),
+  engineers: fixList(project.engineers, (e: any) => ({
+    name: fixBilingual(e.name),
+    role: fixBilingual(e.role),
+    phone: e.phone,
+    email: e.email,
+  })),
+  comments: fixList(project.comments, (c: any) => ({
+    author: fixBilingual(c.author),
+    body: fixBilingual(c.body),
+    date: c.date,
+  })),
+};
+---
+
+<BaseLayout
+  title={`${t(lang, 'admin_btn_edit')} — ${project.title.ar}`}
+  description="تعديل المشروع"
+  lang={lang}
+  currentPage="admin"
+>
+  <ProjectEditor
+    initial={initial}
+    lang={lang}
+    basePath={`${baseUrl}${lang}`.replace(/\/+/g, '/')}
+    returnTo={returnTo}
+    client:load
+  />
+</BaseLayout>

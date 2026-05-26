@@ -176,9 +176,9 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
           </div>
           <div className="needs-attention-list">
             {needsAttention.map(({ project: p, reasons, pct }) => {
-              const cmsUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/entries/${p.id}`;
+              const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/${p.id}/`;
               return (
-                <a key={p.id} href={cmsUrl} className="needs-attention-item">
+                <a key={p.id} href={editUrl} className="needs-attention-item">
                   <div className="needs-attention-name">{loc(lang, p.title)}</div>
                   <div className="needs-attention-meta">
                     {reasons.join(' · ')} · {fmtNum(lang, pct)}% {lang === 'ar' ? 'ممول' : 'funded'}
@@ -449,7 +449,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
           const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
           const statusLabel = t(lang, `status_${p.status}` as any);
           const categoryLabel = t(lang, `cat_${p.category}` as any);
-          const cmsEditUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/entries/${p.id}`;
+          const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/${p.id}/`;
           const publicUrl = `${basePath}/projects/${p.id}/`;
           return (
             <div className="admin-table-row" key={p.id}>
@@ -467,7 +467,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
                 <span className={`status-chip status-chip-${p.status}`}>{statusLabel}</span>
               </div>
               <div className="admin-table-actions">
-                <a className="admin-edit" href={cmsEditUrl} title={t(lang, 'admin_btn_edit_hint')}>
+                <a className="admin-edit" href={editUrl} title={t(lang, 'admin_btn_edit_hint')}>
                   ✎ {t(lang, 'admin_btn_edit')}
                 </a>
                 <a className="admin-view" href={publicUrl} title={t(lang, 'admin_btn_view_hint')}>

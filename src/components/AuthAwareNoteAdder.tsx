@@ -84,7 +84,11 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
     if (!ALLOWED_ROLES.some(r => userRoles.includes(r))) return null;
   }
 
-  const cmsUrl = `/admin/#/collections/projects/entries/${projectId}`;
+  // Edit link goes to the custom editor that visually matches the public site.
+  // The custom editor has an escape-hatch "Classic editor" link to Decap for
+  // advanced fields (photos, sub-projects, coordinates).
+  const lang_seg = lang === 'ar' ? 'ar' : 'en';
+  const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
   const userName = auth.user.user_metadata?.full_name || auth.user.email;
 
   const handleSignIn = () => {
@@ -99,7 +103,7 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
           ? <>مسجّل دخوله كـ <strong>{userName}</strong></>
           : <>Signed in as <strong>{userName}</strong></>}
       </span>
-      <a className="auth-note-btn" href={cmsUrl}>
+      <a className="auth-note-btn" href={editUrl}>
         ✎ {lang === 'ar' ? 'إضافة ملاحظة أو تعديل' : 'Add note / edit'}
       </a>
     </div>
