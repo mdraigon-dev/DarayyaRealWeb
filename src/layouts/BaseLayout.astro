@@ -39,6 +39,12 @@ const dir = lang === 'ar' ? 'rtl' : 'ltr';
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" is:inline></script>
+
+  <!-- Netlify Identity widget — loaded site-wide so logged-in staff see
+       "Add note" and "Edit" affordances on project pages. Auto-detects
+       API URL because the site is hosted on Netlify. Anonymous visitors
+       see nothing — the widget is invisible until openIdentity() is called. -->
+  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
 </head>
 <body>
   <!-- Inline SVG symbol for the Darayya logo, used via <use> -->

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
+import AuthAwareNoteAdder from './AuthAwareNoteAdder';
 import { pickPhoto } from '../data/unsplash-photos';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
@@ -216,6 +217,10 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               </div>
             </>
           )}
+
+          {/* Add Note button — visible only when logged in via Netlify Identity.
+              Deep-links to Decap CMS so the engineer/manager can write the note. */}
+          <AuthAwareNoteAdder projectId={project.id} lang={lang} />
 
           {project.comments && project.comments.length > 0 && (
             <>

@@ -4,15 +4,58 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>إدارة منصة داريّا — Darayya CMS</title>
+
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* ───────────────────────────────────────────────────────────────
+       Decap CMS UI customization
+       ───────────────────────────────────────────────────────────────
+       Decap renders a "Collections" sidebar nav that floats on top of
+       page content. With only 2 collections (Projects + Site Settings),
+       it's more noise than help. Hide it.
+
+       Decap's class names use emotion-css with hashed suffixes, so we
+       target by attribute prefix and aria roles.
+    */
+
+    /* Hide the floating Collections nav that overlaps the main column */
+    [class*="SidebarNavList"],
+    div[class*="css-"][class*="Sidebar"]:has(> a[href*="/collections/"]) {
+      display: none !important;
+    }
+
+    /* Some Decap versions wrap the nav in this aria-label */
+    nav[aria-label="Collections"],
+    nav[aria-label="المجموعات"] {
+      display: none !important;
+    }
+
+    /* Make the main content area take the full width once sidebar is hidden */
+    main[class*="MainContainer"],
+    main[class*="MainView"] {
+      padding-right: 1rem !important;
+      padding-left: 1rem !important;
+      max-width: 1200px !important;
+      margin: 0 auto !important;
+    }
+
+    /* Slightly tighter top toolbar so "+ New" stays prominent */
+    [class*="Toolbar"] [class*="ToolbarSubSection"] {
+      gap: 0.5rem !important;
+    }
+
+    /* On RTL layouts the collections sidebar can also appear on the LEFT.
+       Belt-and-suspenders: hide anything that looks like a collections list. */
+    aside[class*="css-"]:has(input[placeholder*="Search"]),
+    aside[class*="css-"]:has(input[placeholder*="بحث"]) {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
-  <!-- Netlify Identity widget — provides login for both Decap CMS (this page)
-       and the Council Dashboard (/ar/admin/, /en/admin/).
-       Since this site is hosted on Netlify, the widget auto-detects the
-       Identity API URL. No explicit configuration needed. -->
+  <!-- Netlify Identity widget — provides login for Decap CMS and Council Dashboard.
+       Auto-detects API URL because the site is hosted on Netlify. -->
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 
   <!-- Decap CMS — friendly admin UI that saves edits back to GitHub -->
@@ -29,6 +72,28 @@
         }
       });
     }
+
+    // Inject additional CSS overrides after Decap mounts. Some of Decap's
+    // styles are inline and need to be overridden after the React tree
+    // settles. We poll briefly until we find the chrome and apply.
+    (function hideDecapSidebar() {
+      let tries = 0;
+      const max = 50; // 5 seconds max
+      const interval = setInterval(() => {
+        tries++;
+        const sidebars = document.querySelectorAll(
+          'nav[aria-label="Collections"], nav[aria-label="المجموعات"], [class*="SidebarNavList"]'
+        );
+        if (sidebars.length > 0) {
+          sidebars.forEach(el => {
+            el.style.display = 'none';
+            el.setAttribute('data-darayya-hidden', 'true');
+          });
+          clearInterval(interval);
+        }
+        if (tries >= max) clearInterval(interval);
+      }, 100);
+    })();
   </script>
 </body>
 </html>
