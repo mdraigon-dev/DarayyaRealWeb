@@ -594,6 +594,315 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         </div>
       </div>
 
+      {/* Map coordinates — small section because most projects use the default */}
+      <div className="editor-card">
+        <h3 className="editor-card-title">
+          <span className="editor-card-icon">📍</span>
+          {lang === 'ar' ? 'إحداثيات الموقع' : 'Map coordinates'}
+        </h3>
+        <p className="editor-field-hint" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
+          {lang === 'ar'
+            ? 'القيم الافتراضية تشير إلى مركز داريّا. عدّلها إذا كان المشروع في موقع محدد.'
+            : 'Defaults point to the center of Darayya. Change them if the project has a specific location.'}
+        </p>
+        <div className="editor-row">
+          <div className="editor-field editor-field-half">
+            <label>{lang === 'ar' ? 'خط العرض (Latitude)' : 'Latitude'}</label>
+            <input
+              type="number"
+              step="0.0001"
+              className="editor-number-input"
+              value={state.lat}
+              onChange={(e) => update('lat', parseFloat(e.target.value) || 33.45)}
+            />
+          </div>
+          <div className="editor-field editor-field-half">
+            <label>{lang === 'ar' ? 'خط الطول (Longitude)' : 'Longitude'}</label>
+            <input
+              type="number"
+              step="0.0001"
+              className="editor-number-input"
+              value={state.lng}
+              onChange={(e) => update('lng', parseFloat(e.target.value) || 36.25)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-projects — the bands of work that make up the whole project */}
+      <div className="editor-card">
+        <h3 className="editor-card-title">
+          <span className="editor-card-icon">◆</span>
+          {lang === 'ar' ? 'المشاريع الفرعية والبنود' : 'Sub-projects & line items'}
+        </h3>
+        <p className="editor-field-hint" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
+          {lang === 'ar'
+            ? 'قسّم المشروع إلى بنود تنفيذية. كل بند له ميزانية مستقلة وشريط تقدم خاص. المتبرعون يمكنهم اختيار التبرع لبند محدد.'
+            : 'Split the project into executable line items. Each has its own budget and progress bar. Donors can choose to fund a specific item.'}
+        </p>
+        {state.subs.length === 0 && (
+          <p className="editor-empty-note">
+            {lang === 'ar' ? 'لا توجد بنود فرعية بعد.' : 'No sub-projects yet.'}
+          </p>
+        )}
+        {state.subs.map((s, i) => (
+          <div key={i} className="editor-list-item">
+            <div className="editor-list-item-head">
+              <input
+                type="text"
+                className="editor-text-input editor-id-input"
+                value={s.id}
+                placeholder="id (e.g. paving)"
+                onChange={(e) => {
+                  const next = [...state.subs];
+                  next[i] = { ...s, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 30) };
+                  update('subs', next);
+                }}
+              />
+              <button
+                type="button"
+                className="editor-remove-btn"
+                onClick={() => update('subs', state.subs.filter((_, j) => j !== i))}
+                aria-label={lang === 'ar' ? 'حذف' : 'Delete'}
+              >
+                ✕
+              </button>
+            </div>
+            <BilingualField
+              label={lang === 'ar' ? 'اسم البند' : 'Item name'}
+              value={s.title}
+              onChange={(side, v) => {
+                const next = [...state.subs];
+                next[i] = { ...s, title: { ...s.title, [side]: v } };
+                update('subs', next);
+              }}
+              arPlaceholder={lang === 'ar' ? 'مثلاً: تزفيت الشارع' : ''}
+            />
+            <BilingualField
+              label={lang === 'ar' ? 'الكمية/الطول' : 'Quantity/length'}
+              value={s.length}
+              onChange={(side, v) => {
+                const next = [...state.subs];
+                next[i] = { ...s, length: { ...s.length, [side]: v } };
+                update('subs', next);
+              }}
+              arPlaceholder={lang === 'ar' ? 'مثلاً: ٣٠٠ متر' : ''}
+            />
+            <div className="editor-row">
+              <div className="editor-field editor-field-half">
+                <label>{lang === 'ar' ? 'الميزانية USD' : 'Budget USD'}</label>
+                <input
+                  type="number"
+                  className="editor-number-input"
+                  min={1}
+                  value={s.budgetUSD}
+                  onChange={(e) => {
+                    const next = [...state.subs];
+                    next[i] = { ...s, budgetUSD: Math.max(0, parseInt(e.target.value, 10) || 0) };
+                    update('subs', next);
+                  }}
+                />
+              </div>
+              <div className="editor-field editor-field-half">
+                <label>{lang === 'ar' ? 'المحصّل USD' : 'Raised USD'}</label>
+                <input
+                  type="number"
+                  className="editor-number-input"
+                  min={0}
+                  value={s.raisedUSD}
+                  onChange={(e) => {
+                    const next = [...state.subs];
+                    next[i] = { ...s, raisedUSD: Math.max(0, parseInt(e.target.value, 10) || 0) };
+                    update('subs', next);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="editor-add-btn"
+          onClick={() => update('subs', [
+            ...state.subs,
+            {
+              id: `item-${state.subs.length + 1}`,
+              title: { ar: '', en: '' },
+              length: { ar: '', en: '' },
+              budgetUSD: 1000,
+              raisedUSD: 0,
+            },
+          ])}
+        >
+          + {lang === 'ar' ? 'إضافة بند فرعي' : 'Add sub-project'}
+        </button>
+      </div>
+
+      {/* Engineers & team */}
+      <div className="editor-card">
+        <h3 className="editor-card-title">
+          <span className="editor-card-icon">👷</span>
+          {lang === 'ar' ? 'الفريق والمهندسون' : 'Engineers & team'}
+        </h3>
+        {state.engineers.length === 0 && (
+          <p className="editor-empty-note">
+            {lang === 'ar' ? 'لا يوجد أعضاء فريق بعد.' : 'No team members yet.'}
+          </p>
+        )}
+        {state.engineers.map((e, i) => (
+          <div key={i} className="editor-list-item">
+            <div className="editor-list-item-head">
+              <BilingualField
+                label={lang === 'ar' ? 'الاسم' : 'Name'}
+                value={e.name}
+                onChange={(side, v) => {
+                  const next = [...state.engineers];
+                  next[i] = { ...e, name: { ...e.name, [side]: v } };
+                  update('engineers', next);
+                }}
+                arPlaceholder={lang === 'ar' ? 'مثلاً: م. أحمد' : ''}
+              />
+              <button
+                type="button"
+                className="editor-remove-btn"
+                onClick={() => update('engineers', state.engineers.filter((_, j) => j !== i))}
+                aria-label={lang === 'ar' ? 'حذف' : 'Delete'}
+              >
+                ✕
+              </button>
+            </div>
+            <BilingualField
+              label={lang === 'ar' ? 'الدور / التخصص' : 'Role / discipline'}
+              value={e.role}
+              onChange={(side, v) => {
+                const next = [...state.engineers];
+                next[i] = { ...e, role: { ...e.role, [side]: v } };
+                update('engineers', next);
+              }}
+              arPlaceholder={lang === 'ar' ? 'مثلاً: مهندس مدني' : ''}
+            />
+            <div className="editor-row">
+              <div className="editor-field editor-field-half">
+                <label>{lang === 'ar' ? 'البريد الإلكتروني (اختياري)' : 'Email (optional)'}</label>
+                <input
+                  type="email"
+                  className="editor-text-input"
+                  dir="ltr"
+                  value={e.email || ''}
+                  onChange={(ev) => {
+                    const next = [...state.engineers];
+                    next[i] = { ...e, email: ev.target.value };
+                    update('engineers', next);
+                  }}
+                />
+              </div>
+              <div className="editor-field editor-field-half">
+                <label>{lang === 'ar' ? 'الهاتف (اختياري)' : 'Phone (optional)'}</label>
+                <input
+                  type="tel"
+                  className="editor-text-input"
+                  dir="ltr"
+                  value={e.phone || ''}
+                  onChange={(ev) => {
+                    const next = [...state.engineers];
+                    next[i] = { ...e, phone: ev.target.value };
+                    update('engineers', next);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="editor-add-btn"
+          onClick={() => update('engineers', [
+            ...state.engineers,
+            { name: { ar: '', en: '' }, role: { ar: '', en: '' }, email: '', phone: '' },
+          ])}
+        >
+          + {lang === 'ar' ? 'إضافة عضو فريق' : 'Add team member'}
+        </button>
+      </div>
+
+      {/* Field updates (dated) — different from comments; these go on the timeline */}
+      <div className="editor-card">
+        <h3 className="editor-card-title">
+          <span className="editor-card-icon">📰</span>
+          {lang === 'ar' ? 'التحديثات الميدانية' : 'Field updates'}
+        </h3>
+        <p className="editor-field-hint" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
+          {lang === 'ar'
+            ? 'تظهر هذه التحديثات في الجدول الزمني على صفحة المشروع. استخدمها لإعلام المتبرعين بالتقدم.'
+            : 'These appear in the timeline on the project page. Use them to inform donors of progress.'}
+        </p>
+        {state.updates.length === 0 && (
+          <p className="editor-empty-note">
+            {lang === 'ar' ? 'لا توجد تحديثات بعد.' : 'No updates yet.'}
+          </p>
+        )}
+        {state.updates.map((u, i) => (
+          <div key={i} className="editor-list-item">
+            <div className="editor-list-item-head">
+              <BilingualField
+                label={lang === 'ar' ? 'الكاتب' : 'Author'}
+                value={u.author}
+                onChange={(side, v) => {
+                  const next = [...state.updates];
+                  next[i] = { ...u, author: { ...u.author, [side]: v } };
+                  update('updates', next);
+                }}
+                arPlaceholder={lang === 'ar' ? 'مثلاً: رئيس بلدية داريا' : ''}
+              />
+              <button
+                type="button"
+                className="editor-remove-btn"
+                onClick={() => update('updates', state.updates.filter((_, j) => j !== i))}
+                aria-label={lang === 'ar' ? 'حذف' : 'Delete'}
+              >
+                ✕
+              </button>
+            </div>
+            <BilingualField
+              label={lang === 'ar' ? 'التاريخ (نص حر)' : 'Date (free text)'}
+              value={u.date}
+              onChange={(side, v) => {
+                const next = [...state.updates];
+                next[i] = { ...u, date: { ...u.date, [side]: v } };
+                update('updates', next);
+              }}
+              arPlaceholder={lang === 'ar' ? 'مثلاً: ١٥ نيسان ٢٠٢٦' : ''}
+              enPlaceholder="e.g. April 15, 2026"
+            />
+            <BilingualField
+              label={lang === 'ar' ? 'نص التحديث' : 'Update text'}
+              value={u.body}
+              onChange={(side, v) => {
+                const next = [...state.updates];
+                next[i] = { ...u, body: { ...u.body, [side]: v } };
+                update('updates', next);
+              }}
+              arPlaceholder={lang === 'ar' ? 'ماذا حدث على الأرض؟' : ''}
+              multiline
+            />
+          </div>
+        ))}
+        <button
+          type="button"
+          className="editor-add-btn"
+          onClick={() => update('updates', [
+            ...state.updates,
+            {
+              date: { ar: lang === 'ar' ? 'اليوم' : '', en: lang === 'ar' ? '' : 'Today' },
+              author: { ar: (auth as any).user?.user_metadata?.full_name || (auth as any).user?.email || '', en: '' },
+              body: { ar: '', en: '' },
+            },
+          ])}
+        >
+          + {lang === 'ar' ? 'إضافة تحديث ميداني' : 'Add field update'}
+        </button>
+      </div>
+
       {/* Comments — quick add/remove */}
       <div className="editor-card">
         <h3 className="editor-card-title">
@@ -668,13 +977,15 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         </button>
       </div>
 
-      {/* Pointer to classic editor for advanced fields */}
+      {/* Pointer to classic editor — now only useful for photo uploads,
+          which we still defer to Decap because they need file upload UI
+          and atomic image+frontmatter commits. */}
       {!isNew && (
         <div className="editor-advanced-note">
           <p>
             {lang === 'ar'
-              ? 'للتعديلات المتقدمة (المشاريع الفرعية، الفريق، الصور، الإحداثيات، التحديثات الميدانية المؤرّخة):'
-              : 'For advanced fields (sub-projects, team, photos, coordinates, dated field updates):'}
+              ? 'لرفع صور للمشروع (يتطلب رفع ملفات):'
+              : 'To upload photos for this project (requires file upload):'}
           </p>
           <a
             href={`/admin/#/collections/projects/entries/${state.id}`}
@@ -688,8 +999,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         <div className="editor-advanced-note">
           <p>
             {lang === 'ar'
-              ? '★ بعد إنشاء المشروع، يمكنك العودة لإضافة المشاريع الفرعية، الفريق، الصور، والمزيد من التفاصيل.'
-              : '★ After creating the project, you can come back to add sub-projects, team members, photos, and more details.'}
+              ? '★ يمكنك إضافة كل التفاصيل هنا. الصور تُرفع لاحقاً عبر المحرر الكلاسيكي.'
+              : '★ You can add all details here. Photos are uploaded later via the classic editor.'}
           </p>
         </div>
       )}

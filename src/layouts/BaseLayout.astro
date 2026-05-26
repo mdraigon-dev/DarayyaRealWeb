@@ -18,6 +18,9 @@ interface Props {
 
 const { title, description, lang, currentPage = 'home' } = Astro.props;
 const dir = lang === 'ar' ? 'rtl' : 'ltr';
+// Pass the current URL pathname into Nav so its lang toggle can swap
+// /ar/<path> ↔ /en/<path> even before client-side hydration completes.
+const pathname = Astro.url.pathname;
 ---
 
 <!DOCTYPE html>
@@ -50,7 +53,7 @@ const dir = lang === 'ar' ? 'rtl' : 'ltr';
   <!-- Inline SVG symbol for the Darayya logo, used via <use> -->
   <Fragment set:html={symbolHtml} />
 
-  <Nav lang={lang} currentPage={currentPage} client:load />
+  <Nav lang={lang} currentPage={currentPage} pathname={pathname} client:load />
 
   <main>
     <slot />

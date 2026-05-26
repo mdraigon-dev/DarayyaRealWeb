@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { adminData } from '../data/admin-sample';
+import { loadDonations, type DemoDonation } from '../data/demo-donations';
 
 type Bilingual = { ar: string; en: string };
 type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
@@ -71,6 +72,70 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   realActivities.sort((a, b) => b.sortKey - a.sortKey);
   const realActivitiesTop = realActivities.slice(0, 8);
   const activities = realActivitiesTop.length > 0 ? realActivitiesTop : sampleActivities;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Demo donations from localStorage → Recent Donations + Top Donors
+  // ──────────────────────────────────────────────────────────────────
+  // We load on mount only (localStorage isn't available during SSR).
+  // The dashboard re-reads when the user navigates back from a donation.
+  const [demoDonations, setDemoDonations] = useState<DemoDonation[]>([]);
+  useEffect(() => {
+    setDemoDonations(loadDonations().donations);
+    // If the page becomes visible after the user donated in another tab,
+    // refresh so they see the new entries.
+    const onVis = () => setDemoDonations(loadDonations().donations);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Build a quick project-id → title lookup so we can show "donated to <name>"
+  const projectById = new Map<string, Project>();
+  projects.forEach(p => projectById.set(p.id, p));
+
+  // Recent demo donations — sorted by timestamp DESC, mapped to display shape
+  type RecentDonation = { name: string; location: string; target: string; time: string; amountUSD: number; color: string; isDemo: boolean };
+  const demoRecent: RecentDonation[] = [...demoDonations]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 8)
+    .map((d) => {
+      const project = projectById.get(d.projectId);
+      const projectName = project ? loc(lang, project.title) : d.projectId;
+      const name = d.name?.trim() || (lang === 'ar' ? 'متبرع مجهول' : 'Anonymous donor');
+      const ageMs = Date.now() - d.timestamp;
+      const time = formatRelativeTime(ageMs, lang);
+      // Pick a deterministic color from name hash
+      const colors = ['green', 'gold', 'blue', 'red'];
+      const colorIdx = Math.abs(hashStr(name)) % colors.length;
+      return {
+        name,
+        location: lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode',
+        target: lang === 'ar' ? `لمشروع: ${projectName}` : `to: ${projectName}`,
+        time,
+        amountUSD: d.amountUSD,
+        color: colors[colorIdx],
+        isDemo: true,
+      };
+    });
+  const recentDonationsDisplay = demoRecent.length > 0
+    ? demoRecent
+    : donations.slice(0, 8).map(d => ({ ...d, isDemo: false } as RecentDonation));
+
+  // Top donors — group demo donations by donor name, sum amounts
+  const demoDonorTotals = new Map<string, number>();
+  demoDonations.forEach(d => {
+    const name = d.name?.trim() || (lang === 'ar' ? 'متبرع مجهول' : 'Anonymous donor');
+    demoDonorTotals.set(name, (demoDonorTotals.get(name) || 0) + d.amountUSD);
+  });
+  type TopDonor = { name: string; amountUSD: number; isDemo: boolean };
+  const demoTopDonors: TopDonor[] = [...demoDonorTotals.entries()]
+    .map(([name, amountUSD]) => ({ name, amountUSD, isDemo: true }))
+    .sort((a, b) => b.amountUSD - a.amountUSD)
+    .slice(0, 5);
+  const topDonorsDisplay = demoTopDonors.length > 0
+    ? demoTopDonors
+    : topDonors.map(d => ({ ...d, isDemo: false } as TopDonor));
+
+  const isShowingDemoDonations = demoDonations.length > 0;
 
   // Search & filter state for the project table — makes the dashboard feel
   // like a real working tool for non-technical staff
@@ -205,11 +270,25 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
             <div className="admin-card-title">
               <span style={{ color: 'var(--sy-gold)' }}>◆</span>
               {t(lang, 'admin_recent_donations')}
+              {isShowingDemoDonations ? (
+                <span className="admin-card-badge admin-card-badge-demo">
+                  ★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}
+                </span>
+              ) : (
+                <span className="admin-card-badge admin-card-badge-sample">
+                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
+                </span>
+              )}
             </div>
             <span className="admin-card-link">{t(lang, 'admin_view_all')}</span>
           </div>
           <div className="admin-card-body">
-            {donations.slice(0, 8).map((d, i) => (
+            {recentDonationsDisplay.length === 0 && (
+              <p className="admin-card-empty">
+                {lang === 'ar' ? 'لا توجد تبرعات بعد.' : 'No donations yet.'}
+              </p>
+            )}
+            {recentDonationsDisplay.slice(0, 8).map((d, i) => (
               <div className="feed-item" key={i}>
                 <div className={`feed-avatar ${d.color}`}>{initials(d.name)}</div>
                 <div className="feed-content">
@@ -288,10 +367,24 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
             <div className="admin-card-title">
               <span style={{ color: 'var(--sy-gold)' }}>◆</span>
               {t(lang, 'admin_activity')}
+              {realActivitiesTop.length > 0 ? (
+                <span className="admin-card-badge admin-card-badge-live">
+                  ● {lang === 'ar' ? 'مباشر' : 'Live'}
+                </span>
+              ) : (
+                <span className="admin-card-badge admin-card-badge-sample">
+                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
+                </span>
+              )}
             </div>
             <span className="admin-card-link">{t(lang, 'admin_full_log')}</span>
           </div>
           <div className="admin-card-body">
+            {activities.length === 0 && (
+              <p className="admin-card-empty">
+                {lang === 'ar' ? 'لا يوجد نشاط بعد.' : 'No activity yet.'}
+              </p>
+            )}
             {activities.map((a, i) => (
               <div className="activity-item" key={i}>
                 <div className={`activity-dot ${a.color}`}></div>
@@ -309,10 +402,24 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
             <div className="admin-card-title">
               <span style={{ color: 'var(--sy-gold)' }}>◆</span>
               {t(lang, 'admin_top_donors')}
+              {isShowingDemoDonations ? (
+                <span className="admin-card-badge admin-card-badge-demo">
+                  ★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}
+                </span>
+              ) : (
+                <span className="admin-card-badge admin-card-badge-sample">
+                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
+                </span>
+              )}
             </div>
           </div>
           <div className="admin-card-body">
-            {topDonors.map((d, i) => (
+            {topDonorsDisplay.length === 0 && (
+              <p className="admin-card-empty">
+                {lang === 'ar' ? 'لم يقم أحد بالتبرع بعد.' : 'No donors yet.'}
+              </p>
+            )}
+            {topDonorsDisplay.map((d, i) => (
               <div className="leader-item" key={i}>
                 <div className={`leader-rank ${i === 0 ? 'gold' : ''}`}>{fmtNum(lang, i + 1)}</div>
                 <div className="leader-name">{d.name}</div>
@@ -522,4 +629,23 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0; // 32-bit
+  }
+  return h;
+}
+
+function formatRelativeTime(ms: number, lang: Lang): string {
+  if (ms < 60000) return lang === 'ar' ? 'منذ ثوانٍ' : 'just now';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return lang === 'ar' ? `منذ ${min} دقيقة` : `${min} min ago`;
+  const hr = Math.floor(ms / 3600000);
+  if (hr < 24) return lang === 'ar' ? `منذ ${hr} ساعة` : `${hr} hr ago`;
+  const day = Math.floor(ms / 86400000);
+  return lang === 'ar' ? `منذ ${day} يوم` : `${day} day ago`;
 }

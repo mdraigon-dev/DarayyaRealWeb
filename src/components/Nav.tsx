@@ -5,19 +5,25 @@ import { t, type Lang } from '../i18n/strings';
 type Props = {
   lang: Lang;
   currentPage: 'home' | 'projects' | 'transparency' | 'admin';
+  /** Current pathname passed in by Astro so the lang toggle can preserve it
+   *  even before JS hydrates. Without this, the SSR-rendered toggle URL
+   *  falls back to the locale homepage, which means the toggle "only works
+   *  on home" if the user clicks before hydration. */
+  pathname?: string;
 };
 
-export default function Nav({ lang, currentPage }: Props) {
+export default function Nav({ lang, currentPage, pathname }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Build paths preserving the current locale and respecting the configured base
   const base = (import.meta as any).env?.BASE_URL ?? '/';
   const link = (path: string) => `${base}${lang}${path}`;
 
-  // Track the current path so the language toggle can preserve it
-  // (e.g. /ar/projects/water-east/ ↔ /en/projects/water-east/).
-  // Falls back to home of the other locale during SSR / first paint.
-  const [currentPath, setCurrentPath] = useState<string>(`${base}${lang}/`);
+  // Initial path comes from Astro (set on the server). On the client, we
+  // re-read window.location after mount in case the user navigated client-side.
+  const [currentPath, setCurrentPath] = useState<string>(
+    pathname || `${base}${lang}/`
+  );
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentPath(window.location.pathname);
