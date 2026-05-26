@@ -240,15 +240,10 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       await commitFile(path, content, commitMessage);
 
       setSave({ kind: 'success' });
-      // After a successful create, redirect to the new project's public page
-      // so the clerk sees the result. After edit, go back to the dashboard.
-      setTimeout(() => {
-        if (isNew) {
-          window.location.href = `${basePath}/projects/${state.id}/`;
-        } else {
-          window.location.href = returnTo;
-        }
-      }, 1500);
+      // IMPORTANT: do NOT auto-redirect to the project's public page.
+      // Netlify rebuilds take 1-3 minutes after a commit; the new page
+      // simply does not exist yet. Instead, the success screen below
+      // explains what's happening and gives the user choices.
     } catch (err: any) {
       setSave({ kind: 'error', message: err?.message || 'Save failed' });
     }
@@ -294,6 +289,67 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   }
 
   // Authenticated — render the editor
+  // If a save just succeeded, show a success screen with options instead
+  // of the form. We don't auto-redirect to the project page because Netlify
+  // needs 1-3 minutes to rebuild after a commit, and going to the URL too
+  // early would 404.
+  if (save.kind === 'success') {
+    const dashboardHref = returnTo;
+    // For edits we also link the public page (which exists, even if its
+    // *content* is briefly stale until rebuild). For new projects we don't,
+    // because the page genuinely doesn't exist yet.
+    const publicHref = isNew ? null : `${basePath}/projects/${state.id}/`;
+    return (
+      <section className="editor-section">
+        <div className="editor-success-card">
+          <div className="editor-success-icon">✓</div>
+          <h2>
+            {isNew
+              ? (lang === 'ar' ? 'تم إنشاء المشروع' : 'Project created')
+              : (lang === 'ar' ? 'تم حفظ التغييرات' : 'Changes saved')}
+          </h2>
+          <p>
+            {lang === 'ar'
+              ? <>تم حفظ <strong>{state.title.ar || state.id}</strong> في المستودع بنجاح.</>
+              : <>Saved <strong>{state.title.ar || state.id}</strong> to the repository.</>}
+          </p>
+          <div className="editor-success-build-note">
+            <span className="editor-success-build-spinner">⟳</span>
+            <span>
+              {lang === 'ar'
+                ? 'الموقع يُعاد بناؤه الآن. ستظهر التغييرات خلال ١–٣ دقائق.'
+                : 'The site is rebuilding now. Changes will appear in 1–3 minutes.'}
+            </span>
+          </div>
+          <div className="editor-success-actions">
+            <a href={dashboardHref} className="btn-primary">
+              {lang === 'ar' ? '← العودة إلى لوحة المجلس' : '← Back to dashboard'}
+            </a>
+            {publicHref && (
+              <a href={publicHref} className="btn-secondary" target="_blank" rel="noopener noreferrer">
+                {lang === 'ar' ? 'فتح صفحة المشروع (قد تكون قديمة قليلاً)' : 'Open project page (may be briefly stale)'}
+              </a>
+            )}
+            {isNew && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => window.location.reload()}
+              >
+                {lang === 'ar' ? '+ إنشاء مشروع آخر' : '+ Create another project'}
+              </button>
+            )}
+          </div>
+          <p className="editor-success-hint">
+            {lang === 'ar'
+              ? '★ يستغرق Netlify دقيقة إلى ثلاث لإعادة بناء الموقع بعد كل حفظ. لا حاجة للضغط على «حفظ» مرة أخرى.'
+              : '★ Netlify takes 1–3 minutes to rebuild after each save. No need to click Save again.'}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="editor-section">
       {/* Sticky save bar at top */}
