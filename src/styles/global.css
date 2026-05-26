@@ -3076,6 +3076,11 @@ html { scroll-behavior: smooth; }
 }
 .chart-bar.today {
   background: linear-gradient(180deg, var(--sy-gold-lt), var(--sy-gold));
+  box-shadow: 0 0 0 2px var(--sy-gold-dk, #B08A30);
+}
+.chart-label.today {
+  color: var(--sy-gold-dk, #B08A30);
+  font-weight: 800;
 }
 .chart-bar-tooltip {
   position: absolute;
@@ -4332,4 +4337,226 @@ html { scroll-behavior: smooth; }
     align-items: flex-start;
     gap: 1rem;
   }
+}
+
+/* ====================================================================
+   AUTH-NOTE-ROLE — small muted parenthetical next to "Signed in as <name>"
+   Shows the user's permission classification: admin / engineer on this
+   project / signed in. Lets the user see at a glance what they can do.
+   ==================================================================== */
+.auth-note-role {
+  font-size: 12px;
+  color: var(--sy-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* ====================================================================
+   AUTH-UPDATE-ADDER — inline form for posting field updates
+   Visual treatment: gold-wash background (vs the note adder's green-pale),
+   bigger header with icon. Field updates are more formal than comments —
+   they appear in the project timeline and the dashboard activity log —
+   so the component deserves more visual weight.
+
+   Only rendered to admins and engineers-of-this-project (gated in the
+   component via classifyUser).
+   ==================================================================== */
+.auth-update-bar {
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(135deg, var(--sy-gold-wash) 0%, var(--sy-paper-pure) 100%);
+  border: 1px solid var(--sy-gold);
+  border-radius: var(--r-md);
+}
+.auth-update-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.auth-update-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  filter: saturate(0.85);
+}
+.auth-update-header strong {
+  display: block;
+  color: var(--sy-green-dk);
+  font-size: 1rem;
+  margin-bottom: 2px;
+}
+.auth-update-subtitle {
+  font-size: 12px;
+  color: var(--sy-muted);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Collapsed CTA */
+.auth-update-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.auth-update-btn-inline {
+  padding: 0.55rem 1.15rem;
+  background: var(--sy-gold);
+  color: var(--sy-paper-pure);
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.auth-update-btn-inline:hover {
+  background: var(--sy-gold-dk, #B08A30);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(201, 161, 74, 0.4);
+}
+
+/* Expanded form */
+.auth-update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.auth-update-form-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.auth-update-form-field {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.auth-update-form-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sy-muted);
+  font-weight: 700;
+}
+.auth-update-form-author,
+.auth-update-form-date {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--sy-paper-pure);
+  color: var(--sy-ink);
+}
+.auth-update-form-author:focus,
+.auth-update-form-date:focus {
+  outline: none;
+  border-color: var(--sy-gold);
+  box-shadow: 0 0 0 3px rgba(201, 161, 74, 0.18);
+}
+.auth-update-form-body {
+  width: 100%;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--sy-ink);
+  background: var(--sy-paper-pure);
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.auth-update-form-body:focus {
+  outline: none;
+  border-color: var(--sy-gold);
+  box-shadow: 0 0 0 3px rgba(201, 161, 74, 0.18);
+}
+.auth-update-form-error {
+  padding: 0.55rem 0.95rem;
+  background: rgba(206, 17, 38, 0.08);
+  border: 1px solid var(--sy-red);
+  color: var(--sy-red);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+.auth-update-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+.auth-update-form-cancel {
+  padding: 0.5rem 1.1rem;
+  background: transparent;
+  color: var(--sy-ink-soft);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.auth-update-form-cancel:hover:not(:disabled) {
+  border-color: var(--sy-muted);
+  background: var(--sy-paper);
+}
+.auth-update-form-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-update-form-save {
+  padding: 0.55rem 1.35rem;
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  border: none;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.auth-update-form-save:hover:not(:disabled) {
+  background: var(--sy-green);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 88, 44, 0.3);
+}
+.auth-update-form-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Success state replaces the form */
+.auth-update-success {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: var(--sy-green-pale);
+  border: 1px solid var(--sy-green);
+  border-radius: var(--r-md);
+}
+.auth-update-success-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--sy-green);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.auth-update-success > div { display: flex; flex-direction: column; gap: 2px; }
+.auth-update-success strong {
+  color: var(--sy-green-dk);
+  font-size: 14px;
+}
+.auth-update-success-sub {
+  font-size: 12px;
+  color: var(--sy-ink-soft);
+  font-style: italic;
 }

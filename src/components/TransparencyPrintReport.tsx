@@ -1,7 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
+import { loadDonations } from '../data/demo-donations';
+import { applyDemoToProjects } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
+type Sub = { id: string; budgetUSD: number; raisedUSD: number };
 type Project = {
   id: string;
   status: string;
@@ -12,6 +15,7 @@ type Project = {
   raisedUSD: number;
   donors: number;
   daysLeft: number;
+  subs?: Sub[];
 };
 
 type Props = {
@@ -26,19 +30,24 @@ type Props = {
  *
  * Single-page printable transparency report. Rendered at /xx/transparency/print/.
  *
- * Two purposes:
- *   1. Looks good on screen — branded layout, Syrian palette, decent typography
- *   2. Prints to PDF cleanly via the browser's "Save as PDF" feature
- *
- * The page auto-calls window.print() shortly after mount so opening the URL
- * in a new tab pops the print dialog. Users without auto-print just click the
- * "Print / Save as PDF" button at the top.
- *
- * The @media print CSS in global.css hides browser chrome and tightens
- * margins for a clean PDF output.
+ * Loads demo donations from localStorage and augments each project before
+ * rendering, so the printed PDF includes the user's contributions in totals
+ * AND per-project rows. Auto-calls window.print() ~900ms after mount — the
+ * extra delay (vs the previous 700ms) gives time to load demo donations
+ * before printing.
  */
-export default function TransparencyPrintReport({ projects, lang, emblemSvg }: Props) {
+export default function TransparencyPrintReport({ projects: rawProjects, lang, emblemSvg }: Props) {
   const currency: 'USD' | 'SYP' = 'USD';
+
+  // Augment projects with demo donations on mount
+  const [projects, setProjects] = useState<Project[]>(rawProjects);
+  const [demoApplied, setDemoApplied] = useState(false);
+  useEffect(() => {
+    const donations = loadDonations().donations;
+    setProjects(applyDemoToProjects(rawProjects, donations));
+    setDemoApplied(true);
+  }, [rawProjects]);
+
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
@@ -53,14 +62,16 @@ export default function TransparencyPrintReport({ projects, lang, emblemSvg }: P
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
 
-  // Auto-trigger the print dialog ~700ms after mount so the page has time
-  // to render fully. Users can also click the Print button manually.
+  // Auto-trigger the print dialog after demo donations are loaded so the
+  // PDF reflects them. We wait an extra ~400ms after demoApplied flips to
+  // true to give React time to re-render. Users can also click Print.
   useEffect(() => {
+    if (!demoApplied) return;
     const t = setTimeout(() => {
       try { window.print(); } catch {}
-    }, 700);
+    }, 400);
     return () => clearTimeout(t);
-  }, []);
+  }, [demoApplied]);
 
   const sortedProjects = [...projects].sort((a, b) => b.raisedUSD - a.raisedUSD);
 

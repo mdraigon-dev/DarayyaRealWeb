@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
 import { t, fmtNum, type Lang } from '../i18n/strings';
+import { loadDonations } from '../data/demo-donations';
+import { applyDemoToProjects } from '../data/donation-math';
 
 type Props = {
   lang: Lang;
@@ -11,10 +13,21 @@ type Props = {
 const CATEGORIES = ['all', 'roads', 'water', 'sewer', 'lighting', 'communications', 'facilities'] as const;
 const STATUSES = ['all', 'funding', 'active', 'completed'] as const;
 
-export default function ProjectsListContent({ lang, basePath, projects }: Props) {
+export default function ProjectsListContent({ lang, basePath, projects: rawProjects }: Props) {
   const [catKey, setCatKey] = useState<typeof CATEGORIES[number]>('all');
   const [statusKey, setStatusKey] = useState<typeof STATUSES[number]>('funding');
   const [currency] = useState<'USD' | 'SYP'>('USD');
+
+  // Apply demo donations so each tile reflects this browser's contributions
+  const [projects, setProjects] = useState<ProjectCardData[]>(rawProjects);
+  useEffect(() => {
+    const refresh = () => {
+      setProjects(applyDemoToProjects(rawProjects, loadDonations().donations));
+    };
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
+  }, [rawProjects]);
 
   const filtered = useMemo(() => projects.filter(p =>
     (catKey === 'all' || p.category === catKey) &&

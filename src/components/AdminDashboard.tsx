@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { adminData } from '../data/admin-sample';
 import { loadDonations, type DemoDonation } from '../data/demo-donations';
+import { applyDemoToProjects } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
 type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
 type Comment = { author: Bilingual; body: Bilingual; date?: string };
+type Sub = { id: string; budgetUSD: number; raisedUSD: number; title?: Bilingual };
 type Project = {
   id: string;
   category: string;
@@ -15,8 +17,10 @@ type Project = {
   budgetUSD: number;
   raisedUSD: number;
   donors: number;
+  daysLeft?: number;
   updates?: Update[];
   comments?: Comment[];
+  subs?: Sub[];
 };
 
 type Props = {
@@ -25,13 +29,28 @@ type Props = {
   projects: Project[];
 };
 
-export default function AdminDashboard({ lang: urlLang, basePath, projects }: Props) {
+export default function AdminDashboard({ lang: urlLang, basePath, projects: rawProjects }: Props) {
   // Dashboard language follows the URL (/ar/admin/ vs /en/admin/).
-  // No persisted preference — the URL is the source of truth.
   const lang: Lang = urlLang;
 
   const [currency] = useState<'USD' | 'SYP'>('USD');
-  const { donations, alerts, activities: sampleActivities, topDonors, weekData } = adminData(lang);
+  const { donations: sampleDonations, alerts, activities: sampleActivities, topDonors, weekData: sampleWeekData } = adminData(lang);
+
+  // Load demo donations on mount. The dashboard reads them in three ways:
+  //  - augmented project list (per-project raised reflects demos)
+  //  - real 7-day chart data
+  //  - real today's donations
+  const [demoDonations, setDemoDonations] = useState<DemoDonation[]>([]);
+  useEffect(() => {
+    setDemoDonations(loadDonations().donations);
+    const onVis = () => setDemoDonations(loadDonations().donations);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Augmented projects — each project's raisedUSD and donors reflect
+  // demo donations applied via waterfall (for projects with subs)
+  const projects = applyDemoToProjects(rawProjects, demoDonations);
 
   // Derive REAL activity feed from project data: every update and every comment
   // across all projects, most recent first. Falls back to sample activities
@@ -76,17 +95,8 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   // ──────────────────────────────────────────────────────────────────
   // Demo donations from localStorage → Recent Donations + Top Donors
   // ──────────────────────────────────────────────────────────────────
-  // We load on mount only (localStorage isn't available during SSR).
-  // The dashboard re-reads when the user navigates back from a donation.
-  const [demoDonations, setDemoDonations] = useState<DemoDonation[]>([]);
-  useEffect(() => {
-    setDemoDonations(loadDonations().donations);
-    // If the page becomes visible after the user donated in another tab,
-    // refresh so they see the new entries.
-    const onVis = () => setDemoDonations(loadDonations().donations);
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, []);
+  // demoDonations is already loaded above (used to augment projects).
+  // Reuse the same state here for the recent/top donors widgets.
 
   // Build a quick project-id → title lookup so we can show "donated to <name>"
   const projectById = new Map<string, Project>();
@@ -118,7 +128,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
     });
   const recentDonationsDisplay = demoRecent.length > 0
     ? demoRecent
-    : donations.slice(0, 8).map(d => ({ ...d, isDemo: false } as RecentDonation));
+    : sampleDonations.slice(0, 8).map(d => ({ ...d, isDemo: false } as RecentDonation));
 
   // Top donors — group demo donations by donor name, sum amounts
   const demoDonorTotals = new Map<string, number>();
@@ -135,8 +145,6 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
     ? demoTopDonors
     : topDonors.map(d => ({ ...d, isDemo: false } as TopDonor));
 
-  const isShowingDemoDonations = demoDonations.length > 0;
-
   // Search & filter state for the project table — makes the dashboard feel
   // like a real working tool for non-technical staff
   const [searchQuery, setSearchQuery] = useState('');
@@ -146,10 +154,60 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const openCount = projects.filter(p => p.status === 'funding').length;
+  const isShowingDemoDonations = demoDonations.length > 0;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Last-7-days chart: derived from real demo-donation timestamps,
+  // with TODAY highlighted. Days are computed in the user's local time.
+  // Sample chart shown when no demo donations exist.
+  // ──────────────────────────────────────────────────────────────────
+  type DayBucket = { label: string; amount: number; isToday: boolean };
+  const realWeekData: DayBucket[] = (() => {
+    const now = new Date();
+    // Buckets keyed by YYYY-MM-DD local date string
+    const buckets: { dateKey: string; date: Date; amount: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      buckets.push({ dateKey, date: d, amount: 0 });
+    }
+    // Sum each demo donation into its day bucket
+    for (const don of demoDonations) {
+      const dd = new Date(don.timestamp);
+      dd.setHours(0, 0, 0, 0);
+      const key = `${dd.getFullYear()}-${dd.getMonth() + 1}-${dd.getDate()}`;
+      const bucket = buckets.find(b => b.dateKey === key);
+      if (bucket) bucket.amount += don.amountUSD;
+    }
+    // Pretty labels — short weekday name in the active language
+    const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+    const weekdayFmt = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' });
+    return buckets.map(b => ({
+      label: weekdayFmt.format(b.date),
+      amount: b.amount,
+      isToday: b.dateKey === todayKey,
+    }));
+  })();
+
+  // Use real data when we have any donations; otherwise fall back to sample
+  // so the chart isn't blank on day one. Sample is shaped like
+  // [{label, amount}] so we map isToday=false onto it.
+  const weekData: DayBucket[] = isShowingDemoDonations
+    ? realWeekData
+    : sampleWeekData.map((d, i, arr) => ({
+        label: d.label,
+        amount: d.amount,
+        isToday: i === arr.length - 1, // last entry of sample is "today"
+      }));
   const weekTotal = weekData.reduce((s, d) => s + d.amount, 0);
-  const maxBar = Math.max(...weekData.map(d => d.amount));
-  // Today's donations from feed approximation (first 3 entries' sum, since they're "minutes ago")
-  const todayDonations = donations.slice(0, 4).reduce((s, d) => s + d.amountUSD, 0);
+  const maxBar = Math.max(1, ...weekData.map(d => d.amount));
+
+  // "Today's donations" headline: sum of today's bucket (real if we have
+  // any demo donations, else sample's last day)
+  const todayBucket = weekData.find(d => d.isToday);
+  const todayDonations = todayBucket ? todayBucket.amount : 0;
 
   // "Needs attention" — projects that are at risk and should be acted on
   // (under-funded with little time left, stalled, or with low donor count)
@@ -311,13 +369,22 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
               <div className="admin-card-title">
                 <span style={{ color: 'var(--sy-gold)' }}>◆</span>
                 {t(lang, 'admin_week_chart')}
+                {isShowingDemoDonations ? (
+                  <span className="admin-card-badge admin-card-badge-live">
+                    ● {lang === 'ar' ? 'مباشر' : 'Live'}
+                  </span>
+                ) : (
+                  <span className="admin-card-badge admin-card-badge-sample">
+                    {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="chart-week">
               <div className="chart-bars">
                 {weekData.map((d, i) => (
                   <div key={i}
-                       className={`chart-bar ${d.today ? 'today' : ''}`}
+                       className={`chart-bar ${d.isToday ? 'today' : ''}`}
                        style={{ height: `${(d.amount / maxBar) * 100}%` }}>
                     <span className="chart-bar-tooltip">{fmtMoney(lang, currency, d.amount)}</span>
                   </div>
@@ -325,12 +392,16 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
               </div>
               <div className="chart-labels">
                 {weekData.map((d, i) => (
-                  <span key={i} className={`chart-label ${d.today ? 'today' : ''}`}>{d.short}</span>
+                  <span key={i} className={`chart-label ${d.isToday ? 'today' : ''}`}>{d.label}</span>
                 ))}
               </div>
               <div className="chart-summary">
                 <span>{t(lang, 'admin_week_total')} <strong>{fmtMoney(lang, currency, weekTotal)}</strong></span>
-                <span style={{ color: 'var(--sy-green)', fontWeight: 700 }}>{t(lang, 'admin_week_trend')}</span>
+                {isShowingDemoDonations && todayDonations > 0 && (
+                  <span style={{ color: 'var(--sy-gold)', fontWeight: 700 }}>
+                    {lang === 'ar' ? 'اليوم: ' : 'Today: '}{fmtMoney(lang, currency, todayDonations)}
+                  </span>
+                )}
               </div>
             </div>
           </div>

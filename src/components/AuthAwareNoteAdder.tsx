@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { type Lang } from '../i18n/strings';
 import { getFileContent, commitFile } from '../data/git-gateway';
+import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
   interface Window {
@@ -12,12 +13,14 @@ declare global {
 type Props = {
   projectId: string;
   lang: Lang;
+  /** Engineers on this project — used to authorize posting */
+  engineers: ProjectEngineer[];
 };
 
 type AuthState =
   | { kind: 'loading' }
   | { kind: 'anonymous' }
-  | { kind: 'authenticated'; user: { email: string; user_metadata?: { full_name?: string; roles?: string[] } } };
+  | { kind: 'authenticated'; user: AuthUser };
 
 type SaveState =
   | { kind: 'idle' }
@@ -28,22 +31,15 @@ type SaveState =
 /**
  * AuthAwareNoteAdder
  *
- * Renders nothing to anonymous visitors. To logged-in staff, shows:
- *   ● Signed in as <name> | [✎ Add quick note] [Full edit →]
+ * Inline "Add quick note" form. Visible only to:
+ *   - admins (Identity user_metadata.roles includes 'admin')
+ *   - engineers listed on THIS project (email match against engineers[].email)
  *
- * Clicking "Add quick note" expands an inline form. On submit, we read the
- * project file via Git Gateway, parse its YAML frontmatter, append a new
- * comment to comments[], serialize, and commit. The note doesn't appear
- * on the live page until Netlify rebuilds (~1-3 min); we show a success
- * banner explaining that and collapse back after 6 seconds.
- *
- * Role-awareness: set ALLOWED_ROLES to e.g. ['engineer','manager'] to
- * restrict to specific Identity roles. Defaults to any logged-in user.
+ * Other logged-in users and anonymous visitors see nothing. The form
+ * reads/modifies/writes the project's markdown file via Git Gateway.
  */
 
-const ALLOWED_ROLES: string[] | null = null;
-
-export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
+export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [expanded, setExpanded] = useState(false);
   const [body, setBody] = useState('');
@@ -78,14 +74,15 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
 
   if (auth.kind !== 'authenticated') return null;
 
-  if (ALLOWED_ROLES) {
-    const userRoles = auth.user.user_metadata?.roles || [];
-    if (!ALLOWED_ROLES.some(r => userRoles.includes(r))) return null;
-  }
+  // Permission gate: only admins and engineers-of-this-project may post.
+  const role = classifyUser(auth.user, engineers);
+  if (!canPost(role)) return null;
 
+  const isAdmin = role === 'admin';
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
   const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
   const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
+  const myRoleLabel = roleLabel(role, lang);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,8 +155,8 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
       <span className="auth-note-info">
         <span className="auth-note-dot"></span>
         {lang === 'ar'
-          ? <>مسجّل دخوله كـ <strong>{defaultAuthor}</strong></>
-          : <>Signed in as <strong>{defaultAuthor}</strong></>}
+          ? <>مسجّل دخوله كـ <strong>{defaultAuthor}</strong> <span className="auth-note-role">({myRoleLabel})</span></>
+          : <>Signed in as <strong>{defaultAuthor}</strong> <span className="auth-note-role">({myRoleLabel})</span></>}
       </span>
 
       {!expanded && save.kind !== 'success' && (
@@ -171,9 +168,13 @@ export default function AuthAwareNoteAdder({ projectId, lang }: Props) {
           >
             ✎ {lang === 'ar' ? 'إضافة ملاحظة سريعة' : 'Add quick note'}
           </button>
-          <a className="auth-note-btn-secondary" href={editUrl}>
-            {lang === 'ar' ? 'تعديل كامل ←' : 'Full edit →'}
-          </a>
+          {/* Full editor access is for admins only — engineers can post via
+              the inline forms but not modify budgets, status, team members, etc. */}
+          {isAdmin && (
+            <a className="auth-note-btn-secondary" href={editUrl}>
+              {lang === 'ar' ? 'تعديل كامل ←' : 'Full edit →'}
+            </a>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
+import AuthAwareUpdateAdder from './AuthAwareUpdateAdder';
 import DonationModal from './DonationModal';
 import { pickPhoto } from '../data/unsplash-photos';
 import { loadDonations, sumForProject, clearAllDonations, type DemoDonation } from '../data/demo-donations';
@@ -300,9 +301,22 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </>
           )}
 
-          {/* Add Note button — visible only when logged in via Netlify Identity.
-              Deep-links to Decap CMS so the engineer/manager can write the note. */}
-          <AuthAwareNoteAdder projectId={project.id} lang={lang} />
+          {/* Add Note button — visible to admins AND engineers on this project.
+              Inline form posts to comments[] via Git Gateway. */}
+          <AuthAwareNoteAdder
+            projectId={project.id}
+            lang={lang}
+            engineers={project.engineers || []}
+          />
+
+          {/* Add Field Update — same auth gate, posts to updates[] instead.
+              Updates appear in the timeline below and in the dashboard
+              activity feed (which is derived from real updates). */}
+          <AuthAwareUpdateAdder
+            projectId={project.id}
+            lang={lang}
+            engineers={project.engineers || []}
+          />
 
           {project.comments && project.comments.length > 0 && (
             <>
