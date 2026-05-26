@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { t, fmtNum, fmtMoney, loc, type Lang } from '../i18n/strings';
-import { sumAll, loadDonations } from '../data/demo-donations';
+import { loadDonations } from '../data/demo-donations';
+import { applyDemoToProjects } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
+type Sub = { id: string; budgetUSD: number; raisedUSD: number };
 type Project = {
   id: string;
   status: string;
@@ -13,6 +15,7 @@ type Project = {
   raisedUSD: number;
   donors: number;
   daysLeft: number;
+  subs?: Sub[];
 };
 
 type Props = {
@@ -33,26 +36,25 @@ const REPORTS_EN = [
   { title: 'Independent Community Committee Report', date: 'Published April 1, 2026', size: '900 KB', type: 'Governance' },
 ];
 
-export default function TransparencyContent({ projects, lang }: Props) {
+export default function TransparencyContent({ projects: rawProjects, lang }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  // Pull demo donations into the totals so this browser sees its full
-  // contributions reflected. SSR shows just the baseline; values pop in
-  // after hydration.
-  const [demo, setDemo] = useState<{ amount: number; count: number; uniqueProjects: number }>({
-    amount: 0, count: 0, uniqueProjects: 0,
-  });
+  // Same architecture as HomeContent: hold raw donations in state,
+  // derive everything per-render. Guarantees the totals here match
+  // the home page and the PDF (all three use applyDemoToProjects now).
+  const [donations, setDonations] = useState<{ projectId: string; subId?: string; amountUSD: number }[]>([]);
   useEffect(() => {
-    setDemo(sumAll());
-    const onVis = () => setDemo(sumAll());
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    const refresh = () => setDonations(loadDonations().donations);
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    return () => document.removeEventListener('visibilitychange', refresh);
   }, []);
 
-  const baseRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
-  const totalRaised = baseRaised + demo.amount;
+  const projects = applyDemoToProjects(rawProjects, donations);
+
+  const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0) + demo.count;
+  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const completed = projects.filter(p => p.status === 'completed').length;
 
   // Generate a CSV of current project data and trigger a download.

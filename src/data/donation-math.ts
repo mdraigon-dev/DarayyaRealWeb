@@ -79,6 +79,29 @@ export function computeProjectRaised(
  * IMPORTANT: only call this on the client. Demo donations live in
  * localStorage which doesn't exist during SSR.
  */
+/**
+ * Take an array of projects and an array of demo donations, and return
+ * the projects with `raisedUSD`, `donors`, and `budgetUSD` adjusted to
+ * reflect a consistent view:
+ *
+ *   - When a project has sub-projects:
+ *       budgetUSD = sum(sub.budgetUSD)        — single source of truth
+ *       raisedUSD = waterfall-applied sub sums + targeted demo + spillover
+ *   - When a project has no sub-projects:
+ *       budgetUSD = project.budgetUSD          — unchanged
+ *       raisedUSD = project.raisedUSD + all demos for this project
+ *
+ * This normalization runs unconditionally even when there are zero
+ * demo donations, so the homepage, list, detail, dashboard, and PDF
+ * all read identical totals. (Before this fix, projects with subs
+ * whose top-level budget/raised didn't match the sub sum produced
+ * different totals on different pages.)
+ *
+ * Used by Home / Projects-list / Dashboard / Transparency / PDF.
+ *
+ * IMPORTANT: only call this on the client. Demo donations live in
+ * localStorage which doesn't exist during SSR.
+ */
 export function applyDemoToProjects<P extends {
   id: string;
   raisedUSD: number;
@@ -98,10 +121,10 @@ export function applyDemoToProjects<P extends {
   }
 
   return projects.map(p => {
-    const projectDonations = byProject.get(p.id);
-    if (!projectDonations || projectDonations.length === 0) return p;
+    const projectDonations = byProject.get(p.id) || [];
+    const subs: SubBudget[] = p.subs || [];
 
-    // Build a breakdown for this project's donations
+    // Build the demo breakdown (empty when no donations for this project)
     const targetedBySub: Record<string, number> = {};
     let undirectedTotal = 0;
     for (const d of projectDonations) {
@@ -112,12 +135,22 @@ export function applyDemoToProjects<P extends {
       }
     }
     const breakdown: DemoBreakdown = { targetedBySub, undirectedTotal };
-    const subs: SubBudget[] = p.subs || [];
+
+    // Normalize budget: when subs exist, budget IS sum(subs.budgetUSD).
+    // The top-level frontmatter field is treated as a fallback only.
+    const newBudget = subs.length > 0
+      ? subs.reduce((s, x) => s + x.budgetUSD, 0)
+      : p.budgetUSD;
 
     const newRaised = computeProjectRaised(p.raisedUSD, subs, breakdown);
     const newDonors = p.donors + projectDonations.length;
 
-    return { ...p, raisedUSD: newRaised, donors: newDonors };
+    // Only allocate a new object when something actually changed, so
+    // referential equality holds for projects untouched by demos.
+    if (newBudget === p.budgetUSD && newRaised === p.raisedUSD && newDonors === p.donors) {
+      return p;
+    }
+    return { ...p, budgetUSD: newBudget, raisedUSD: newRaised, donors: newDonors };
   });
 }
 

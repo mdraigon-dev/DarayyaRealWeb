@@ -23,20 +23,22 @@ type Props = {
 export default function HomeContent({ lang, basePath, baseUrl, projects: rawProjects }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  // Load demo donations on mount, then apply them to each project so
-  // both the hero stats AND the Featured Projects tiles reflect them.
-  // Stays as raw projects during SSR; live values appear after hydration.
-  const [projects, setProjects] = useState<HomeProject[]>(rawProjects);
+  // Hold the RAW demo donation array in state, not augmented projects.
+  // Augment-projects-on-every-render is cheap and avoids a state-flap bug
+  // where the previous architecture briefly showed raw values when Astro
+  // re-rendered the React island.
+  const [donations, setDonations] = useState<{ projectId: string; subId?: string; amountUSD: number }[]>([]);
   useEffect(() => {
-    const refresh = () => {
-      const donations = loadDonations().donations;
-      setProjects(applyDemoToProjects(rawProjects, donations));
-    };
+    const refresh = () => setDonations(loadDonations().donations);
     refresh();
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawProjects]);
+  }, []);
+
+  // Derive augmented projects fresh each render. Pure, deterministic,
+  // no race conditions. For ~20 projects × handful of donations this
+  // is microseconds of work.
+  const projects = applyDemoToProjects(rawProjects, donations);
 
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);

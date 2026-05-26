@@ -18,16 +18,17 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
   const [statusKey, setStatusKey] = useState<typeof STATUSES[number]>('funding');
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  // Apply demo donations so each tile reflects this browser's contributions
-  const [projects, setProjects] = useState<ProjectCardData[]>(rawProjects);
+  // Hold the RAW donation array in state, not augmented projects.
+  // Derive on every render to avoid state-flap bugs.
+  const [donations, setDonations] = useState<{ projectId: string; subId?: string; amountUSD: number }[]>([]);
   useEffect(() => {
-    const refresh = () => {
-      setProjects(applyDemoToProjects(rawProjects, loadDonations().donations));
-    };
+    const refresh = () => setDonations(loadDonations().donations);
     refresh();
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);
-  }, [rawProjects]);
+  }, []);
+
+  const projects = applyDemoToProjects(rawProjects, donations);
 
   const filtered = useMemo(() => projects.filter(p =>
     (catKey === 'all' || p.category === catKey) &&

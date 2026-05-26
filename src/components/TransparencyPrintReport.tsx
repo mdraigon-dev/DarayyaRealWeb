@@ -62,15 +62,26 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
 
-  // Auto-trigger the print dialog after demo donations are loaded so the
-  // PDF reflects them. We wait an extra ~400ms after demoApplied flips to
-  // true to give React time to re-render. Users can also click Print.
+  // Auto-trigger the print dialog after demo donations are applied so the
+  // PDF reflects them. Some browsers block window.print() shortly after
+  // navigation (popup-blocker heuristic), so we also leave a very
+  // obvious manual "Print" button at the top of the page.
+  // Two requestAnimationFrame calls + a small delay give the browser time
+  // to commit the React-rendered DOM before printing — without these,
+  // print previews sometimes captured the page mid-render.
   useEffect(() => {
     if (!demoApplied) return;
-    const t = setTimeout(() => {
-      try { window.print(); } catch {}
-    }, 400);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setTimeout(() => {
+          if (cancelled) return;
+          try { window.print(); } catch {}
+        }, 500);
+      });
+    });
+    return () => { cancelled = true; };
   }, [demoApplied]);
 
   const sortedProjects = [...projects].sort((a, b) => b.raisedUSD - a.raisedUSD);
@@ -97,8 +108,8 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
         </a>
         <span className="print-toolbar-hint">
           {lang === 'ar'
-            ? 'في نافذة الطباعة، اختر "حفظ كـ PDF"'
-            : 'In the print dialog, choose "Save as PDF"'}
+            ? 'إذا لم تظهر نافذة الطباعة تلقائياً، اضغط زر "طباعة" أعلاه. اختر "حفظ كـ PDF" من قائمة الطابعات.'
+            : 'If the print dialog didn\'t open automatically, click the Print button above. Choose "Save as PDF" from the printer list.'}
         </span>
       </div>
 
