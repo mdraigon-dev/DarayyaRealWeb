@@ -5,7 +5,9 @@
  *
  * The rules:
  *   - 'admin'              → user.user_metadata.roles includes 'admin'
- *                            (or an admin email allowlist matches)
+ *                            (or an admin email allowlist matches,
+ *                            or PERMISSIVE_MODE is true and they're
+ *                            signed in)
  *   - 'engineer-of-project'→ user.email matches one of the project's
  *                            engineers[].email entries (case-insensitive)
  *   - 'logged-in-other'    → authenticated but not admin and not
@@ -27,10 +29,16 @@
  * sufficient — bad commits show up in git log with the offender's
  * identity attached. Revoke their Identity invitation if abused.
  *
- * BOOTSTRAP: until you set roles in the Netlify Identity dashboard
- * (Identity → Users → click user → User metadata → roles: ["admin"]),
- * NO ONE is admin. To unblock yourself without going through that:
- * add your email to ADMIN_EMAIL_ALLOWLIST below.
+ * BOOTSTRAP / PERMISSIVE MODE:
+ * By default, any signed-in user is treated as admin so the platform
+ * works out-of-the-box without Netlify Identity dashboard config.
+ * Once you're ready to lock down by role, do BOTH of:
+ *   1. Set PERMISSIVE_MODE = false below
+ *   2. For each user who should be admin, go to Netlify dashboard →
+ *      Identity → Users → click user → User metadata →
+ *      add 'roles: ["admin"]'
+ * Engineers listed in a project's engineers[] with matching email
+ * can always post on that one project regardless of PERMISSIVE_MODE.
  */
 
 import type { Lang } from '../i18n/strings';
@@ -53,11 +61,23 @@ export type ProjectEngineer = {
 export type PermissionRole = 'admin' | 'engineer-of-project' | 'logged-in-other' | 'anonymous';
 
 /**
+ * Permissive mode: when true, ANY signed-in Identity user is treated
+ * as an admin. This is the default so the platform works as soon as
+ * you invite yourself to Netlify Identity, no role configuration needed.
+ *
+ * Flip this to false once you have roles configured for all users who
+ * should be admins. Engineers listed on a specific project will still
+ * be able to post on THAT project regardless of this flag.
+ */
+const PERMISSIVE_MODE = true;
+
+/**
  * Hardcoded admin email allowlist as a fallback for the role-metadata
- * check. Lowercased. Leave empty in production once Identity roles are set.
+ * check. Lowercased. Use this if PERMISSIVE_MODE is false but you want
+ * specific people to be admin without setting Identity role metadata.
  */
 const ADMIN_EMAIL_ALLOWLIST: string[] = [
-  // Add your council admin email here to bootstrap, e.g.:
+  // Add your council admin email here, e.g.:
   // 'mdraigon@example.com',
 ];
 
@@ -89,6 +109,10 @@ export function classifyUser(
       }
     }
   }
+
+  // Permissive mode (default): any signed-in user is admin. Flip
+  // PERMISSIVE_MODE to false above once you've configured roles.
+  if (PERMISSIVE_MODE) return 'admin';
 
   return 'logged-in-other';
 }
