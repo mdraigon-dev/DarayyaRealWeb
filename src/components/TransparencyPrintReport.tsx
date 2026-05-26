@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
 import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects } from '../data/donation-math';
+import { applyDemoToProjects, displayStatus } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
 type Sub = { id: string; budgetUSD: number; raisedUSD: number };
@@ -52,8 +52,8 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const completed = projects.filter(p => p.status === 'completed').length;
-  const active = projects.filter(p => p.status === 'active').length;
-  const open = projects.filter(p => p.status === 'funding').length;
+  const active = projects.filter(p => displayStatus(p) === 'active').length;
+  const open = projects.filter(p => displayStatus(p) === 'funding').length;
   const fundingRate = totalBudget > 0 ? Math.round((totalRaised / totalBudget) * 100) : 0;
 
   const now = new Date();
@@ -187,6 +187,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
             <tbody>
               {sortedProjects.map(p => {
                 const pct = p.budgetUSD > 0 ? Math.round((p.raisedUSD / p.budgetUSD) * 100) : 0;
+                const effStatus = displayStatus(p);
                 return (
                   <tr key={p.id}>
                     <td><strong>{loc(lang, p.title)}</strong></td>
@@ -196,8 +197,8 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
                     <td className="print-table-num"><strong>{fmtNum(lang, pct)}%</strong></td>
                     <td className="print-table-num">{fmtNum(lang, p.donors)}</td>
                     <td>
-                      <span className={`print-status print-status-${p.status}`}>
-                        {statusLabel(lang, p.status)}
+                      <span className={`print-status print-status-${effStatus}`}>
+                        {statusLabel(lang, effStatus)}
                       </span>
                     </td>
                   </tr>

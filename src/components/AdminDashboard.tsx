@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { adminData } from '../data/admin-sample';
 import { loadDonations, type DemoDonation } from '../data/demo-donations';
-import { applyDemoToProjects } from '../data/donation-math';
+import { applyDemoToProjects, displayStatus } from '../data/donation-math';
+import { buildActivityFeed } from '../data/activity-feed';
 
 type Bilingual = { ar: string; en: string };
 type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
@@ -55,42 +56,12 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   // Derive REAL activity feed from project data: every update and every comment
   // across all projects, most recent first. Falls back to sample activities
   // when there are no real ones (so the dashboard isn't empty on day 1).
-  type ActivityEntry = { color: 'green' | 'gold' | 'blue'; text: string; time: string; sortKey: number };
-  const realActivities: ActivityEntry[] = [];
-  projects.forEach(p => {
-    const projectName = loc(lang, p.title);
-    (p.updates || []).forEach((u) => {
-      const author = loc(lang, u.author);
-      const body = loc(lang, u.body);
-      const date = loc(lang, u.date);
-      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
-      realActivities.push({
-        color: 'green',
-        text: lang === 'ar'
-          ? `تم رفع تحديث ميداني على مشروع <strong>${escapeHtml(projectName)}</strong> من قبل ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`
-          : `Field update on <strong>${escapeHtml(projectName)}</strong> by ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`,
-        time: date,
-        sortKey: parseTimeKey(date),
-      });
-    });
-    (p.comments || []).forEach((c) => {
-      const author = loc(lang, c.author);
-      const body = loc(lang, c.body);
-      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
-      const time = c.date || (lang === 'ar' ? 'مؤخراً' : 'recently');
-      realActivities.push({
-        color: 'blue',
-        text: lang === 'ar'
-          ? `تعليق جديد على <strong>${escapeHtml(projectName)}</strong> من ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`
-          : `New comment on <strong>${escapeHtml(projectName)}</strong> by ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`,
-        time,
-        sortKey: parseTimeKey(c.date || ''),
-      });
-    });
-  });
-  realActivities.sort((a, b) => b.sortKey - a.sortKey);
-  const realActivitiesTop = realActivities.slice(0, 8);
-  const activities = realActivitiesTop.length > 0 ? realActivitiesTop : sampleActivities;
+  // Shape and derivation match the home-page feed via buildActivityFeed.
+  type ActivityEntry = { color: 'green' | 'gold' | 'blue'; text: string; time: string };
+  const realActivitiesTop = buildActivityFeed(projects, lang, 8);
+  const activities: ActivityEntry[] = realActivitiesTop.length > 0
+    ? realActivitiesTop.map(a => ({ color: a.color, text: a.text, time: a.time }))
+    : sampleActivities;
 
   // ──────────────────────────────────────────────────────────────────
   // Demo donations from localStorage → Recent Donations + Top Donors
@@ -153,7 +124,9 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
 
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
-  const openCount = projects.filter(p => p.status === 'funding').length;
+  // "Open" means still accepting donations — a 'funding' project at 100%
+  // is effectively active (see displayStatus), so don't count it as open.
+  const openCount = projects.filter(p => displayStatus(p) === 'funding').length;
   const isShowingDemoDonations = demoDonations.length > 0;
 
   // ──────────────────────────────────────────────────────────────────
@@ -606,7 +579,8 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
           </div>
         ) : filteredProjects.map(p => {
           const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
-          const statusLabel = t(lang, `status_${p.status}` as any);
+          const effStatus = displayStatus(p);
+          const statusLabel = t(lang, `status_${effStatus}` as any);
           const categoryLabel = t(lang, `cat_${p.category}` as any);
           const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/${p.id}/`;
           const publicUrl = `${basePath}/projects/${p.id}/`;
@@ -623,7 +597,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
               </div>
               <div>{fmtNum(lang, p.donors)}</div>
               <div>
-                <span className={`status-chip status-chip-${p.status}`}>{statusLabel}</span>
+                <span className={`status-chip status-chip-${effStatus}`}>{statusLabel}</span>
               </div>
               <div className="admin-table-actions">
                 <a className="admin-edit" href={editUrl} title={t(lang, 'admin_btn_edit_hint')}>
@@ -656,51 +630,9 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
 
 /**
  * Convert a date-ish string to a sortable number. Higher = more recent.
- * Handles ISO dates, Arabic/English relative times ("3 days ago", "منذ ٣ أيام"),
- * and "today"/"yesterday"/"اليوم"/"أمس".
+ * (moved to src/data/activity-feed.ts since the home page also uses it.
+ * Helpers kept here are the ones unique to the dashboard rendering.)
  */
-function parseTimeKey(s: string): number {
-  if (!s) return 0;
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) {
-    const t = Date.parse(s);
-    if (!isNaN(t)) return t;
-  }
-  const now = Date.now();
-  const lower = s.toLowerCase();
-  const match = s.match(/(\d+|[٠١٢٣٤٥٦٧٨٩]+)/);
-  const num = match ? toArabicDigitInt(match[1]) : 0;
-
-  if (lower.includes('minute') || s.includes('دقيق') || s.includes('دقائق')) {
-    return now - num * 60 * 1000;
-  }
-  if (lower.includes('hour') || s.includes('ساعة') || s.includes('ساعات')) {
-    return now - num * 60 * 60 * 1000;
-  }
-  if (lower.includes('day') || s.includes('يوم') || s.includes('أيام')) {
-    return now - num * 24 * 60 * 60 * 1000;
-  }
-  if (lower.includes('week') || s.includes('أسبوع')) {
-    return now - num * 7 * 24 * 60 * 60 * 1000;
-  }
-  if (lower.includes('today') || s.includes('اليوم')) return now;
-  if (lower.includes('yesterday') || s.includes('أمس')) return now - 24 * 60 * 60 * 1000;
-  return 0;
-}
-
-function toArabicDigitInt(s: string): number {
-  const ascii = s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
-  const n = parseInt(ascii, 10);
-  return isNaN(n) ? 0 : n;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function hashStr(s: string): number {
   let h = 0;

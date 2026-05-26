@@ -184,3 +184,25 @@ export function remainingRoom(
   const totalRaised = computeProjectRaised(projectRaisedUSD, subs, breakdown);
   return Math.max(0, totalBudget - totalRaised);
 }
+
+/**
+ * Display-time status: a project that's classified as 'funding' but
+ * has hit or exceeded its budget should be displayed as 'active'. The
+ * underlying frontmatter doesn't change — staff still need to mark the
+ * project completed manually when construction is actually done — but
+ * once it's fully funded, telling visitors it's still "open for
+ * funding" is misleading.
+ *
+ * Note: only promotes funding → active. Does NOT promote active → completed
+ * (that's a different lifecycle event: money raised vs work done).
+ */
+export function displayStatus<P extends {
+  status: string;
+  raisedUSD: number;
+  budgetUSD: number;
+}>(project: P): string {
+  if (project.status === 'funding' && project.raisedUSD >= project.budgetUSD && project.budgetUSD > 0) {
+    return 'active';
+  }
+  return project.status;
+}

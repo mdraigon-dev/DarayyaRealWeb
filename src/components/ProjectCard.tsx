@@ -1,4 +1,5 @@
 import { t, loc, fmtNum, fmtMoney, isAutoTranslated, type Lang } from '../i18n/strings';
+import { displayStatus } from '../data/donation-math';
 
 type BilingualMaybeAuto = { ar: string; en?: string; en_auto?: boolean };
 
@@ -23,9 +24,11 @@ type Props = {
 
 export default function ProjectCard({ project, href, lang, currency }: Props) {
   const pct = Math.round((project.raisedUSD / project.budgetUSD) * 100);
-  const isUrgent = project.status === 'funding' && pct < 20;
+  // Effective status: 'funding' that's at 100% reads as 'active' to visitors
+  const effStatus = displayStatus(project);
+  const isUrgent = effStatus === 'funding' && pct < 20;
   const categoryLabel = t(lang, `cat_${project.category}` as any);
-  const statusLabel = t(lang, `status_${project.status}` as any);
+  const statusLabel = t(lang, `status_${effStatus}` as any);
 
   // If any of the displayed bilingual fields is machine-translated for this
   // language, show a single small badge so readers know to take rough phrasing
@@ -40,7 +43,7 @@ export default function ProjectCard({ project, href, lang, currency }: Props) {
       {isUrgent && <span className="project-card-urgent-badge">{t(lang, 'urgent_badge')}</span>}
       <div className="project-card-header">
         <span className="project-category">{categoryLabel}</span>
-        <span className={`project-status status-${project.status}`}>{statusLabel}</span>
+        <span className={`project-status status-${effStatus}`}>{statusLabel}</span>
       </div>
       <h3 className="project-card-title">{loc(lang, project.title)}</h3>
       {hasAutoTranslation && (

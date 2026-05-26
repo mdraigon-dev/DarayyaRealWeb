@@ -3,10 +3,11 @@ import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
 import AuthAwareUpdateAdder from './AuthAwareUpdateAdder';
+import AdminEditProjectButton from './AdminEditProjectButton';
 import DonationModal from './DonationModal';
 import { pickPhoto } from '../data/unsplash-photos';
 import { loadDonations, sumForProject, clearAllDonations, type DemoDonation } from '../data/demo-donations';
-import { computeSubRaised, computeProjectRaised, type DemoBreakdown } from '../data/donation-math';
+import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
 type Bilingual = { ar: string; en: string };
@@ -112,6 +113,14 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   );
   const totalDemoAmount = allDemo.reduce((s, d) => s + d.amountUSD, 0);
 
+  // Effective display status: 'funding' that reached 100% reads as 'active'
+  // to visitors. Use displayedRaised + totalBudget (demo-aware) for the check.
+  const effStatus = displayStatus({
+    status: project.status,
+    raisedUSD: displayedRaised,
+    budgetUSD: totalBudget,
+  });
+
   const handleResetDemo = () => {
     if (typeof window === 'undefined') return;
     const confirmMsg = lang === 'ar'
@@ -133,9 +142,17 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
           <span className="breadcrumb-sep">/</span>
           <span>{t(lang, `cat_${project.category}` as any)}</span>
         </div>
+        {/* Admin-only quick access to the editor. Renders nothing for
+            anonymous/non-admin visitors. */}
+        <AdminEditProjectButton
+          projectId={project.id}
+          lang={lang}
+          engineers={project.engineers || []}
+          basePath={basePath}
+        />
         <div className="project-card-header">
           <span className="project-category">{t(lang, `cat_${project.category}` as any)}</span>
-          <span className={`project-status status-${project.status}`}>{t(lang, `status_${project.status}` as any)}</span>
+          <span className={`project-status status-${effStatus}`}>{t(lang, `status_${effStatus}` as any)}</span>
         </div>
         <h1 className="detail-title">{loc(lang, project.title)}</h1>
         <div style={{ marginBottom: '0.75rem' }}>

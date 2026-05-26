@@ -78,9 +78,9 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
             </a>
           ))}
         </div>
-        <div className="lang-toggle" title="Language / اللغة">
-          <a className={lang === 'ar' ? 'active' : ''} href={arHref}>عر</a>
-          <a className={lang === 'en' ? 'active' : ''} href={enHref}>EN</a>
+        <div className="lang-toggle" title="Language / اللغة" role="group" aria-label="Language">
+          <a className={lang === 'ar' ? 'active' : ''} href={arHref} aria-current={lang === 'ar' ? 'page' : undefined}>AR</a>
+          <a className={lang === 'en' ? 'active' : ''} href={enHref} aria-current={lang === 'en' ? 'page' : undefined}>EN</a>
         </div>
         <a className="btn-donate-nav" href={link('/projects/')}>
           {t(lang, 'nav_donate')}

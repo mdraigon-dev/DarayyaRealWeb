@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { t, fmtNum, fmtMoney, loc, type Lang } from '../i18n/strings';
 import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects } from '../data/donation-math';
+import { applyDemoToProjects, displayStatus } from '../data/donation-math';
 
 type Bilingual = { ar: string; en: string };
 type Sub = { id: string; budgetUSD: number; raisedUSD: number };
@@ -70,7 +70,7 @@ export default function TransparencyContent({ projects: rawProjects, lang }: Pro
         loc(lang, p.title),
         p.category,
         loc(lang, p.location),
-        p.status,
+        displayStatus(p),
         String(p.budgetUSD),
         String(p.raisedUSD),
         String(pct),

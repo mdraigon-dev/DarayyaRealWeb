@@ -2858,21 +2858,61 @@ html[dir="ltr"] .amount-custom {
   text-align: left;
 }
 
-/* Currency/language toggles always horizontal (no flip needed) */
+/* Language toggle — a proper segmented pill control with two halves.
+   Always LTR layout regardless of page direction (the language labels
+   are symbolic, not text-flow-bound). The active half is filled gold;
+   the inactive half is a soft text link inside the pill. */
 .lang-toggle {
-  display: flex;
+  display: inline-flex;
+  align-items: stretch;
   background: var(--sy-gold-pale);
+  border: 1px solid var(--sy-gold);
   border-radius: 999px;
-  padding: 3px;
-  gap: 2px;
+  padding: 2px;
+  gap: 0;
+  font-family: var(--font-body);
+  direction: ltr;     /* ar | en order is always the same */
+  overflow: hidden;
+  flex-shrink: 0;     /* don't get squeezed by neighboring flex items */
 }
-.lang-toggle button {
-  padding: 0.35rem 0.85rem;
+.lang-toggle a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  padding: 0.32rem 0.7rem;
   border-radius: 999px;
-  font-size: 13px; font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--sy-gold-dk);
+  text-decoration: none;
+  text-align: center;
+  transition: all 180ms ease;
+  cursor: pointer;
+  line-height: 1;
+}
+.lang-toggle a:not(.active):hover {
+  background: rgba(201, 161, 74, 0.15);
   color: var(--sy-green-dk);
+}
+.lang-toggle a.active {
+  background: var(--sy-gold);
+  color: var(--sy-paper-pure);
+  box-shadow: 0 1px 3px rgba(201, 161, 74, 0.35);
+  cursor: default;
+}
+/* Legacy <button> selectors kept for safety if any callsite still uses them */
+.lang-toggle button {
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  font-size: 12.5px; font-weight: 700;
+  color: var(--sy-gold-dk);
   transition: all 160ms ease;
   font-family: var(--font-body);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 .lang-toggle button.active {
   background: var(--sy-gold);
@@ -4577,4 +4617,101 @@ html { scroll-behavior: smooth; }
   font-size: 12px;
   color: var(--sy-ink-soft);
   font-style: italic;
+}
+
+/* ====================================================================
+   NUMBER INPUTS — hide the browser default up/down spinner arrows
+   The default arrows take horizontal space and aren't useful for
+   money amounts where the user just types the number. Removing them
+   globally so every number input across the platform feels the same.
+   ==================================================================== */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ====================================================================
+   ADMIN EDIT PILL — small but prominent button at the top of project
+   pages for admins. Shaped as a pill, gold accent so it's obviously
+   for staff and not visitors. Renders nothing for anonymous/non-admin.
+   ==================================================================== */
+.admin-edit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--sy-gold-wash), var(--sy-paper-pure));
+  border: 1px solid var(--sy-gold);
+  border-radius: 999px;
+  color: var(--sy-gold-dk);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 160ms ease;
+  font-family: var(--font-body);
+}
+.admin-edit-pill:hover {
+  background: var(--sy-gold);
+  color: var(--sy-paper-pure);
+  border-color: var(--sy-gold-dk);
+  box-shadow: 0 4px 10px rgba(201, 161, 74, 0.35);
+  transform: translateY(-1px);
+}
+.admin-edit-pill-icon { font-size: 14px; }
+.admin-edit-pill-arrow {
+  font-size: 14px;
+  transition: transform 160ms ease;
+}
+.admin-edit-pill:hover .admin-edit-pill-arrow {
+  transform: translateX(2px);
+}
+/* In RTL the arrow should point left ('→' becomes meaning-flipped); the
+   logical direction is "go to editor" so just nudge in the inline-end */
+[dir="rtl"] .admin-edit-pill:hover .admin-edit-pill-arrow {
+  transform: translateX(-2px);
+}
+
+/* ====================================================================
+   ACTIVITY FEED — additions to the dashboard activity styling so it
+   works on the home page too. The dashboard places it inside an
+   .admin-card; the home page uses a section header instead. The new
+   .activity-item-link variant makes each entry a clickable link that
+   navigates to its source project.
+   ==================================================================== */
+.activity-feed {
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.activity-item-link {
+  color: inherit;
+  text-decoration: none;
+  transition: background 140ms ease;
+}
+.activity-item-link:hover {
+  background: var(--sy-gold-wash);
+}
+.activity-feed-empty {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background: var(--sy-paper-pure);
+  border: 1px dashed var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  color: var(--sy-muted);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* Home page activity section — same width as the other home sections */
+.home-activity-section {
+  background: linear-gradient(180deg, var(--sy-paper) 0%, var(--sy-paper-pure) 100%);
+  padding-top: 3rem;
+  padding-bottom: 3rem;
 }

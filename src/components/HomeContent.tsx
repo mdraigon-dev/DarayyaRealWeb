@@ -1,16 +1,23 @@
 import Logo from './Logo';
 import DarayyaMap from './DarayyaMap';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
+import ActivityFeed from './ActivityFeed';
 import { useState, useEffect } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects } from '../data/donation-math';
+import { applyDemoToProjects, displayStatus } from '../data/donation-math';
+import { buildActivityFeed } from '../data/activity-feed';
 
+type Bilingual = { ar: string; en: string };
 type HomeProject = ProjectCardData & {
   lat: number;
   lng: number;
   health: 'healthy' | 'warning' | 'stalled' | 'completed';
   daysLeft: number;
+  // Optional — used to derive the activity feed at the bottom of the home page
+  updates?: Array<{ date: Bilingual; author: Bilingual; body: Bilingual }>;
+  comments?: Array<{ author: Bilingual; body: Bilingual; date?: string }>;
+  subs?: Array<{ id: string; budgetUSD: number; raisedUSD: number }>;
 };
 
 type Props = {
@@ -44,14 +51,19 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
   const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const completed = projects.filter(p => p.status === 'completed').length;
-  const open = projects.filter(p => p.status === 'funding').length;
+  const open = projects.filter(p => displayStatus(p) === 'funding').length;
 
+  // Featured = open-for-funding (not yet fully funded), shown least-funded first
   const featured = projects
-    .filter(p => p.status === 'funding')
+    .filter(p => displayStatus(p) === 'funding')
     .sort((a, b) => (a.raisedUSD / a.budgetUSD) - (b.raisedUSD / b.budgetUSD))
     .slice(0, 3);
 
   const urgent = featured[0];
+
+  // Activity feed for the bottom section — up to 10 most recent items
+  // across all projects. Mirrors what the dashboard shows.
+  const activityEntries = buildActivityFeed(projects, lang, 10);
 
   const heroTagLines = t(lang, 'hero_h1_tag').split('\n');
 
@@ -158,6 +170,31 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
         <div style={{ textAlign: 'center', marginTop: '2rem' }}>
           <a className="btn-secondary" href={`${basePath}/projects/`}>
             {t(lang, 'featured_all_btn', { n: fmtNum(lang, projects.length) })}
+          </a>
+        </div>
+      </section>
+
+      {/* Activity log — a mirror of the council dashboard's feed, placed
+          at the bottom of the home page so anyone can see what's been
+          happening on the projects (field updates + comments, newest first).
+          Derived from the same data, via the shared buildActivityFeed. */}
+      <section className="section home-activity-section">
+        <div className="section-header">
+          <h2 className="section-title">
+            {lang === 'ar' ? 'النشاط الأخير' : 'Recent Activity'}
+          </h2>
+        </div>
+        <ActivityFeed
+          entries={activityEntries}
+          lang={lang}
+          basePath={basePath}
+          emptyText={lang === 'ar'
+            ? 'لا توجد أنشطة بعد. عندما ينشر فريقنا تحديثات أو تعليقات على المشاريع، ستظهر هنا.'
+            : "No activity yet. When our team posts updates or comments on projects, they'll show up here."}
+        />
+        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+          <a className="btn-secondary" href={`${basePath}/admin/`}>
+            {lang === 'ar' ? 'عرض لوحة المجلس الكاملة ←' : 'View full council dashboard →'}
           </a>
         </div>
       </section>
