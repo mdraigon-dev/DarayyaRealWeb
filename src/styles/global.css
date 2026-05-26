@@ -14,6 +14,7 @@
   --sy-green-wash:   #F2F8F4;
 
   --sy-gold:         #C9A14A;
+  --sy-gold-dk:      #B08A30;   /* darker shade for emphasis & today-bar ring */
   --sy-gold-deep:    #988561;   /* original logo gold tone */
   --sy-gold-lt:      #E8D08F;
   --sy-gold-pale:    #FBF5E4;
@@ -1007,6 +1008,23 @@ html[dir="ltr"] .project-card-urgent-badge {
   margin: 0;
   color: var(--sy-ink-soft);
   line-height: 1.6;
+}
+.donate-modal-fullyfunded-back {
+  margin-top: 1.25rem;
+  padding: 0.55rem 1.1rem;
+  background: transparent;
+  color: var(--sy-green-dk);
+  border: 1px solid var(--sy-green-lt);
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.donate-modal-fullyfunded-back:hover {
+  background: var(--sy-green-pale);
+  border-color: var(--sy-green-dk);
 }
 
 .donate-modal-custom-row {

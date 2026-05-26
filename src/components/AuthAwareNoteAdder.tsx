@@ -134,7 +134,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
       const commitMessage = lang === 'ar'
         ? `إضافة ملاحظة على ${projectId} بواسطة ${effectiveAuthor}`
         : `Add note on ${projectId} by ${effectiveAuthor}`;
-      await commitFile(path, newFileContent, commitMessage);
+      await commitFile(path, newFileContent, commitMessage, 'main', file.sha);
 
       setSave({ kind: 'success' });
       setBody('');

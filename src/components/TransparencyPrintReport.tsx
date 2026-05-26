@@ -88,7 +88,10 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
         </button>
         <a
           className="print-btn-secondary"
-          href={lang === 'ar' ? '/ar/transparency/' : '/en/transparency/'}
+          href={(() => {
+            const base = (import.meta as any).env?.BASE_URL ?? '/';
+            return `${base}${lang}/transparency/`.replace(/\/{2,}/g, '/');
+          })()}
         >
           {lang === 'ar' ? '← العودة إلى صفحة الشفافية' : '← Back to transparency page'}
         </a>

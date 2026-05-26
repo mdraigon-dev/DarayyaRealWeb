@@ -191,6 +191,18 @@ export default function DonationModal({
                 ? 'شكراً للجميع! يمكنك دعم مشاريع أخرى بدلاً من ذلك.'
                 : 'Thank you to everyone! You can support other projects instead.'}
             </p>
+            {subId && subs && subs.length > 1 && (
+              // The user reached this screen by picking a specific sub that's
+              // full. Give them a way to back out and try a different sub or
+              // donate to the whole project (which may still have room).
+              <button
+                type="button"
+                className="donate-modal-fullyfunded-back"
+                onClick={() => setSubId('')}
+              >
+                ← {lang === 'ar' ? 'اختر بنداً آخر' : 'Pick a different item'}
+              </button>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit}>

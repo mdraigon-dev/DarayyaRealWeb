@@ -278,6 +278,15 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </>
           )}
 
+          {/* Add Field Update — placed right after the timeline so admins/
+              engineers can add a new update where they just read existing
+              ones. Hidden for everyone else. */}
+          <AuthAwareUpdateAdder
+            projectId={project.id}
+            lang={lang}
+            engineers={project.engineers || []}
+          />
+
           {project.engineers && project.engineers.length > 0 && (
             <>
               <h3>{t(lang, 'engineers_title')}</h3>
@@ -302,17 +311,9 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
           )}
 
           {/* Add Note button — visible to admins AND engineers on this project.
-              Inline form posts to comments[] via Git Gateway. */}
+              Inline form posts to comments[] via Git Gateway. The auth bar
+              shows who's signed in and their role. */}
           <AuthAwareNoteAdder
-            projectId={project.id}
-            lang={lang}
-            engineers={project.engineers || []}
-          />
-
-          {/* Add Field Update — same auth gate, posts to updates[] instead.
-              Updates appear in the timeline below and in the dashboard
-              activity feed (which is derived from real updates). */}
-          <AuthAwareUpdateAdder
             projectId={project.id}
             lang={lang}
             engineers={project.engineers || []}

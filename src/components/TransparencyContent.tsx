@@ -189,7 +189,8 @@ Project details:
             type="button"
             className="btn-export-pdf"
             onClick={() => {
-              const url = lang === 'ar' ? '/ar/transparency/print/' : '/en/transparency/print/';
+              const base = (import.meta as any).env?.BASE_URL ?? '/';
+              const url = `${base}${lang}/transparency/print/`.replace(/\/{2,}/g, '/');
               window.open(url, '_blank', 'noopener,noreferrer');
             }}
             title={lang === 'ar' ? 'فتح تقرير الشفافية في نافذة جديدة للطباعة أو الحفظ كـ PDF' : 'Open transparency report in a new window for printing or saving as PDF'}

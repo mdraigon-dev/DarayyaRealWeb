@@ -136,7 +136,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
       const commitMessage = lang === 'ar'
         ? `تحديث ميداني على ${projectId} بواسطة ${effectiveAuthor}`
         : `Field update on ${projectId} by ${effectiveAuthor}`;
-      await commitFile(path, newFileContent, commitMessage);
+      await commitFile(path, newFileContent, commitMessage, 'main', file.sha);
 
       setSave({ kind: 'success' });
       setBody('');

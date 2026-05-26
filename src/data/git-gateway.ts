@@ -88,15 +88,23 @@ export async function getFileContent(path: string, branch = 'main'): Promise<{ c
  * @param content  The new file contents as a string
  * @param message  Commit message
  * @param branch   Branch to commit to (default: main)
+ * @param knownSha Optional: the SHA of the file the caller just read. When
+ *                 provided, we skip the extra fetch AND pin the commit to
+ *                 that exact version (GitHub returns a 409 if the file
+ *                 changed since, which is the right behavior for a
+ *                 read-modify-write — better than silently overwriting).
  */
 export async function commitFile(
   path: string,
   content: string,
   message: string,
   branch = 'main',
+  knownSha?: string,
 ): Promise<void> {
   const token = await getToken();
-  const sha = await getFileSha(path, branch);
+  // Use the caller-provided SHA when available; only fetch fresh when not.
+  // For brand-new files, callers pass null/undefined and we get null back.
+  const sha = knownSha !== undefined ? knownSha : await getFileSha(path, branch);
 
   // GitHub's content API expects base64-encoded content
   const base64 = typeof btoa !== 'undefined'
@@ -122,6 +130,11 @@ export async function commitFile(
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    // GitHub returns 409 when the file changed between read and write.
+    // Surface a clear message so the caller's UI can suggest a refresh.
+    if (res.status === 409) {
+      throw new Error('File changed since you opened it. Refresh the page and try again.');
+    }
     throw new Error(`Commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
   }
 }

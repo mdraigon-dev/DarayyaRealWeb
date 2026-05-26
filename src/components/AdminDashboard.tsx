@@ -192,14 +192,14 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   })();
 
   // Use real data when we have any donations; otherwise fall back to sample
-  // so the chart isn't blank on day one. Sample is shaped like
-  // [{label, amount}] so we map isToday=false onto it.
+  // so the chart isn't blank on day one. Sample data is shaped like
+  // {short, amount, today} so we map that into our DayBucket shape.
   const weekData: DayBucket[] = isShowingDemoDonations
     ? realWeekData
-    : sampleWeekData.map((d, i, arr) => ({
-        label: d.label,
+    : sampleWeekData.map(d => ({
+        label: d.short,
         amount: d.amount,
-        isToday: i === arr.length - 1, // last entry of sample is "today"
+        isToday: d.today,
       }));
   const weekTotal = weekData.reduce((s, d) => s + d.amount, 0);
   const maxBar = Math.max(1, ...weekData.map(d => d.amount));

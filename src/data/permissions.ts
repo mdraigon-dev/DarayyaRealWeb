@@ -18,6 +18,15 @@
  *   logged-in-other: nothing (could change later)
  *   anonymous: nothing
  *
+ * ⚠ SECURITY NOTE: this check runs CLIENT-SIDE only. Git Gateway accepts
+ * any commit from any signed-in Identity user; a determined user could
+ * open DevTools and bypass this gate to post anyway. For real
+ * authorization, a Netlify Function would need to sit in front of Git
+ * Gateway and validate role server-side. For a council platform with
+ * trusted invited users, this client-side defense-in-depth is usually
+ * sufficient — bad commits show up in git log with the offender's
+ * identity attached. Revoke their Identity invitation if abused.
+ *
  * BOOTSTRAP: until you set roles in the Netlify Identity dashboard
  * (Identity → Users → click user → User metadata → roles: ["admin"]),
  * NO ONE is admin. To unblock yourself without going through that:
