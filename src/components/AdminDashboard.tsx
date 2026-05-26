@@ -4,6 +4,8 @@ import { adminData } from '../data/admin-sample';
 import TranslateHelper from './TranslateHelper';
 
 type Bilingual = { ar: string; en: string };
+type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
+type Comment = { author: Bilingual; body: Bilingual; date?: string };
 type Project = {
   id: string;
   category: string;
@@ -13,6 +15,8 @@ type Project = {
   budgetUSD: number;
   raisedUSD: number;
   donors: number;
+  updates?: Update[];
+  comments?: Comment[];
 };
 
 type Props = {
@@ -60,7 +64,47 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
   };
 
   const [currency] = useState<'USD' | 'SYP'>('USD');
-  const { donations, alerts, activities, topDonors, weekData } = adminData(lang);
+  const { donations, alerts, activities: sampleActivities, topDonors, weekData } = adminData(lang);
+
+  // Derive REAL activity feed from project data: every update and every comment
+  // across all projects, most recent first. Falls back to sample activities
+  // when there are no real ones (so the dashboard isn't empty on day 1).
+  type ActivityEntry = { color: 'green' | 'gold' | 'blue'; text: string; time: string; sortKey: number };
+  const realActivities: ActivityEntry[] = [];
+  projects.forEach(p => {
+    const projectName = loc(lang, p.title);
+    (p.updates || []).forEach((u) => {
+      const author = loc(lang, u.author);
+      const body = loc(lang, u.body);
+      const date = loc(lang, u.date);
+      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
+      realActivities.push({
+        color: 'green',
+        text: lang === 'ar'
+          ? `تم رفع تحديث ميداني على مشروع <strong>${escapeHtml(projectName)}</strong> من قبل ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`
+          : `Field update on <strong>${escapeHtml(projectName)}</strong> by ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`,
+        time: date,
+        sortKey: parseTimeKey(date),
+      });
+    });
+    (p.comments || []).forEach((c) => {
+      const author = loc(lang, c.author);
+      const body = loc(lang, c.body);
+      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
+      const time = c.date || (lang === 'ar' ? 'مؤخراً' : 'recently');
+      realActivities.push({
+        color: 'blue',
+        text: lang === 'ar'
+          ? `تعليق جديد على <strong>${escapeHtml(projectName)}</strong> من ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`
+          : `New comment on <strong>${escapeHtml(projectName)}</strong> by ${escapeHtml(author)}: ${escapeHtml(bodyShort)}`,
+        time,
+        sortKey: parseTimeKey(c.date || ''),
+      });
+    });
+  });
+  realActivities.sort((a, b) => b.sortKey - a.sortKey);
+  const realActivitiesTop = realActivities.slice(0, 8);
+  const activities = realActivitiesTop.length > 0 ? realActivitiesTop : sampleActivities;
 
   // Search & filter state for the project table — makes the dashboard feel
   // like a real working tool for non-technical staff
@@ -350,11 +394,11 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
         </p>
       </div>
 
-      {/* Primary action: create a new project. Links straight to Decap's new-entry form. */}
+      {/* Primary action: create a new project using the custom editor. */}
       <div className="admin-actions-bar">
         <a
           className="btn-primary admin-new-project-btn"
-          href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects/new`}
+          href={`${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/new/`}
         >
           + {t(lang, 'admin_new_project')}
         </a>
@@ -493,4 +537,52 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects }: Pr
       </div>
     </section>
   );
+}
+
+/**
+ * Convert a date-ish string to a sortable number. Higher = more recent.
+ * Handles ISO dates, Arabic/English relative times ("3 days ago", "منذ ٣ أيام"),
+ * and "today"/"yesterday"/"اليوم"/"أمس".
+ */
+function parseTimeKey(s: string): number {
+  if (!s) return 0;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const t = Date.parse(s);
+    if (!isNaN(t)) return t;
+  }
+  const now = Date.now();
+  const lower = s.toLowerCase();
+  const match = s.match(/(\d+|[٠١٢٣٤٥٦٧٨٩]+)/);
+  const num = match ? toArabicDigitInt(match[1]) : 0;
+
+  if (lower.includes('minute') || s.includes('دقيق') || s.includes('دقائق')) {
+    return now - num * 60 * 1000;
+  }
+  if (lower.includes('hour') || s.includes('ساعة') || s.includes('ساعات')) {
+    return now - num * 60 * 60 * 1000;
+  }
+  if (lower.includes('day') || s.includes('يوم') || s.includes('أيام')) {
+    return now - num * 24 * 60 * 60 * 1000;
+  }
+  if (lower.includes('week') || s.includes('أسبوع')) {
+    return now - num * 7 * 24 * 60 * 60 * 1000;
+  }
+  if (lower.includes('today') || s.includes('اليوم')) return now;
+  if (lower.includes('yesterday') || s.includes('أمس')) return now - 24 * 60 * 60 * 1000;
+  return 0;
+}
+
+function toArabicDigitInt(s: string): number {
+  const ascii = s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const n = parseInt(ascii, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

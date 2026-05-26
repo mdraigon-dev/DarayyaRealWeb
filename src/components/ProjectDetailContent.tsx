@@ -65,12 +65,24 @@ type Props = {
 export default function ProjectDetailContent({ project, lang, basePath }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
   const [modalOpen, setModalOpen] = useState(false);
-  // Track demo donations: amount and count contributed via localStorage on this device
+  // Project-level totals from localStorage donations on this device
   const [demoDelta, setDemoDelta] = useState<{ amount: number; count: number }>({ amount: 0, count: 0 });
+  // Per-sub-project totals — keyed by sub id. Empty object = no demo donations yet.
+  const [subDeltas, setSubDeltas] = useState<Record<string, { amount: number; count: number }>>({});
 
-  // Load demo donation totals after mount (localStorage isn't available during SSR)
-  useEffect(() => {
+  // Load all demo totals after mount (localStorage isn't available during SSR)
+  const refreshDemoDelta = () => {
     setDemoDelta(sumForProject(project.id));
+    const next: Record<string, { amount: number; count: number }> = {};
+    project.subs.forEach((s) => {
+      next[s.id] = sumForProject(project.id, s.id);
+    });
+    setSubDeltas(next);
+  };
+
+  useEffect(() => {
+    refreshDemoDelta();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
   // Displayed values include the original raised + this browser's demo donations
@@ -80,10 +92,6 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
     100,
     Math.round((displayedRaised / Math.max(1, project.budgetUSD)) * 100)
   );
-
-  const refreshDemoDelta = () => {
-    setDemoDelta(sumForProject(project.id));
-  };
 
   const handleResetDemo = () => {
     if (typeof window === 'undefined') return;
@@ -152,7 +160,13 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
             <div className="tree">
               {project.subs.map((s, i) => {
-                const subPct = Math.round((s.raisedUSD / s.budgetUSD) * 100);
+                // Demo donations targeted at THIS sub specifically
+                const subDelta = subDeltas[s.id] || { amount: 0, count: 0 };
+                const subRaisedDisplayed = s.raisedUSD + subDelta.amount;
+                const subPct = Math.min(
+                  100,
+                  Math.round((subRaisedDisplayed / Math.max(1, s.budgetUSD)) * 100)
+                );
                 const isLast = i === project.subs.length - 1;
                 return (
                   <div key={s.id} className={`tree-node ${isLast ? 'last' : 'continues'}`}>
@@ -161,10 +175,17 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       <div className="tree-node-row">
                         <div>
                           <div className="tree-node-title">{loc(lang, s.title)}</div>
-                          <div className="tree-node-meta">{loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%</div>
+                          <div className="tree-node-meta">
+                            {loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%
+                            {subDelta.count > 0 && (
+                              <span className="tree-node-demo-tag">
+                                ★ +{fmtMoney(lang, currency, subDelta.amount)} {lang === 'ar' ? 'تجريبي' : 'demo'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="tree-node-amount">
-                          {fmtMoney(lang, currency, s.raisedUSD)} / {fmtMoney(lang, currency, s.budgetUSD)}
+                          {fmtMoney(lang, currency, subRaisedDisplayed)} / {fmtMoney(lang, currency, s.budgetUSD)}
                         </div>
                       </div>
                       <div className="tree-mini-progress">

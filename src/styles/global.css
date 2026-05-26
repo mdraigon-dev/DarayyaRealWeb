@@ -629,6 +629,18 @@ html[dir="ltr"] .project-card-urgent-badge {
 }
 .tree-node-title { font-weight: 600; color: var(--sy-green-dk); font-size: 15px; }
 .tree-node-meta { font-size: 13px; color: var(--sy-muted); margin-top: 2px; }
+.tree-node-demo-tag {
+  display: inline-block;
+  margin-inline-start: 0.5rem;
+  padding: 1px 7px;
+  background: #FFF3C4;
+  color: #6A5018;
+  border: 1px solid #E8C547;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .tree-node-amount {
   font-family: var(--font-display); font-weight: 700;
   color: var(--sy-green-dk);
@@ -1889,12 +1901,23 @@ html[dir="rtl"] .needs-attention {
 .report-item {
   display: flex; align-items: center; gap: 1rem;
   padding: 1.25rem 1.5rem;
+  border: none;
   border-bottom: 1px solid var(--sy-rule-soft);
   transition: background 140ms ease;
   cursor: pointer;
+  width: 100%;
+  background: transparent;
+  font-family: inherit;
+  text-align: inherit;
+  color: inherit;
 }
 .report-item:last-child { border-bottom: none; }
 .report-item:hover { background: var(--sy-gold-wash); }
+.report-item:focus-visible {
+  outline: none;
+  background: var(--sy-gold-wash);
+  box-shadow: inset 0 0 0 2px var(--sy-gold);
+}
 .report-icon {
   width: 40px; height: 40px;
   background: var(--sy-green-pale);
@@ -1904,10 +1927,41 @@ html[dir="rtl"] .needs-attention {
   font-size: 1.1rem;
   flex-shrink: 0;
 }
-.report-info { flex: 1; }
+.report-info { flex: 1; text-align: start; }
 .report-title { font-weight: 600; color: var(--sy-green-dk); margin-bottom: 2px; }
 .report-meta { font-size: 13px; color: var(--sy-muted); }
 .report-action { color: var(--sy-gold); font-size: 13px; font-weight: 600; }
+
+/* Prominent "Download CSV" button next to the Reports header */
+.btn-download-csv {
+  margin-top: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--sy-green-dk);
+  color: var(--sy-paper-pure);
+  border: none;
+  border-radius: var(--r-md);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.btn-download-csv:hover {
+  background: var(--sy-green);
+  box-shadow: 0 4px 12px rgba(0, 88, 44, 0.3);
+  transform: translateY(-1px);
+}
+
+.reports-disclaimer {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  font-size: 12px;
+  color: var(--sy-muted);
+  font-style: italic;
+  background: var(--sy-paper);
+  border-radius: var(--r-md);
+  line-height: 1.6;
+}
 
 /* ==================== MODAL ==================== */
 .modal-overlay {
@@ -3196,6 +3250,13 @@ html { scroll-behavior: smooth; }
 .editor-field-half {
   flex: 1;
   min-width: 180px;
+}
+.editor-field-hint {
+  margin: 0.4rem 0 0;
+  font-size: 12px;
+  color: var(--sy-muted);
+  font-style: italic;
+  line-height: 1.5;
 }
 
 /* Bilingual side-by-side */

@@ -1,0 +1,48 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import ProjectEditor from '../../../../components/ProjectEditor.tsx';
+
+const lang = 'en' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+const basePath = `${cleanBase}/${lang}`;
+const returnTo = `${basePath}/admin/`;
+
+const initial = {
+  id: '',
+  order: 0,
+  featured: false,
+  category: 'roads' as const,
+  status: 'funding' as const,
+  health: 'healthy' as const,
+  title: { ar: '', en: '' },
+  location: { ar: '', en: '' },
+  description: { ar: '', en: '' },
+  budgetUSD: 10000,
+  raisedUSD: 0,
+  donors: 0,
+  daysLeft: 30,
+  lat: 33.45,
+  lng: 36.25,
+  subs: [],
+  updates: [],
+  engineers: [],
+  comments: [],
+};
+---
+
+<BaseLayout
+  title="New project — Together We Rebuild Darayya"
+  description="Create a new project"
+  lang={lang}
+  currentPage="admin"
+>
+  <ProjectEditor
+    initial={initial}
+    lang={lang}
+    basePath={basePath}
+    returnTo={returnTo}
+    isNew={true}
+    client:load
+  />
+</BaseLayout>

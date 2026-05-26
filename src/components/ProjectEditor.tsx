@@ -76,6 +76,8 @@ type Props = {
   basePath: string;
   /** Where to send the user after a successful save */
   returnTo: string;
+  /** True when creating a new project rather than editing an existing one */
+  isNew?: boolean;
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -109,7 +111,7 @@ const CATEGORY_OPTIONS: Array<{ value: ProjectFormState['category']; ar: string;
 // Main component
 // ────────────────────────────────────────────────────────────────────
 
-export default function ProjectEditor({ initial, lang, basePath, returnTo }: Props) {
+export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew = false }: Props) {
   const [state, setState] = useState<ProjectFormState>(initial);
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
@@ -173,6 +175,34 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo }: Pro
     setSave({ kind: 'saving' });
 
     try {
+      // Validate when creating new
+      if (isNew) {
+        const idOk = /^[a-z0-9][a-z0-9-]{2,40}$/.test(state.id);
+        if (!idOk) {
+          setSave({
+            kind: 'error',
+            message: lang === 'ar'
+              ? 'المعرف غير صالح. يجب أن يحتوي على ٣–٤٠ حرفاً، أحرف إنجليزية صغيرة وأرقام وشرطات فقط.'
+              : 'Invalid ID. Must be 3–40 characters, lowercase letters / numbers / hyphens only.',
+          });
+          return;
+        }
+        if (!state.title.ar.trim()) {
+          setSave({
+            kind: 'error',
+            message: lang === 'ar' ? 'الاسم العربي مطلوب.' : 'Arabic title is required.',
+          });
+          return;
+        }
+        if (state.budgetUSD <= 0) {
+          setSave({
+            kind: 'error',
+            message: lang === 'ar' ? 'الميزانية يجب أن تكون أكبر من صفر.' : 'Budget must be greater than zero.',
+          });
+          return;
+        }
+      }
+
       // Build the frontmatter object matching the existing project file shape
       const frontmatter: Record<string, unknown> = {
         id: state.id,
@@ -203,16 +233,22 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo }: Pro
       const content = `---\n${yamlBlock}---\n`;
 
       const path = `src/content/projects/${state.id}.md`;
-      const commitMessage = lang === 'ar'
-        ? `تعديل المشروع: ${state.title.ar}`
-        : `Edit project: ${state.title.ar}`;
+      const commitMessage = isNew
+        ? (lang === 'ar' ? `إنشاء مشروع: ${state.title.ar}` : `Create project: ${state.title.ar}`)
+        : (lang === 'ar' ? `تعديل المشروع: ${state.title.ar}` : `Edit project: ${state.title.ar}`);
 
       await commitFile(path, content, commitMessage);
 
       setSave({ kind: 'success' });
+      // After a successful create, redirect to the new project's public page
+      // so the clerk sees the result. After edit, go back to the dashboard.
       setTimeout(() => {
-        window.location.href = returnTo;
-      }, 1200);
+        if (isNew) {
+          window.location.href = `${basePath}/projects/${state.id}/`;
+        } else {
+          window.location.href = returnTo;
+        }
+      }, 1500);
     } catch (err: any) {
       setSave({ kind: 'error', message: err?.message || 'Save failed' });
     }
@@ -266,16 +302,22 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo }: Pro
           <a href={returnTo} className="editor-back-link">
             ← {lang === 'ar' ? 'إلغاء' : 'Cancel'}
           </a>
-          <span className="editor-title-preview">{loc(lang, state.title) || state.id}</span>
+          <span className="editor-title-preview">
+            {isNew
+              ? (lang === 'ar' ? 'مشروع جديد' : 'New project')
+              : (loc(lang, state.title) || state.id)}
+          </span>
         </div>
         <div className="editor-save-bar-right">
-          <a
-            href={`/admin/#/collections/projects/entries/${state.id}`}
-            className="editor-classic-link"
-            title={lang === 'ar' ? 'فتح في Decap CMS لتعديل الحقول المتقدمة' : 'Open in Decap CMS for advanced fields'}
-          >
-            {lang === 'ar' ? 'المحرر الكلاسيكي' : 'Classic editor'} →
-          </a>
+          {!isNew && (
+            <a
+              href={`/admin/#/collections/projects/entries/${state.id}`}
+              className="editor-classic-link"
+              title={lang === 'ar' ? 'فتح في Decap CMS لتعديل الحقول المتقدمة' : 'Open in Decap CMS for advanced fields'}
+            >
+              {lang === 'ar' ? 'المحرر الكلاسيكي' : 'Classic editor'} →
+            </a>
+          )}
           <button
             className="editor-save-btn"
             onClick={handleSave}
@@ -283,13 +325,44 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo }: Pro
           >
             {save.kind === 'saving' && (lang === 'ar' ? 'جاري الحفظ…' : 'Saving…')}
             {save.kind === 'success' && (lang === 'ar' ? '✓ تم الحفظ' : '✓ Saved')}
-            {(save.kind === 'idle' || save.kind === 'error') && (lang === 'ar' ? 'حفظ ونشر' : 'Save & publish')}
+            {(save.kind === 'idle' || save.kind === 'error') && (
+              isNew
+                ? (lang === 'ar' ? 'إنشاء ونشر' : 'Create & publish')
+                : (lang === 'ar' ? 'حفظ ونشر' : 'Save & publish')
+            )}
           </button>
         </div>
         {save.kind === 'error' && (
           <div className="editor-save-error">⚠ {save.message}</div>
         )}
       </div>
+
+      {/* ID picker — only when creating */}
+      {isNew && (
+        <div className="editor-card">
+          <h3 className="editor-card-title">
+            <span className="editor-card-icon">#</span>
+            {lang === 'ar' ? 'معرف المشروع' : 'Project ID'}
+          </h3>
+          <div className="editor-field">
+            <label>{lang === 'ar' ? 'المعرف (يستخدم في الرابط)' : 'ID (used in the URL)'}</label>
+            <input
+              type="text"
+              className="editor-text-input"
+              dir="ltr"
+              value={state.id}
+              onChange={(e) => update('id', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
+              placeholder="e.g. roads-jalaa, water-east"
+              maxLength={40}
+            />
+            <p className="editor-field-hint">
+              {lang === 'ar'
+                ? 'أحرف إنجليزية صغيرة وأرقام وشرطات فقط. مثال: roads-jalaa. لا يمكن تغييره بعد الإنشاء.'
+                : 'Lowercase letters, numbers and hyphens only. E.g. roads-jalaa. Cannot be changed after creation.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Title + description card */}
       <div className="editor-card">
@@ -540,19 +613,30 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo }: Pro
       </div>
 
       {/* Pointer to classic editor for advanced fields */}
-      <div className="editor-advanced-note">
-        <p>
-          {lang === 'ar'
-            ? 'للتعديلات المتقدمة (المشاريع الفرعية، الفريق، الصور، الإحداثيات، التحديثات الميدانية المؤرّخة):'
-            : 'For advanced fields (sub-projects, team, photos, coordinates, dated field updates):'}
-        </p>
-        <a
-          href={`/admin/#/collections/projects/entries/${state.id}`}
-          className="editor-classic-link-big"
-        >
-          {lang === 'ar' ? '⚙ افتح المحرر الكلاسيكي' : '⚙ Open classic editor'} →
-        </a>
-      </div>
+      {!isNew && (
+        <div className="editor-advanced-note">
+          <p>
+            {lang === 'ar'
+              ? 'للتعديلات المتقدمة (المشاريع الفرعية، الفريق، الصور، الإحداثيات، التحديثات الميدانية المؤرّخة):'
+              : 'For advanced fields (sub-projects, team, photos, coordinates, dated field updates):'}
+          </p>
+          <a
+            href={`/admin/#/collections/projects/entries/${state.id}`}
+            className="editor-classic-link-big"
+          >
+            {lang === 'ar' ? '⚙ افتح المحرر الكلاسيكي' : '⚙ Open classic editor'} →
+          </a>
+        </div>
+      )}
+      {isNew && (
+        <div className="editor-advanced-note">
+          <p>
+            {lang === 'ar'
+              ? '★ بعد إنشاء المشروع، يمكنك العودة لإضافة المشاريع الفرعية، الفريق، الصور، والمزيد من التفاصيل.'
+              : '★ After creating the project, you can come back to add sub-projects, team members, photos, and more details.'}
+          </p>
+        </div>
+      )}
     </section>
   );
 }
