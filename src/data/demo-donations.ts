@@ -73,16 +73,3 @@ export function sumForProject(projectId: string, subId?: string): { amount: numb
   return { amount, count };
 }
 
-/**
- * Sum demo donations across all projects (for the dashboard).
- */
-export function sumAll(): { amount: number; count: number; uniqueProjects: number } {
-  const { donations } = loadDonations();
-  let amount = 0;
-  const projects = new Set<string>();
-  for (const d of donations) {
-    amount += d.amountUSD;
-    projects.add(d.projectId);
-  }
-  return { amount, count: donations.length, uniqueProjects: projects.size };
-}

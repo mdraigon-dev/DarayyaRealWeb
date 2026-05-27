@@ -25,7 +25,7 @@ type Project = {
   budgetUSD: number;
   raisedUSD: number;
   donors: number;
-  daysLeft?: number;
+  daysLeft: number;
   updates?: Update[];
   comments?: Comment[];
   subs?: Sub[];

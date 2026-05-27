@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { stringify as stringifyYaml } from 'yaml';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
-import { commitFile } from '../data/git-gateway';
+import { commitFile, getFileSha } from '../data/git-gateway';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -117,6 +117,12 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [showSubItems, setShowSubItems] = useState(initial.subs.length > 0);
 
+  /* SHA of the file when this editor session started, used to detect
+   * concurrent edits. Fetched after auth completes (we need the user's
+   * token to read via Git Gateway). For new projects (isNew), stays
+   * null — there's no existing file to race against. */
+  const [editingSha, setEditingSha] = useState<string | null | undefined>(undefined);
+
   // Auth setup
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +145,31 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     init();
     return () => { cancelled = true; };
   }, []);
+
+  // Once authenticated, fetch the current file SHA so we can detect
+  // concurrent edits at save time. For new projects there's nothing to
+  // fetch — editingSha stays null and commitFile will create the file.
+  useEffect(() => {
+    if (auth.kind !== 'authenticated') return;
+    if (isNew) {
+      setEditingSha(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const path = `src/content/projects/${initial.id}.md`;
+        const sha = await getFileSha(path);
+        if (!cancelled) setEditingSha(sha);
+      } catch {
+        // Network/auth failure — fall back to letting commitFile fetch
+        // the SHA itself (the old behavior). Worst case is the
+        // concurrent-edit detection is disabled for this session.
+        if (!cancelled) setEditingSha(undefined);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [auth.kind, isNew, initial.id]);
 
   // Computed values for the budget slider
   const budgetMax = useMemo(() => {
@@ -237,7 +268,23 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         ? (lang === 'ar' ? `إنشاء مشروع: ${state.title.ar}` : `Create project: ${state.title.ar}`)
         : (lang === 'ar' ? `تعديل المشروع: ${state.title.ar}` : `Edit project: ${state.title.ar}`);
 
-      await commitFile(path, content, commitMessage);
+      // Concurrent-edit protection: if we have the SHA from when this
+      // editor session started, pass it so commitFile can detect that
+      // someone else saved in the meantime.
+      //
+      // editingSha values:
+      //   undefined → still loading OR fetch failed (no protection;
+      //               fall back to commitFile's own SHA fetch)
+      //   null      → file didn't exist at start (new project case)
+      //   string    → the SHA to pin against
+      //
+      // For new projects (isNew) we always let commitFile fetch — there
+      // shouldn't be an existing file to pin against, but if there is
+      // (unlikely ID collision), we don't want to clobber it silently.
+      const sha: string | undefined = isNew
+        ? undefined
+        : (typeof editingSha === 'string' ? editingSha : undefined);
+      await commitFile(path, content, commitMessage, 'main', sha);
 
       setSave({ kind: 'success' });
       // IMPORTANT: do NOT auto-redirect to the project's public page.
@@ -377,10 +424,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           <button
             className="editor-save-btn"
             onClick={handleSave}
-            disabled={save.kind === 'saving' || save.kind === 'success'}
+            disabled={save.kind === 'saving'}
           >
             {save.kind === 'saving' && (lang === 'ar' ? 'جاري الحفظ…' : 'Saving…')}
-            {save.kind === 'success' && (lang === 'ar' ? '✓ تم الحفظ' : '✓ Saved')}
             {(save.kind === 'idle' || save.kind === 'error') && (
               isNew
                 ? (lang === 'ar' ? 'إنشاء ونشر' : 'Create & publish')

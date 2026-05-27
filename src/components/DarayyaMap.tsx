@@ -7,7 +7,7 @@ declare const L: any;
 type MapProject = {
   id: string;
   category: string;
-  title: { ar: string; en: string };
+  title: { ar: string; en?: string };
   lat: number;
   lng: number;
   health: 'healthy' | 'warning' | 'stalled' | 'completed';

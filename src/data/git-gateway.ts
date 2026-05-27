@@ -106,10 +106,12 @@ export async function commitFile(
   // For brand-new files, callers pass null/undefined and we get null back.
   const sha = knownSha !== undefined ? knownSha : await getFileSha(path, branch);
 
-  // GitHub's content API expects base64-encoded content
-  const base64 = typeof btoa !== 'undefined'
-    ? btoa(unescape(encodeURIComponent(content)))
-    : Buffer.from(content, 'utf-8').toString('base64');
+  // GitHub's content API expects base64-encoded content. We use the
+  // standard "encode to UTF-8 bytes, then base64" sequence: encodeURIComponent
+  // produces percent-encoded UTF-8, unescape decodes those to a raw byte
+  // string, and btoa converts bytes to base64. This is the canonical way
+  // to base64-encode arbitrary Unicode text in a browser.
+  const base64 = btoa(unescape(encodeURIComponent(content)));
 
   const body: Record<string, unknown> = {
     message,

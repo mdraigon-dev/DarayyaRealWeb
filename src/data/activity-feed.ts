@@ -9,7 +9,9 @@
 
 import { loc, type Lang } from '../i18n/strings';
 
-type Bilingual = { ar: string; en: string };
+// Bilingual matches what loc() actually accepts: ar is the only required
+// side, en can be undefined or empty (loc falls back to ar in that case).
+type Bilingual = { ar: string; en?: string };
 type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
 type Comment = { author: Bilingual; body: Bilingual; date?: string };
 type ProjectShape = {
