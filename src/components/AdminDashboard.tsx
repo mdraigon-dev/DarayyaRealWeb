@@ -76,7 +76,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   // operate via the inline forms on their own project pages.)
   const dashboardRole = classifyUser(authUser, []);
   const canSeePM = dashboardRole === 'admin';
-  const { donations: sampleDonations, alerts, activities: sampleActivities, topDonors, weekData: sampleWeekData } = adminData(lang);
+  const { donations: sampleDonations, activities: sampleActivities, topDonors, weekData: sampleWeekData } = adminData(lang);
 
   // Load demo donations on mount. The dashboard reads them in three ways:
   //  - augmented project list (per-project raised reflects demos)
@@ -98,7 +98,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   // across all projects, most recent first. Falls back to sample activities
   // when there are no real ones (so the dashboard isn't empty on day 1).
   // Shape and derivation match the home-page feed via buildActivityFeed.
-  type ActivityEntry = { color: 'green' | 'gold' | 'blue'; text: string; time: string };
+  type ActivityEntry = { color: 'green' | 'gold' | 'blue' | 'gray'; text: string; time: string };
   const realActivitiesTop = buildActivityFeed(projects, lang, 8);
   const activities: ActivityEntry[] = realActivitiesTop.length > 0
     ? realActivitiesTop.map(a => ({ color: a.color, text: a.text, time: a.time }))
@@ -160,6 +160,24 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
   // Search & filter state for the project table — makes the dashboard feel
   // like a real working tool for non-technical staff
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletedProjectIds, setDeletedProjectIds] = useState<Set<string>>(new Set());
+
+  const handleDeleteProject = async (projectId: string, titleAr: string) => {
+    const confirmMsg = lang === 'ar'
+      ? `حذف مشروع «${titleAr}»؟ لا يمكن التراجع عن هذا.`
+      : `Delete project "${titleAr}"? This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const { deleteFile } = await import('../data/git-gateway');
+      await deleteFile(
+        `src/content/projects/${projectId}.md`,
+        lang === 'ar' ? `حذف مشروع: ${titleAr}` : `Delete project: ${titleAr}`,
+      );
+      setDeletedProjectIds(prev => new Set([...prev, projectId]));
+    } catch (err: any) {
+      alert(err?.message || 'Delete failed');
+    }
+  };
   const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'active' | 'completed' | 'stalled'>('all');
   const [sortBy, setSortBy] = useState<'default' | 'pct' | 'donors' | 'amount'>('default');
 
@@ -246,6 +264,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
 
   // Apply search, filter, and sort to the project list before rendering the table
   const filteredProjects = projects
+    .filter(p => !deletedProjectIds.has(p.id))
     .filter(p => {
       if (statusFilter !== 'all') {
         // Stalled is health, not status — separate logic
@@ -287,9 +306,8 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
         {t(lang, 'admin_demo_note')}
       </div>
 
-      {/* Needs Attention — projects requiring action.
-          Helps staff start their day by seeing what's at risk. */}
-      {needsAttention.length > 0 && (
+      {/* Needs Attention — admin-only */}
+      {canSeePM && needsAttention.length > 0 && (
         <div className="needs-attention">
           <div className="needs-attention-header">
             <span className="needs-attention-icon">⚠</span>
@@ -412,7 +430,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
               <div className="chart-summary">
                 <span>{t(lang, 'admin_week_total')} <strong>{fmtMoney(lang, currency, weekTotal)}</strong></span>
                 {isShowingDemoDonations && todayDonations > 0 && (
-                  <span style={{ color: 'var(--sy-gold)', fontWeight: 700 }}>
+                  <span style={{ color: 'var(--sy-gold)', fontWeight: 600 }}>
                     {lang === 'ar' ? 'اليوم: ' : 'Today: '}{fmtMoney(lang, currency, todayDonations)}
                   </span>
                 )}
@@ -420,28 +438,98 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
             </div>
           </div>
 
-          <div className="admin-card">
-            <div className="admin-card-header">
-              <div className="admin-card-title">
-                <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-                {t(lang, 'admin_alerts')}
-              </div>
-              <span className="admin-card-link">
-                {t(lang, 'admin_alerts_new', { n: fmtNum(lang, alerts.length) })}
-              </span>
-            </div>
-            <div className="admin-card-body">
-              {alerts.map((a, i) => (
-                <div className="alert-item" key={i}>
-                  <div className={`alert-icon ${a.type}`}>{a.icon}</div>
-                  <div className="alert-body">
-                    <div className="alert-title">{a.title}</div>
-                    <div className="alert-meta">{a.meta}</div>
+          {/* Alerts — admin-only, computed from real project data */}
+          {canSeePM && (() => {
+            // Derive live alerts from project state rather than static sample data.
+            type LiveAlert = { type: 'warning' | 'danger' | 'info'; icon: string; title: string; meta: string; href?: string };
+            const liveAlerts: LiveAlert[] = [];
+            const editBase = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/`;
+
+            projects.forEach(p => {
+              const pct = Math.round((p.raisedUSD / Math.max(1, p.budgetUSD)) * 100);
+              // Critically under-funded and deadline near
+              if (p.status === 'funding' && pct < 15 && p.daysLeft > 0 && p.daysLeft < 21) {
+                liveAlerts.push({
+                  type: 'danger', icon: '×',
+                  title: lang === 'ar'
+                    ? `«${loc(lang, p.title)}» تمويل حرج (${pct}%) وأقل من ٢١ يوماً`
+                    : `"${loc(lang, p.title)}" critical funding (${pct}%) — under 21 days left`,
+                  meta: lang === 'ar'
+                    ? `المتبقي: ${fmtNum(lang, p.daysLeft)} يوماً · الميزانية: ${fmtMoney(lang, currency, p.budgetUSD)}`
+                    : `${fmtNum(lang, p.daysLeft)} days left · Budget: ${fmtMoney(lang, currency, p.budgetUSD)}`,
+                  href: editBase + p.id + '/',
+                });
+              } else if (p.status === 'funding' && pct < 25 && p.daysLeft > 0 && p.daysLeft < 30) {
+                liveAlerts.push({
+                  type: 'warning', icon: '!',
+                  title: lang === 'ar'
+                    ? `«${loc(lang, p.title)}» يحتاج حملة وصول (${pct}%)`
+                    : `"${loc(lang, p.title)}" needs outreach (${pct}% funded)`,
+                  meta: lang === 'ar'
+                    ? `${fmtNum(lang, p.daysLeft)} يوماً متبقياً`
+                    : `${fmtNum(lang, p.daysLeft)} days remaining`,
+                  href: editBase + p.id + '/',
+                });
+              }
+              // Stalled projects
+              if ((p as any).health === 'stalled') {
+                liveAlerts.push({
+                  type: 'warning', icon: '⏸',
+                  title: lang === 'ar'
+                    ? `مشروع «${loc(lang, p.title)}» متعثّر`
+                    : `Project "${loc(lang, p.title)}" is stalled`,
+                  meta: lang === 'ar' ? 'لا يوجد تحديث ميداني مؤخراً' : 'No recent field updates',
+                  href: editBase + p.id + '/',
+                });
+              }
+            });
+
+            // Cap at 6 — show most severe first (danger before warning)
+            liveAlerts.sort((a, b) => (a.type === 'danger' ? -1 : 1) - (b.type === 'danger' ? -1 : 1));
+            const displayAlerts = liveAlerts.slice(0, 6);
+
+            return (
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <div className="admin-card-title">
+                    <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+                    {t(lang, 'admin_alerts')}
+                    {displayAlerts.length > 0 && (
+                      <span className="admin-card-badge admin-card-badge-live" style={{ background: 'rgba(206,17,38,0.12)', color: 'var(--sy-red)' }}>
+                        {fmtNum(lang, displayAlerts.length)} {lang === 'ar' ? 'تنبيه' : 'alerts'}
+                      </span>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="admin-card-body">
+                  {displayAlerts.length === 0 ? (
+                    <p className="admin-card-empty" style={{ color: 'var(--sy-green)' }}>
+                      {lang === 'ar' ? '✓ لا توجد تنبيهات — جميع المشاريع تسير بشكل جيد.' : '✓ No alerts — all projects are on track.'}
+                    </p>
+                  ) : displayAlerts.map((a, i) => (
+                    a.href ? (
+                      <a key={i} href={a.href} className="alert-item alert-item-link">
+                        <div className={`alert-icon ${a.type}`}>{a.icon}</div>
+                        <div className="alert-body">
+                          <div className="alert-title">{a.title}</div>
+                          <div className="alert-meta">{a.meta}</div>
+                        </div>
+                        <div className="alert-arrow">›</div>
+                      </a>
+                    ) : (
+                      <div key={i} className="alert-item">
+                        <div className={`alert-icon ${a.type}`}>{a.icon}</div>
+                        <div className="alert-body">
+                          <div className="alert-title">{a.title}</div>
+                          <div className="alert-meta">{a.meta}</div>
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -462,7 +550,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
                 </span>
               )}
             </div>
-            <span className="admin-card-link">{t(lang, 'admin_full_log')}</span>
+            <a className="admin-card-link" href={`${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/activity/`}>{t(lang, 'admin_full_log')}</a>
           </div>
           <div className="admin-card-body">
             {activities.length === 0 && (
@@ -640,7 +728,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
               <div>{fmtMoney(lang, currency, p.budgetUSD)}</div>
               <div>
                 <div>{fmtMoney(lang, currency, p.raisedUSD)}</div>
-                <div style={{ fontSize: '12px', color: 'var(--sy-gold)', fontWeight: 700 }}>{fmtNum(lang, pct)}%</div>
+                <div style={{ fontSize: '12px', color: 'var(--sy-gold)', fontWeight: 600 }}>{fmtNum(lang, pct)}%</div>
               </div>
               <div>{fmtNum(lang, p.donors)}</div>
               <div>
@@ -653,6 +741,14 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
                 <a className="admin-view" href={publicUrl} title={t(lang, 'admin_btn_view_hint')}>
                   {t(lang, 'admin_btn_view')}
                 </a>
+                <button
+                  type="button"
+                  className="admin-delete-btn"
+                  onClick={() => handleDeleteProject(p.id, loc(lang, p.title))}
+                  title={lang === 'ar' ? 'حذف المشروع' : 'Delete project'}
+                >
+                  ×
+                </button>
               </div>
             </div>
           );

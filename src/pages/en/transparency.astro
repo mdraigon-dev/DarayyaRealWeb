@@ -3,9 +3,10 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TransparencyContent from '../../components/TransparencyContent.tsx';
 import { t } from '../../i18n/strings';
+import { withComputedDaysLeft } from '../../data/compute-days-left';
 
 const projects = await getCollection('projects');
-const projectData = projects.map(p => p.data);
+const projectData = projects.map(p => withComputedDaysLeft(p.data));
 
 const lang = 'en' as const;
 ---

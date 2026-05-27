@@ -4,6 +4,15 @@ import { type Lang } from '../i18n/strings';
 import { getFileContent, commitFile } from '../data/git-gateway';
 import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
+function getProfileDisplayName(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const raw = localStorage.getItem('darayya-user-profile-v1');
+    if (!raw) return '';
+    return JSON.parse(raw)?.displayName || '';
+  } catch { return ''; }
+}
+
 declare global {
   interface Window {
     netlifyIdentity: any;
@@ -81,7 +90,8 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
   const isAdmin = role === 'admin';
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
   const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
-  const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
+  const profileName = getProfileDisplayName();
+  const defaultAuthor = profileName || auth.user.user_metadata?.full_name || auth.user.email;
   const myRoleLabel = roleLabel(role, lang);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,15 +120,16 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
       const [, frontmatterText, markdownBody] = m;
       const frontmatter = parseYaml(frontmatterText) as Record<string, unknown>;
 
-      // Build the new comment. Put the body in the language the user
-      // typed in; leave the other side empty so the build-time auto-
-      // translator fills it.
+      // Build the new comment. Store the body in both AR and EN so it
+      // renders for readers in either language immediately. The build-time
+      // auto-translator will replace the non-native side with a real
+      // translation on the next Netlify build.
       const existing = Array.isArray(frontmatter.comments) ? frontmatter.comments : [];
       const newComment = {
         author: { ar: effectiveAuthor, en: effectiveAuthor },
         body: {
-          ar: lang === 'ar' ? trimmed : '',
-          en: lang === 'en' ? trimmed : '',
+          ar: trimmed,
+          en: trimmed,
         },
         date: new Date().toISOString().slice(0, 10),
       };

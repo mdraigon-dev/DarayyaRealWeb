@@ -22,6 +22,7 @@ budgetUSD: 27000
 raisedUSD: 12500
 donors: 96
 daysLeft: 35
+fundingDeadline: '2026-07-01'
 lat: 33.4495
 lng: 36.2505
 

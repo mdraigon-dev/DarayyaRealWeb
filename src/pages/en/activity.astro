@@ -1,0 +1,21 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ActivityLogContent from '../../components/ActivityLogContent.tsx';
+import { withComputedDaysLeft } from '../../data/compute-days-left';
+import { t } from '../../i18n/strings';
+
+const projects = await getCollection('projects');
+const projectData = projects.map(p => withComputedDaysLeft(p.data));
+const lang = 'en' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
+---
+<BaseLayout
+  title={`${lang === 'ar' ? 'سجل النشاط' : 'Activity Log'} — ${t(lang, 'brand_title')}`}
+  description={lang === 'ar' ? 'سجل النشاط الكامل للمشاريع' : 'Full project activity log'}
+  lang={lang}
+  currentPage="admin"
+>
+  <ActivityLogContent lang={lang} basePath={basePath} projects={projectData} client:load />
+</BaseLayout>

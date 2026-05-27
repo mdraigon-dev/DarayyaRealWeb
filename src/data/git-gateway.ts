@@ -186,3 +186,33 @@ export async function commitBinaryFile(
     throw new Error(`Binary commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
   }
 }
+
+/**
+ * Delete a file from the repo via Git Gateway.
+ * Fetches the file's current SHA first, then issues a DELETE commit.
+ * This removes the file from the next Netlify build.
+ */
+export async function deleteFile(
+  path: string,
+  commitMessage: string,
+  branch = 'main',
+): Promise<void> {
+  const token = await getToken();
+  const sha = await getFileSha(path, branch);
+  if (!sha) throw new Error(`File not found in repo: ${path}`);
+
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message: commitMessage, sha, branch }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Delete failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+  }
+}

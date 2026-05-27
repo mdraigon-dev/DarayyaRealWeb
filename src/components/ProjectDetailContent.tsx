@@ -68,6 +68,49 @@ type Props = {
 export default function ProjectDetailContent({ project, lang, basePath }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalSubId, setModalSubId] = useState<string | undefined>(undefined);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deletedUpdateIndices, setDeletedUpdateIndices] = useState<Set<number>>(new Set());
+  const [deletedCommentIndices, setDeletedCommentIndices] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    let tries = 0;
+    const poll = () => {
+      const ni = (window as any).netlifyIdentity;
+      if (ni) { setIsAdmin(!!ni.currentUser()); ni.on('login', () => setIsAdmin(true)); ni.on('logout', () => setIsAdmin(false)); }
+      else if (++tries < 30) setTimeout(poll, 200);
+    };
+    poll();
+  }, []);
+
+  const deleteEntryFromFile = async (arrayKey: 'updates' | 'comments', index: number) => {
+    const confirmMsg = lang === 'ar' ? 'حذف هذا الإدخال نهائياً؟' : 'Permanently delete this entry?';
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const { getFileContent, commitFile } = await import('../data/git-gateway');
+      const { parse: parseYaml, stringify: stringifyYaml } = await import('yaml');
+      const path = `src/content/projects/${project.id}.md`;
+      const file = await getFileContent(path);
+      if (!file) throw new Error('File not found');
+      const m = file.content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      if (!m) throw new Error('Invalid file format');
+      const fm = parseYaml(m[1]) as Record<string, unknown>;
+      const arr = Array.isArray(fm[arrayKey]) ? [...(fm[arrayKey] as unknown[])] : [];
+      arr.splice(index, 1);
+      fm[arrayKey] = arr;
+      const yaml = stringifyYaml(fm, { lineWidth: 0, defaultStringType: 'QUOTE_DOUBLE', defaultKeyType: 'PLAIN' });
+      await commitFile(path, `---\n${yaml}---\n${m[2]}`,
+        lang === 'ar' ? `حذف إدخال من ${project.id}` : `Delete entry from ${project.id}`,
+        'main', file.sha);
+      if (arrayKey === 'updates') setDeletedUpdateIndices(prev => new Set([...prev, index]));
+      else setDeletedCommentIndices(prev => new Set([...prev, index]));
+    } catch (err: any) { alert(err?.message || 'Delete failed'); }
+  };
+
+  const openModal = (subId?: string) => {
+    setModalSubId(subId);
+    setModalOpen(true);
+  };
   // All demo donations for THIS project loaded on mount. We derive everything
   // (project totals, sub-project waterfall, donor count) from this single
   // array so the math stays consistent across the page and the modal.
@@ -166,7 +209,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </svg>
             {loc(lang, project.location)}
           </span>
-          {project.daysLeft > 0 && (
+          {effStatus === 'funding' && project.daysLeft > 0 && (
             <span className="detail-loc-item">
               <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -180,7 +223,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
               <circle cx="9" cy="7" r="4"></circle>
             </svg>
-            {fmtNum(lang, project.donors)} {project.donors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
+            {fmtNum(lang, displayedDonors)} {displayedDonors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
           </span>
         </div>
       </div>
@@ -208,7 +251,15 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 );
                 const isLast = i === project.subs.length - 1;
                 return (
-                  <div key={s.id} className={`tree-node ${isLast ? 'last' : 'continues'}`}>
+                  <div
+                    key={s.id}
+                    className={`tree-node ${isLast ? 'last' : 'continues'} tree-node-clickable`}
+                    onClick={() => openModal(s.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => e.key === 'Enter' && openModal(s.id)}
+                    title={lang === 'ar' ? `تبرع لـ: ${loc(lang, s.title)}` : `Donate to: ${loc(lang, s.title)}`}
+                  >
                     <div className="tree-line"></div>
                     <div className="tree-node-content">
                       <div className="tree-node-row">
@@ -243,9 +294,11 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 );
               })}
             </div>
-            <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--sy-muted)' }}>
-              {t(lang, 'hierarchy_hint')}
-            </p>
+            {project.subs.length > 1 && (
+              <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--sy-muted)' }}>
+                {t(lang, 'hierarchy_hint')}
+              </p>
+            )}
           </div>
 
           {project.photos && project.photos.length > 0 && (
@@ -282,8 +335,16 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             <>
               <h3>{t(lang, 'updates_title')}</h3>
               <div className="timeline">
-                {project.updates.map((u, i) => (
-                  <div className="update" key={i}>
+                {project.updates.map((u, i) => deletedUpdateIndices.has(i) ? null : (
+                  <div className="update" key={i} style={{ position: 'relative' }}>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        className="entry-delete-btn"
+                        onClick={() => deleteEntryFromFile('updates', i)}
+                        title={lang === 'ar' ? 'حذف هذا التحديث' : 'Delete this update'}
+                      >×</button>
+                    )}
                     <div className="update-head">
                       <span className="update-author">{loc(lang, u.author)}</span>
                       <span className="update-date">{loc(lang, u.date)}</span>
@@ -340,8 +401,16 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             <>
               <h3>{t(lang, 'comments_title')}</h3>
               <div className="comments-list">
-                {project.comments.map((c, i) => (
-                  <div className="comment" key={i}>
+                {project.comments.map((c, i) => deletedCommentIndices.has(i) ? null : (
+                  <div className="comment" key={i} style={{ position: 'relative' }}>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        className="entry-delete-btn"
+                        onClick={() => deleteEntryFromFile('comments', i)}
+                        title={lang === 'ar' ? 'حذف هذه الملاحظة' : 'Delete this note'}
+                      >×</button>
+                    )}
                     <div className="comment-head">
                       <span className="comment-author">{loc(lang, c.author)}</span>
                       {c.date && <span className="comment-date">{c.date}</span>}
@@ -378,7 +447,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
 
             <button
               className="btn-donate-full"
-              onClick={() => setModalOpen(true)}
+              onClick={() => openModal()}
               disabled={displayedRaised >= totalBudget}
             >
               {displayedRaised >= totalBudget
@@ -416,7 +485,8 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
       {/* Demo donation modal */}
       <DonationModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { setModalOpen(false); setModalSubId(undefined); }}
+        initialSubId={modalSubId}
         onDonated={refreshDemoDelta}
         projectId={project.id}
         projectTitle={project.title}

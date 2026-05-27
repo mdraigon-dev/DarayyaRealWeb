@@ -20,6 +20,8 @@ type Props = {
   projectBudgetUSD: number;
   projectRaisedUSD: number;
   subs?: Sub[];
+  /** Pre-select a specific sub-project when the modal opens */
+  initialSubId?: string;
   /** Current demo donation totals so we can compute the room
    *  remaining for new donations. */
   demoBreakdown: DemoBreakdown;
@@ -38,6 +40,7 @@ export default function DonationModal({
   projectBudgetUSD,
   projectRaisedUSD,
   subs,
+  initialSubId,
   demoBreakdown,
   lang,
   currency,
@@ -45,9 +48,14 @@ export default function DonationModal({
   const [amount, setAmount] = useState<number>(50);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [name, setName] = useState<string>('');
-  const [subId, setSubId] = useState<string>('');
+  const [subId, setSubId] = useState<string>(initialSubId || '');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Sync subId when the modal is opened with a pre-selected sub
+  useEffect(() => {
+    if (open) setSubId(initialSubId || '');
+  }, [open, initialSubId]);
   const [validationError, setValidationError] = useState<string>('');
 
   // Compute how much room is left for the currently selected target

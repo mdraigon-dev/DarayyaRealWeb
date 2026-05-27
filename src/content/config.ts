@@ -13,6 +13,21 @@ const bilingual = z.object({
   en_auto: z.boolean().optional(),
 });
 
+// Permissive bilingual for user-authored content (updates, comments).
+// Staff can post in either language; the other side starts blank and
+// gets filled by the auto-translator at build time. We coerce empty
+// ar to the en value (and vice-versa) so loc() always has something
+// to return, and we don't reject valid entries that only have one side.
+const bilingualUserContent = z.object({
+  ar: z.string().optional().default(''),
+  en: z.string().optional().default(''),
+  en_auto: z.boolean().optional(),
+}).transform(obj => ({
+  ...obj,
+  ar: obj.ar || obj.en || '',
+  en: obj.en || obj.ar || '',
+}));
+
 // ============================================================
 // PROJECT COLLECTION
 // One Markdown file per project, with frontmatter for all fields.
@@ -47,6 +62,10 @@ const projectCollection = defineCollection({
     raisedUSD: z.number().min(0),
     donors: z.number().int().min(0).default(0),
     daysLeft: z.number().int().min(0).default(0),
+    /** ISO date YYYY-MM-DD — when the funding window closes.
+     *  When set, daysLeft is computed at build time from today's date.
+     *  When absent, the static daysLeft value is used as-is.            */
+    fundingDeadline: z.string().optional(),
 
     // Map coordinates (Darayya area ~33.45 N, 36.25 E)
     lat: z.number().default(33.45),
@@ -66,9 +85,9 @@ const projectCollection = defineCollection({
     // Field updates
     updates: z.array(
       z.object({
-        date: bilingual,
-        author: bilingual,
-        body: bilingual,
+        date: bilingualUserContent,
+        author: bilingualUserContent,
+        body: bilingualUserContent,
       })
     ).default([]),
 
@@ -96,8 +115,8 @@ const projectCollection = defineCollection({
     // General notes/comments
     comments: z.array(
       z.object({
-        author: bilingual,
-        body: bilingual,
+        author: bilingualUserContent,
+        body: bilingualUserContent,
         date: z.string().optional(),
       })
     ).default([]),

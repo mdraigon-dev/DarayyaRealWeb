@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { t, fmtNum, fmtMoney, loc, type Lang } from '../i18n/strings';
 import { loadDonations } from '../data/demo-donations';
 import { applyDemoToProjects, displayStatus } from '../data/donation-math';
+import ReportUploader from './ReportUploader';
 
 type Bilingual = { ar: string; en: string };
 type Sub = { id: string; budgetUSD: number; raisedUSD: number };
@@ -18,26 +19,29 @@ type Project = {
   subs?: Sub[];
 };
 
+export type TransparencyCircular = {
+  id: string;
+  title: Bilingual;
+  description?: { ar?: string; en?: string };
+  category: string;
+  date: string;
+  file: string;
+  fileSize: number;
+  fileType: string;
+};
+
 type Props = {
   projects: Project[];
   lang: Lang;
+  /** Circulars from the content collection — used to populate the reports section.
+   *  Falls back to static sample data when empty. */
+  circulars?: TransparencyCircular[];
 };
 
-const REPORTS_AR = [
-  { title: 'التقرير المالي الشهري — نيسان ٢٠٢٦', date: 'تم النشر في ١ أيار ٢٠٢٦', size: '٢٫٤ MB', type: 'مالي' },
-  { title: 'تقرير المراجعة الخارجية ربع السنوي', date: 'تم النشر في ١٥ نيسان ٢٠٢٦', size: '٥٫١ MB', type: 'مراجعة' },
-  { title: 'بيان مفصّل بالمصروفات — آذار ٢٠٢٦', date: 'تم النشر في ٣ نيسان ٢٠٢٦', size: '١٫٨ MB', type: 'مالي' },
-  { title: 'تقرير اللجنة المجتمعية المستقلة', date: 'تم النشر في ١ نيسان ٢٠٢٦', size: '٩٠٠ KB', type: 'حوكمة' },
-];
-const REPORTS_EN = [
-  { title: 'Monthly Financial Report — April 2026', date: 'Published May 1, 2026', size: '2.4 MB', type: 'Financial' },
-  { title: 'Quarterly External Audit Report',       date: 'Published April 15, 2026', size: '5.1 MB', type: 'Audit' },
-  { title: 'Detailed Expenses Statement — March 2026', date: 'Published April 3, 2026', size: '1.8 MB', type: 'Financial' },
-  { title: 'Independent Community Committee Report', date: 'Published April 1, 2026', size: '900 KB', type: 'Governance' },
-];
-
-export default function TransparencyContent({ projects: rawProjects, lang }: Props) {
+export default function TransparencyContent({ projects: rawProjects, lang, circulars = [] }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
+  const [deletedReportIds, setDeletedReportIds] = useState<Set<string>>(new Set());
+  const handleReportDeleted = (id: string) => setDeletedReportIds(prev => new Set([...prev, id]));
 
   // Same architecture as HomeContent: hold raw donations in state,
   // derive everything per-render. Guarantees the totals here match
@@ -140,7 +144,84 @@ Project details:
     URL.revokeObjectURL(url);
   };
 
-  const reports = lang === 'en' ? REPORTS_EN : REPORTS_AR;
+  // ── Reports section ──────────────────────────────────────────────────────
+  // Use real circulars (report + policy + decision categories) when we have
+  // them; fall back to static sample data so the section isn't blank on a
+  // fresh install.
+  const REPORT_CATEGORIES = new Set(['report', 'policy', 'decision', 'minutes']);
+
+  type ReportRow = {
+    id: string;
+    title: string;
+    date: string;
+    size: string;
+    type: string;
+    file?: string;
+    isReal: boolean;
+  };
+
+  function formatFileSizeKB(bytes: number): string {
+    if (!bytes) return '';
+    const KB = 1024, MB = KB * 1024;
+    if (bytes < MB) return `${Math.round(bytes / KB)} KB`;
+    return `${Math.round((bytes / MB) * 10) / 10} MB`;
+  }
+
+  function cirCategoryLabel(cat: string, l: Lang): string {
+    const map: Record<string, { ar: string; en: string }> = {
+      report:       { ar: 'تقرير',    en: 'Report' },
+      policy:       { ar: 'سياسة',   en: 'Policy' },
+      decision:     { ar: 'قرار',    en: 'Decision' },
+      minutes:      { ar: 'محضر',    en: 'Minutes' },
+      announcement: { ar: 'إعلان',   en: 'Announcement' },
+      other:        { ar: 'أخرى',    en: 'Other' },
+    };
+    return map[cat]?.[l] ?? cat;
+  }
+
+  function formatISODate(iso: string, l: Lang): string {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return iso;
+    if (l === 'ar') {
+      return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  const realReports: ReportRow[] = circulars
+    .filter(c => REPORT_CATEGORIES.has(c.category))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map(c => ({
+      id: c.id,
+      title: loc(lang, c.title),
+      date: lang === 'ar'
+        ? `تم النشر في ${formatISODate(c.date, lang)}`
+        : `Published ${formatISODate(c.date, lang)}`,
+      size: formatFileSizeKB(c.fileSize),
+      type: cirCategoryLabel(c.category, lang),
+      file: c.file,
+      isReal: true,
+    }));
+
+  const STATIC_REPORTS_AR: ReportRow[] = [
+    { id: 's1', title: 'التقرير المالي الشهري — نيسان 2026', date: 'تم النشر في 1 أيار 2026', size: '2.4 MB', type: 'مالي', isReal: false },
+    { id: 's2', title: 'تقرير المراجعة الخارجية ربع السنوي', date: 'تم النشر في 15 نيسان 2026', size: '5.1 MB', type: 'مراجعة', isReal: false },
+    { id: 's3', title: 'بيان مفصّل بالمصروفات — آذار 2026', date: 'تم النشر في 3 نيسان 2026', size: '1.8 MB', type: 'مالي', isReal: false },
+    { id: 's4', title: 'تقرير اللجنة المجتمعية المستقلة', date: 'تم النشر في 1 نيسان 2026', size: '900 KB', type: 'حوكمة', isReal: false },
+  ];
+  const STATIC_REPORTS_EN: ReportRow[] = [
+    { id: 's1', title: 'Monthly Financial Report — April 2026', date: 'Published May 1, 2026', size: '2.4 MB', type: 'Financial', isReal: false },
+    { id: 's2', title: 'Quarterly External Audit Report', date: 'Published April 15, 2026', size: '5.1 MB', type: 'Audit', isReal: false },
+    { id: 's3', title: 'Detailed Expenses Statement — March 2026', date: 'Published April 3, 2026', size: '1.8 MB', type: 'Financial', isReal: false },
+    { id: 's4', title: 'Independent Community Committee Report', date: 'Published April 1, 2026', size: '900 KB', type: 'Governance', isReal: false },
+  ];
+
+  const reports: ReportRow[] = realReports.length > 0
+    ? realReports
+    : (lang === 'en' ? STATIC_REPORTS_EN : STATIC_REPORTS_AR);
+  const usingRealReports = realReports.length > 0;
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <section className="section">
@@ -210,32 +291,64 @@ Project details:
         </div>
       </div>
 
+      {/* Admin-only uploader — ReportUploader self-hides when not signed in */}
+      <ReportUploader lang={lang} />
+
       <div className="reports-list">
-        {reports.map((r, i) => (
-          <button
-            type="button"
-            className="report-item"
-            key={i}
-            onClick={() => downloadSampleReport(r.title)}
-          >
-            <div className="report-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
+        {reports.filter(r => !deletedReportIds.has(r.id)).map((r, i) => (
+          r.isReal && r.file ? (
+            <div key={r.id} className="report-item-wrap">
+              <a
+                className="report-item report-item-real"
+                href={r.file}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+              >
+                <div className="report-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </div>
+                <div className="report-info">
+                  <div className="report-title">{r.title}</div>
+                  <div className="report-meta">{r.date}{r.size ? ` • ${r.size}` : ''} • {r.type}</div>
+                </div>
+                <div className="report-action">{lang === 'ar' ? 'تحميل ↓' : 'Download ↓'}</div>
+              </a>
+              <ReportDeleteBtn id={r.id} title={r.title} lang={lang} onDeleted={handleReportDeleted} />
             </div>
-            <div className="report-info">
-              <div className="report-title">{r.title}</div>
-              <div className="report-meta">{r.date} • {r.size} • {r.type}</div>
-            </div>
-            <div className="report-action">{lang === 'ar' ? 'تحميل ↓' : 'Download ↓'}</div>
-          </button>
+          ) : (
+            <button
+              type="button"
+              className="report-item"
+              key={i}
+              onClick={() => downloadSampleReport(r.title)}
+            >
+              <div className="report-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
+              <div className="report-info">
+                <div className="report-title">{r.title}</div>
+                <div className="report-meta">{r.date} • {r.size} • {r.type}</div>
+              </div>
+              <div className="report-action">{lang === 'ar' ? 'تحميل ↓' : 'Download ↓'}</div>
+            </button>
+          )
         ))}
       </div>
       <p className="reports-disclaimer">
-        {lang === 'ar'
-          ? '★ هذه التقارير المسماة هي عيّنة لما سيكون متاحاً عند إصدار التقارير الرسمية المعتمدة. الضغط عليها ينزّل ملخصاً نصياً مولّداً من البيانات الحالية للمشاريع.'
-          : '★ The named reports are samples showing what will be available when official audited reports are published. Clicking downloads a generated text summary based on current project data.'}
+        {usingRealReports
+          ? (lang === 'ar'
+              ? '★ هذه وثائق رسمية صادرة عن مجلس المدينة. اضغط على أي وثيقة لتحميلها مباشرةً.'
+              : '★ These are official documents published by the City Council. Click any document to download.')
+          : (lang === 'ar'
+              ? '★ هذه التقارير المسماة هي عيّنة لما سيكون متاحاً عند إصدار التقارير الرسمية المعتمدة. الضغط عليها ينزّل ملخصاً نصياً مولّداً من البيانات الحالية للمشاريع.'
+              : '★ The named reports are samples showing what will be available when official audited reports are published. Clicking downloads a generated text summary based on current project data.')}
       </p>
     </section>
   );
@@ -252,4 +365,35 @@ function escapeCSVCell(value: string): string {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
+}
+
+/** Small delete button rendered beside a real report row — admin-only, self-hides when not signed in */
+function ReportDeleteBtn({ id, title, lang, onDeleted }: { id: string; title: string; lang: Lang; onDeleted: (id: string) => void }) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    let tries = 0;
+    const poll = () => {
+      const ni = (window as any).netlifyIdentity;
+      if (ni) { setIsAdmin(!!ni.currentUser()); ni.on('login', () => setIsAdmin(true)); ni.on('logout', () => setIsAdmin(false)); }
+      else if (++tries < 30) setTimeout(poll, 200);
+    };
+    poll();
+  }, []);
+  if (!isAdmin) return null;
+  const handleDelete = async () => {
+    const msg = lang === 'ar' ? `حذف «${title}»؟` : `Delete "${title}"?`;
+    if (!window.confirm(msg)) return;
+    setDeleting(true);
+    try {
+      const { deleteFile } = await import('../data/git-gateway');
+      await deleteFile(`src/content/circulars/${id}.md`, lang === 'ar' ? `حذف تقرير: ${title}` : `Delete report: ${title}`);
+      onDeleted(id);
+    } catch (e: any) { alert(e?.message || 'Delete failed'); setDeleting(false); }
+  };
+  return (
+    <button type="button" className="report-delete-btn" onClick={handleDelete} disabled={deleting} title={lang === 'ar' ? 'حذف' : 'Delete'}>
+      {deleting ? '…' : '×'}
+    </button>
+  );
 }

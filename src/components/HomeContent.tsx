@@ -62,10 +62,16 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
   const urgent = featured[0];
 
   // Activity feed for the bottom section — up to 10 most recent items
-  // across all projects. Mirrors what the dashboard shows.
-  const activityEntries = buildActivityFeed(projects, lang, 10);
+  const allActivityEntries = buildActivityFeed(projects, lang, 100);
+  const [activityFilter, setActivityFilter] = useState<'newest' | 'updates' | 'comments' | 'system'>('newest');
 
-  const heroTagLines = t(lang, 'hero_h1_tag').split('\n');
+  const filteredActivityEntries = (() => {
+    let entries = allActivityEntries;
+    if (activityFilter === 'updates')  entries = entries.filter(e => e.color === 'green');
+    if (activityFilter === 'comments') entries = entries.filter(e => e.color === 'blue');
+    if (activityFilter === 'system')   entries = entries.filter(e => e.color === 'gold' || e.color === 'gray');
+    return entries.slice(0, 10);
+  })();
 
   return (
     <>
@@ -78,9 +84,6 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
             </div>
             <h1>
               {t(lang, 'hero_h1_a')}<span className="gold">{t(lang, 'hero_h1_b')}</span>
-              {heroTagLines.map((line, i) => (
-                <span key={i}>{i > 0 && <br />}{line}</span>
-              ))}
             </h1>
             <p className="hero-tag">{t(lang, 'hero_tag')}</p>
             <div className="hero-actions">
@@ -179,13 +182,32 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
           happening on the projects (field updates + comments, newest first).
           Derived from the same data, via the shared buildActivityFeed. */}
       <section className="section home-activity-section">
-        <div className="section-header">
+        <div className="section-header" style={{ marginBottom: '0.5rem' }}>
           <h2 className="section-title">
             {lang === 'ar' ? 'النشاط الأخير' : 'Recent Activity'}
           </h2>
         </div>
+        {/* Sort bar */}
+        <div className="activity-sort-bar">
+          <span className="activity-sort-label">{lang === 'ar' ? 'ترتيب:' : 'Sort:'}</span>
+          {([
+            ['newest', lang === 'ar' ? 'الأحدث' : 'Newest'],
+            ['updates', lang === 'ar' ? 'تحديثات ميدانية' : 'Field updates'],
+            ['comments', lang === 'ar' ? 'تعليقات' : 'Comments'],
+            ['system', lang === 'ar' ? 'تغييرات الحالة' : 'Status changes'],
+          ] as [string, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`activity-sort-chip ${activityFilter === key ? 'active' : ''}`}
+              onClick={() => setActivityFilter(key as any)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <ActivityFeed
-          entries={activityEntries}
+          entries={filteredActivityEntries}
           lang={lang}
           basePath={basePath}
           emptyText={lang === 'ar'
@@ -193,8 +215,8 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
             : "No activity yet. When our team posts updates or comments on projects, they'll show up here."}
         />
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <a className="btn-secondary" href={`${basePath}/admin/`}>
-            {lang === 'ar' ? 'عرض لوحة المجلس الكاملة ←' : 'View full council dashboard →'}
+          <a className="btn-secondary" href={`${basePath}/activity/`}>
+            {lang === 'ar' ? 'عرض السجل الكامل ←' : 'View full activity log →'}
           </a>
         </div>
       </section>

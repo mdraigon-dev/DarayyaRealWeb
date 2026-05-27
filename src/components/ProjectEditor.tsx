@@ -51,6 +51,7 @@ export type ProjectFormState = {
   raisedUSD: number;
   donors: number;
   daysLeft: number;
+  fundingDeadline?: string;
   lat: number;
   lng: number;
   subs: Sub[];
@@ -234,6 +235,60 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         }
       }
 
+      // ── Changelog: auto-inject system updates for status/health changes ──
+      // When the admin changes status or health, we prepend a dated system
+      // entry to the updates array so the change appears in the activity feed
+      // with a precise timestamp — no manual note required.
+      const now = new Date();
+      const isoDate = now.toISOString().slice(0, 10);      // YYYY-MM-DD shown to users
+      const isoTimestamp = now.toISOString();               // full timestamp for precise sort
+      const adminName = (auth as any).user.user_metadata?.full_name || (auth as any).user.email || '';
+
+      const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
+        funding:   { ar: 'مفتوح للتبرع', en: 'Open for funding' },
+        active:    { ar: 'قيد التنفيذ',   en: 'In progress' },
+        completed: { ar: 'مكتمل',         en: 'Completed' },
+        planning:  { ar: 'قيد التخطيط',   en: 'Planning' },
+      };
+      const HEALTH_LABELS: Record<string, { ar: string; en: string }> = {
+        healthy:   { ar: 'يسير بشكل ممتاز', en: 'Healthy' },
+        warning:   { ar: 'يحتاج متابعة',     en: 'Needs attention' },
+        stalled:   { ar: 'متعثّر',           en: 'Stalled' },
+        completed: { ar: 'مكتمل',            en: 'Completed' },
+      };
+
+      const systemUpdates: Update[] = [];
+
+      if (!isNew && state.status !== initial.status) {
+        const from = STATUS_LABELS[initial.status];
+        const to   = STATUS_LABELS[state.status];
+        systemUpdates.push({
+          date:   { ar: isoDate, en: isoTimestamp },
+          author: { ar: adminName, en: adminName },
+          body: {
+            ar: `__SYSTEM__ تغيّرت حالة المشروع من «${from?.ar ?? initial.status}» إلى «${to?.ar ?? state.status}»`,
+            en: `__SYSTEM__ Project status changed from "${from?.en ?? initial.status}" to "${to?.en ?? state.status}"`,
+          },
+        });
+      }
+
+      if (!isNew && state.health !== initial.health) {
+        const from = HEALTH_LABELS[initial.health];
+        const to   = HEALTH_LABELS[state.health];
+        systemUpdates.push({
+          date:   { ar: isoDate, en: isoTimestamp },
+          author: { ar: adminName, en: adminName },
+          body: {
+            ar: `__SYSTEM__ تغيّرت صحة المشروع من «${from?.ar ?? initial.health}» إلى «${to?.ar ?? state.health}»`,
+            en: `__SYSTEM__ Project health changed from "${from?.en ?? initial.health}" to "${to?.en ?? state.health}"`,
+          },
+        });
+      }
+
+      // Prepend system entries (newest first — same convention as manual updates)
+      const finalUpdates = [...systemUpdates, ...state.updates];
+      // ─────────────────────────────────────────────────────────────────────
+
       // Build the frontmatter object matching the existing project file shape
       const frontmatter: Record<string, unknown> = {
         id: state.id,
@@ -249,11 +304,12 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         raisedUSD: state.raisedUSD,
         donors: state.donors,
         daysLeft: state.daysLeft,
+        ...(state.fundingDeadline ? { fundingDeadline: state.fundingDeadline } : {}),
         lat: state.lat,
         lng: state.lng,
       };
       if (state.subs.length > 0) frontmatter.subs = state.subs;
-      if (state.updates.length > 0) frontmatter.updates = state.updates;
+      if (finalUpdates.length > 0) frontmatter.updates = finalUpdates;
       if (state.engineers.length > 0) frontmatter.engineers = state.engineers;
       if (state.comments.length > 0) frontmatter.comments = state.comments;
 
@@ -264,9 +320,12 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       const content = `---\n${yamlBlock}---\n`;
 
       const path = `src/content/projects/${state.id}.md`;
+      const changeDesc = systemUpdates.map(u => u.body.en.replace('__SYSTEM__ ', '')).join('; ');
       const commitMessage = isNew
         ? (lang === 'ar' ? `إنشاء مشروع: ${state.title.ar}` : `Create project: ${state.title.ar}`)
-        : (lang === 'ar' ? `تعديل المشروع: ${state.title.ar}` : `Edit project: ${state.title.ar}`);
+        : changeDesc
+          ? `Edit project: ${state.title.ar} — ${changeDesc}`
+          : (lang === 'ar' ? `تعديل المشروع: ${state.title.ar}` : `Edit project: ${state.title.ar}`);
 
       // Concurrent-edit protection: if we have the SHA from when this
       // editor session started, pass it so commitFile can detect that
@@ -636,6 +695,20 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
               onChange={(e) => update('daysLeft', Math.max(0, parseInt(e.target.value, 10) || 0))}
               min={0}
             />
+          </div>
+          <div className="editor-field editor-field-half">
+            <label>{lang === 'ar' ? 'تاريخ انتهاء التمويل' : 'Funding deadline'}</label>
+            <input
+              type="date"
+              className="editor-input"
+              value={state.fundingDeadline || ''}
+              onChange={(e) => update('fundingDeadline', e.target.value || undefined)}
+            />
+            <div className="editor-field-hint">
+              {lang === 'ar'
+                ? 'إذا حُدِّد، يُحسب "الأيام المتبقية" تلقائياً عند كل بناء'
+                : 'When set, "days left" is auto-computed from today on every build'}
+            </div>
           </div>
         </div>
       </div>

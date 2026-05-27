@@ -84,6 +84,9 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
   const [catKey, setCatKey] = useState<Circular['category'] | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploader, setShowUploader] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
+  const handleDeleted = (id: string) => setDeletedIds(prev => new Set([...prev, id]));
 
   // Auth state — used to show the "Upload" button for admins only
   const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
@@ -112,11 +115,13 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
 
   // Sort: pinned (order > 0) first, then newest by date.
   const sorted = useMemo(() => {
-    return [...rawCirculars].sort((a, b) => {
-      if (a.order !== b.order) return b.order - a.order;
-      return (b.date || '').localeCompare(a.date || '');
-    });
-  }, [rawCirculars]);
+    return [...rawCirculars]
+      .filter(c => !deletedIds.has(c.id))
+      .sort((a, b) => {
+        if (a.order !== b.order) return b.order - a.order;
+        return (b.date || '').localeCompare(a.date || '');
+      });
+  }, [rawCirculars, deletedIds]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -214,7 +219,7 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
       ) : (
         <div className="circulars-grid">
           {filtered.map(c => (
-            <CircularCard key={c.id} circular={c} lang={lang} basePath={basePath} />
+            <CircularCard key={c.id} circular={c} lang={lang} basePath={basePath} isAdmin={isAdmin} onDelete={handleDeleted} />
           ))}
         </div>
       )}
@@ -230,13 +235,54 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
  * tab (browser-native rendering). For other file types we show only
  * Download.
  */
-function CircularCard({ circular, lang, basePath: _basePath }: { circular: Circular; lang: Lang; basePath: string }) {
+function CircularCard({ circular, lang, basePath: _basePath, isAdmin, onDelete }: {
+  circular: Circular;
+  lang: Lang;
+  basePath: string;
+  isAdmin: boolean;
+  onDelete?: (id: string) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = async () => {
+    const msg = lang === 'ar'
+      ? `هل أنت متأكد من حذف «${loc(lang, circular.title)}»؟ لا يمكن التراجع عن هذا.`
+      : `Delete "${loc(lang, circular.title)}"? This cannot be undone.`;
+    if (!window.confirm(msg)) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const { deleteFile } = await import('../data/git-gateway');
+      const metaPath = `src/content/circulars/${circular.id}.md`;
+      const commitMsg = lang === 'ar'
+        ? `حذف وثيقة: ${loc(lang, circular.title)}`
+        : `Delete circular: ${loc(lang, circular.title)}`;
+      await deleteFile(metaPath, commitMsg);
+      onDelete?.(circular.id);
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Delete failed');
+      setDeleting(false);
+    }
+  };
+
   const category = circular.category;
   const fileUrl = circular.file;
   const previewable = isPreviewable(circular.fileType);
 
   return (
-    <article className={`circular-card circular-card-${category}`}>
+    <article className={`circular-card circular-card-${category}${deleting ? ' circular-card-deleting' : ''}`}>
+      {isAdmin && (
+        <button
+          type="button"
+          className="circular-card-delete"
+          onClick={handleDelete}
+          disabled={deleting}
+          title={lang === 'ar' ? 'حذف هذه الوثيقة' : 'Delete this document'}
+        >
+          ×
+        </button>
+      )}
       <div className="circular-card-head">
         <span className={`circ-category circ-category-${category}`}>
           {t(lang, `circ_cat_${category}` as any)}
@@ -260,24 +306,16 @@ function CircularCard({ circular, lang, basePath: _basePath }: { circular: Circu
         )}
       </div>
       <div className="circular-card-actions">
-        <a
-          className="btn-circ-download"
-          href={fileUrl}
-          download
-        >
+        <a className="btn-circ-download" href={fileUrl} download>
           ↓ {t(lang, 'circ_download')}
         </a>
         {previewable && (
-          <a
-            className="btn-circ-preview"
-            href={fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a className="btn-circ-preview" href={fileUrl} target="_blank" rel="noopener noreferrer">
             👁 {t(lang, 'circ_preview')}
           </a>
         )}
       </div>
+      {deleteError && <p className="circular-card-delete-error">⚠ {deleteError}</p>}
     </article>
   );
 }

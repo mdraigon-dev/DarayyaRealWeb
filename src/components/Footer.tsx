@@ -24,6 +24,7 @@ export default function Footer({ lang }: Props) {
           <a href={link('/')}>{t(lang, 'nav_home')}</a>
           <a href={link('/projects/')}>{t(lang, 'nav_projects')}</a>
           <a href={link('/transparency/')}>{t(lang, 'nav_transparency')}</a>
+          <a href={link('/circulars/')}>{t(lang, 'nav_circulars')}</a>
           <a href={link('/admin/')}>{t(lang, 'nav_admin')}</a>
         </div>
         <div className="footer-col">

@@ -4,6 +4,17 @@ import { type Lang } from '../i18n/strings';
 import { getFileContent, commitFile } from '../data/git-gateway';
 import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
+// Read profile preference set via the nav dropdown — preferred display name
+// overrides the Netlify Identity full_name / email fallback.
+function getProfileDisplayName(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const raw = localStorage.getItem('darayya-user-profile-v1');
+    if (!raw) return '';
+    return JSON.parse(raw)?.displayName || '';
+  } catch { return ''; }
+}
+
 declare global {
   interface Window {
     netlifyIdentity: any;
@@ -80,7 +91,8 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
   const role = classifyUser(auth.user, engineers);
   if (!canPost(role)) return null;
 
-  const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
+  const profileName = getProfileDisplayName();
+  const defaultAuthor = profileName || auth.user.user_metadata?.full_name || auth.user.email;
   const todayLabel = lang === 'ar' ? 'اليوم' : 'today';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,7 +106,8 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
       return;
     }
     const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
-    const effectiveDate = (dateOverride.trim() || todayLabel);
+    const effectiveDateAr = (dateOverride.trim() || 'اليوم');
+    const effectiveDateEn = (dateOverride.trim() || 'today');
     setSave({ kind: 'saving' });
 
     try {
@@ -108,19 +121,16 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
       const [, frontmatterText, markdownBody] = m;
       const frontmatter = parseYaml(frontmatterText) as Record<string, unknown>;
 
-      // Build a new update entry. Body and date are bilingual; we put the
-      // user's text in the lang they typed in, leave the other side empty
-      // so the build-time auto-translator picks it up.
       const existing = Array.isArray(frontmatter.updates) ? frontmatter.updates : [];
       const newUpdate = {
         date: {
-          ar: lang === 'ar' ? effectiveDate : '',
-          en: lang === 'en' ? effectiveDate : '',
+          ar: effectiveDateAr,
+          en: effectiveDateEn,
         },
         author: { ar: effectiveAuthor, en: effectiveAuthor },
         body: {
-          ar: lang === 'ar' ? trimmed : '',
-          en: lang === 'en' ? trimmed : '',
+          ar: trimmed,
+          en: trimmed,
         },
       };
       // Prepend so newest appears first in the timeline

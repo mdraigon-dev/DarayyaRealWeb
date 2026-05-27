@@ -16,14 +16,13 @@ export const STRINGS = {
     nav_donate: 'تبرّع الآن',
     nav_currency_title: 'تبديل العملة',
     nav_menu: 'قائمة',
-    brand_title: 'مَعَاً نَبْنِي داريَّا',
+    brand_title: 'نماء | Namaa',
     brand_sub: 'منصة المجلس المحلي لإعادة الإعمار',
 
     // Home
     hero_eyebrow: 'الجمهورية العربية السورية — المجلس المحلي لمدينة داريّا',
-    hero_h1_a: 'مَعَاً نَبْنِي ',
-    hero_h1_b: 'داريَّا',
-    hero_h1_tag: '،\nحجراً حجراً، حيّاً حيّاً.',
+    hero_h1_a: 'بإيدينا ',
+    hero_h1_b: 'نبنيها',
     hero_tag: 'منصةٌ شفافةٌ تُتيح لك أن ترى أين تذهب كل ليرة تتبرّع بها، وأن تختار بنفسك المشروع الذي تريد المساهمة فيه — من تعبيد شارع طفولتك إلى إنارة الطريق المؤدية إلى مدرستك.',
     hero_btn_browse: 'استعرض {n} مشروعاً مفتوحاً ←',
     hero_btn_reports: 'تقارير الشفافية',
@@ -172,8 +171,8 @@ export const STRINGS = {
     auth_signed_in_as: 'مسجّل دخوله كـ',
 
     // Footer
-    footer_brand: 'مَعَاً نَبْنِي داريَّا',
-    footer_about: 'منصة المجلس المحلي لمدينة داريّا لإعادة الإعمار بمشاركة المجتمع المحلي وأبناء المدينة في المهجر. نعمل بشفافية كاملة لاستعادة مدينتنا، حجراً حجراً.',
+    footer_brand: 'نماء | Namaa',
+    footer_about: 'منصة المجلس المحلي لمدينة داريّا لإعادة الإعمار بمشاركة المجتمع المحلي وأبناء المدينة في المهجر. نعمل بشفافية كاملة لاستعادة مدينتنا.',
     footer_nav: 'التصفّح',
     footer_contact: 'تواصل',
     footer_council: 'المجلس المحلي لداريّا',
@@ -232,13 +231,12 @@ export const STRINGS = {
     nav_donate: 'Donate Now',
     nav_currency_title: 'Switch currency',
     nav_menu: 'Menu',
-    brand_title: 'Together We Rebuild Darayya',
+    brand_title: 'Namaa | نماء',
     brand_sub: 'City Council Reconstruction Platform',
 
     hero_eyebrow: 'Syrian Arab Republic — Darayya City Council',
-    hero_h1_a: 'Together We Rebuild ',
-    hero_h1_b: 'Darayya',
-    hero_h1_tag: ',\nstone by stone, neighborhood by neighborhood.',
+    hero_h1_a: 'Together We ',
+    hero_h1_b: 'Rebuild',
     hero_tag: 'A transparent platform that lets you see where every dollar you donate goes — and choose for yourself which project to support, from paving the street of your childhood to lighting the road to your school.',
     hero_btn_browse: 'Browse {n} open projects →',
     hero_btn_reports: 'Transparency Reports',
@@ -381,8 +379,8 @@ export const STRINGS = {
     auth_signout_btn: 'Sign out',
     auth_signed_in_as: 'Signed in as',
 
-    footer_brand: 'Together We Rebuild Darayya',
-    footer_about: 'The Darayya City Council\'s platform for reconstruction with participation from the local community and the diaspora. We work with complete transparency to restore our city, stone by stone.',
+    footer_brand: 'Namaa | نماء',
+    footer_about: 'The Darayya City Council\'s platform for reconstruction with participation from the local community and the diaspora. We work with complete transparency to restore our city.',
     footer_nav: 'Navigation',
     footer_contact: 'Contact',
     footer_council: 'Darayya Local Council',
@@ -455,7 +453,8 @@ export function t(lang: Lang, key: StringKey, vars?: Record<string, string | num
  * EN: Latin numerals (23)
  */
 export function fmtNum(lang: Lang, n: number): string {
-  return lang === 'ar' ? n.toLocaleString('ar-EG') : n.toLocaleString('en-US');
+  // Use Western (Latin) numerals for both languages for consistency and readability
+  return n.toLocaleString('en-US');
 }
 
 /**
@@ -492,7 +491,7 @@ export function fmtUSD(_lang: Lang, n: number): string {
 export const USD_TO_SYP = 13000;
 export function fmtSYP(lang: Lang, usdAmount: number): string {
   const syp = usdAmount * USD_TO_SYP;
-  return lang === 'ar' ? `${syp.toLocaleString('ar-EG')} ل.س` : `${syp.toLocaleString('en-US')} SYP`;
+  return lang === 'ar' ? `${syp.toLocaleString('en-US')} ل.س` : `${syp.toLocaleString('en-US')} SYP`;
 }
 
 /**

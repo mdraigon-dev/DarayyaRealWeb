@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="404 — Page Not Found | Namaa نماء"
+  description="Page not found"
+  lang="en"
+  currentPage="home"
+>
+  <section style="min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:3rem 1.5rem;">
+    <div>
+      <div style="font-size:4rem;margin-bottom:1rem;">🏗️</div>
+      <h1 style="font-size:clamp(1.8rem,4vw,3rem);margin-bottom:0.75rem;">404 — Page Not Found</h1>
+      <p style="font-size:1.1rem;color:var(--sy-muted);margin-bottom:0.5rem;">
+        هذه الصفحة غير موجودة — This page doesn't exist.
+      </p>
+      <p style="color:var(--sy-muted);margin-bottom:2rem;">
+        It may have moved, or the link may be incorrect.
+      </p>
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+        <a class="btn-primary" href="/ar/">الرئيسية ←</a>
+        <a class="btn-secondary" href="/en/">Home →</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
