@@ -76,7 +76,7 @@ const projectCollection = defineCollection({
       z.object({
         id: z.string(),
         title: bilingual,
-        length: bilingual,
+        length: bilingualUserContent,
         budgetUSD: z.number().positive(),
         raisedUSD: z.number().min(0),
       })

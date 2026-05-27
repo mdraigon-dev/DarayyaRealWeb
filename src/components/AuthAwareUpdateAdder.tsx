@@ -106,8 +106,10 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
       return;
     }
     const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
-    const effectiveDateAr = (dateOverride.trim() || 'اليوم');
-    const effectiveDateEn = (dateOverride.trim() || 'today');
+    const now = new Date();
+    const isoTimestamp = now.toISOString();
+    const effectiveDateAr = dateOverride.trim() || isoTimestamp;
+    const effectiveDateEn = dateOverride.trim() || isoTimestamp;
     setSave({ kind: 'saving' });
 
     try {

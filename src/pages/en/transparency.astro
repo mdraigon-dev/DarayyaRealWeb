@@ -8,6 +8,9 @@ import { withComputedDaysLeft } from '../../data/compute-days-left';
 const projects = await getCollection('projects');
 const projectData = projects.map(p => withComputedDaysLeft(p.data));
 
+const circularsRaw = await getCollection('circulars');
+const circularsData = circularsRaw.map(c => c.data);
+
 const lang = 'en' as const;
 ---
 
@@ -17,5 +20,5 @@ const lang = 'en' as const;
   lang={lang}
   currentPage="transparency"
 >
-  <TransparencyContent projects={projectData} lang={lang} client:load />
+  <TransparencyContent projects={projectData} circulars={circularsData} lang={lang} client:load />
 </BaseLayout>

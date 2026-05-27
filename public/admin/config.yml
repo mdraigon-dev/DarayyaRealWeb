@@ -215,7 +215,7 @@ collections:
             name: "length"
             widget: "object"
             fields:
-              - { label: "بالعربية ★", name: "ar", widget: "string", hint: "مثلاً: ٥٠٠ متر، ٣ خزانات" }
+              - { label: "بالعربية (اختياري)", name: "ar", widget: "string", required: false, default: "", hint: "مثلاً: ٥٠٠ متر، ٣ خزانات" }
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: "int", min: 0 }
           - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: "int", min: 0, default: 0 }

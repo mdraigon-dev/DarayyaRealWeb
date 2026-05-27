@@ -131,7 +131,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
           ar: trimmed,
           en: trimmed,
         },
-        date: new Date().toISOString().slice(0, 10),
+        date: new Date().toISOString(),
       };
       frontmatter.comments = [...existing, newComment];
 
