@@ -118,6 +118,42 @@ const updatesCollection = defineCollection({
 });
 
 // ============================================================
+// CIRCULARS & DECISIONS — council-issued documents
+// One .md file per document, with file binary stored under
+// public/circulars/files/. Public site shows a list with download
+// links; admin upload form (in src/components/CircularUploader.tsx)
+// commits both the file and the metadata via Git Gateway.
+// ============================================================
+const circularsCollection = defineCollection({
+  type: 'content',
+  schema: z.object({
+    id: z.string(),
+    title: bilingual,
+    description: bilingual,
+    category: z.enum([
+      'decision',      // قرار رسمي
+      'announcement',  // إعلان / تعميم
+      'report',        // تقرير
+      'policy',        // سياسة / لائحة
+      'minutes',       // محضر اجتماع
+      'other',         // أخرى
+    ]),
+    /** ISO date string (YYYY-MM-DD) — when the document was issued */
+    date: z.string(),
+    /** Public path to the binary file under /circulars/files/ */
+    file: z.string(),
+    /** Size in bytes, used for display only */
+    fileSize: z.number().int().nonnegative().default(0),
+    /** MIME type, used to decide whether to show an inline preview */
+    fileType: z.string().default('application/octet-stream'),
+    /** Display name of the council member who uploaded it */
+    uploadedBy: z.string().default(''),
+    /** Sort order — defaults to ISO date sort, but can be pinned */
+    order: z.number().default(0),
+  }),
+});
+
+// ============================================================
 // SITE SETTINGS
 // ============================================================
 const siteCollection = defineCollection({
@@ -134,4 +170,5 @@ export const collections = {
   projects: projectCollection,
   updates: updatesCollection,
   site: siteCollection,
+  circulars: circularsCollection,
 };

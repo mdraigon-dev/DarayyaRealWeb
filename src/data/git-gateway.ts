@@ -138,3 +138,49 @@ export async function commitFile(
     throw new Error(`Commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
   }
 }
+
+/**
+ * Commit a binary file (already encoded as base64) via Git Gateway.
+ * Used for circular document uploads where the source is a File from
+ * an <input type='file'>, base64-encoded via FileReader.
+ *
+ * Unlike commitFile (which takes UTF-8 string and re-encodes), this
+ * variant trusts the caller to have already produced valid base64.
+ */
+export async function commitBinaryFile(
+  path: string,
+  base64Content: string,
+  message: string,
+  branch = 'main',
+): Promise<void> {
+  const token = await getToken();
+  // Brand-new file expected, so no need to fetch SHA. But be safe in case
+  // a file with the same path already exists (unlikely with our random id
+  // suffix, but possible).
+  const sha = await getFileSha(path, branch);
+
+  const body: Record<string, unknown> = {
+    message,
+    content: base64Content,
+    branch,
+  };
+  if (sha) body.sha = sha;
+
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    if (res.status === 413) {
+      throw new Error('File too large for Git Gateway. Maximum is around 25 MB.');
+    }
+    throw new Error(`Binary commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+  }
+}

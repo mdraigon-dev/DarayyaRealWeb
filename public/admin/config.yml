@@ -375,3 +375,49 @@ collections:
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - { label: "بريد التواصل", name: "contactEmail", widget: "string" }
           - { label: "هاتف التواصل",  name: "contactPhone", widget: "string" }
+
+  # ════════════════════════════════════════════════════════════════
+  # CIRCULARS & DECISIONS — council documents
+  # The primary upload path is the custom form on /xx/circulars/ which
+  # handles binary file uploads. This Decap collection lets admins
+  # edit metadata (title, description, category, date) after upload.
+  # ════════════════════════════════════════════════════════════════
+  - name: "circulars"
+    label: "📚 التعاميم والقرارات"
+    label_singular: "وثيقة"
+    folder: "src/content/circulars"
+    create: false  # New uploads go through the custom form (handles binaries)
+    delete: true
+    format: "yaml-frontmatter"
+    slug: "{{id}}"
+    summary: "{{title.ar}} — {{date}}"
+    fields:
+      - { label: "المعرّف", name: "id", widget: "string" }
+      - label: "العنوان"
+        name: "title"
+        widget: "object"
+        fields:
+          - { label: "بالعربية ★", name: "ar", widget: "string" }
+          - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+      - label: "الوصف"
+        name: "description"
+        widget: "object"
+        fields:
+          - { label: "بالعربية", name: "ar", widget: "text", required: false, default: "" }
+          - { label: "بالإنجليزية", name: "en", widget: "text", required: false, default: "" }
+      - label: "الفئة"
+        name: "category"
+        widget: "select"
+        options:
+          - { label: "قرار رسمي", value: "decision" }
+          - { label: "إعلان / تعميم", value: "announcement" }
+          - { label: "تقرير", value: "report" }
+          - { label: "سياسة / لائحة", value: "policy" }
+          - { label: "محضر اجتماع", value: "minutes" }
+          - { label: "أخرى", value: "other" }
+      - { label: "تاريخ الإصدار (YYYY-MM-DD)", name: "date", widget: "string" }
+      - { label: "مسار الملف العام", name: "file", widget: "string", hint: "/circulars/files/...", required: false, default: "" }
+      - { label: "حجم الملف (بايت)", name: "fileSize", widget: "number", required: false, default: 0 }
+      - { label: "نوع MIME", name: "fileType", widget: "string", required: false, default: "application/octet-stream" }
+      - { label: "رفع بواسطة", name: "uploadedBy", widget: "string", required: false, default: "" }
+      - { label: "ترتيب", name: "order", widget: "number", required: false, default: 0 }

@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CircularsContent from '../../components/CircularsContent.tsx';
+import { t } from '../../i18n/strings';
+
+const all = await getCollection('circulars');
+const circulars = all.map(c => c.data);
+
+const lang = 'ar' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
+---
+
+<BaseLayout
+  title={`${t(lang, 'circ_title')} — ${t(lang, 'brand_title')}`}
+  description={t(lang, 'circ_desc')}
+  lang={lang}
+  currentPage="circulars"
+>
+  <CircularsContent
+    lang={lang}
+    basePath={basePath}
+    circulars={circulars}
+    client:load
+  />
+</BaseLayout>
