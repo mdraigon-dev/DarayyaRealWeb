@@ -13,7 +13,7 @@ type Bilingual = { ar: string; en: string };
 export type Circular = {
   id: string;
   title: Bilingual;
-  description: Bilingual;
+  description?: Bilingual;
   category: 'decision' | 'announcement' | 'report' | 'policy' | 'minutes' | 'other';
   date: string;       // YYYY-MM-DD
   file: string;       // public path

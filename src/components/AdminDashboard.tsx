@@ -517,8 +517,9 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
 
       {/* Project management — admin-only, hidden until authenticated.
           Public visitors don't need the edit/view actions, search/filter
-          toolbar, or "+ New project" link. When not logged in, we show
-          a small banner with a Login button instead. */}
+          toolbar, or "+ New project" link. When not logged in, we simply
+          render nothing here — the Login button in the nav is enough for
+          admins who need access. */}
       {canSeePM ? (
         <>
       <div className="section-header" style={{ marginTop: '0.5rem' }}>
@@ -671,33 +672,7 @@ export default function AdminDashboard({ lang: urlLang, basePath, projects: rawP
         </ul>
       </div>
         </>
-      ) : authUser === undefined ? null : (
-        // Authenticated check finished, user is anonymous (or non-admin) —
-        // show a locked banner explaining the gate.
-        <div className="admin-pm-locked">
-          <div className="admin-pm-locked-icon">🔒</div>
-          <div className="admin-pm-locked-body">
-            <strong>
-              {lang === 'ar' ? 'إدارة المشاريع — للمسؤولين فقط' : 'Project Management — admins only'}
-            </strong>
-            <p>
-              {lang === 'ar'
-                ? 'هذا القسم يحتوي على أدوات تحرير المشاريع وإنشاء مشاريع جديدة، متاح فقط لأعضاء المجلس. سجّل دخولك لرؤيته.'
-                : 'This section contains the project editor and new-project tools, available to council members only. Sign in to see it.'}
-            </p>
-            <button
-              type="button"
-              className="admin-pm-locked-btn"
-              onClick={() => {
-                const ni = window.netlifyIdentity;
-                if (ni && ni.open) ni.open('login');
-              }}
-            >
-              {lang === 'ar' ? '🔑 تسجيل الدخول' : '🔑 Sign in'}
-            </button>
-          </div>
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }

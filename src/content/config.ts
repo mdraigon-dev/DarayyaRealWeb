@@ -124,12 +124,21 @@ const updatesCollection = defineCollection({
 // links; admin upload form (in src/components/CircularUploader.tsx)
 // commits both the file and the metadata via Git Gateway.
 // ============================================================
+// Optional bilingual: same shape as `bilingual` but the AR side can be
+// empty. Used for fields like circular descriptions where some
+// documents simply don't have one.
+const bilingualOptional = z.object({
+  ar: z.string().optional().default(''),
+  en: z.string().optional().default(''),
+  en_auto: z.boolean().optional(),
+});
+
 const circularsCollection = defineCollection({
   type: 'content',
   schema: z.object({
     id: z.string(),
     title: bilingual,
-    description: bilingual,
+    description: bilingualOptional.optional().default({ ar: '', en: '' }),
     category: z.enum([
       'decision',      // قرار رسمي
       'announcement',  // إعلان / تعميم

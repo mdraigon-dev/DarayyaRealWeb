@@ -151,10 +151,13 @@ export default function CircularUploader({ lang, onClose }: Props) {
         } catch { return ''; }
       })();
 
-      const frontmatter = {
+      // Build the frontmatter — omit empty optional fields entirely so
+      // the schema's defaults kick in. Specifically, an empty description
+      // would be `{ ar: "", en: "" }` which is fine under the optional
+      // schema, but cleaner to just leave the key out.
+      const frontmatter: Record<string, unknown> = {
         id,
         title: { ar: titleAr.trim(), en: titleEn.trim() },
-        description: { ar: descAr.trim(), en: descEn.trim() },
         category,
         date,
         file: publicFilePath,
@@ -163,6 +166,12 @@ export default function CircularUploader({ lang, onClose }: Props) {
         uploadedBy,
         order: 0,
       };
+      const descAr_t = descAr.trim();
+      const descEn_t = descEn.trim();
+      if (descAr_t || descEn_t) {
+        frontmatter.description = { ar: descAr_t, en: descEn_t };
+      }
+
       const fmYaml = stringifyYaml(frontmatter, {
         lineWidth: 0,
         defaultStringType: 'QUOTE_DOUBLE',

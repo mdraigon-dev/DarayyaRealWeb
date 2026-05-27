@@ -77,7 +77,7 @@ button { font-family: var(--font-body); cursor: pointer; border: none; backgroun
 .nav-inner {
   max-width: 1280px; margin: 0 auto;
   padding: 0.85rem 1.5rem;
-  display: flex; align-items: center; gap: 1.5rem;
+  display: flex; align-items: center; gap: 1rem;
 }
 .brand { display: flex; align-items: center; gap: 0.85rem; cursor: pointer; }
 
@@ -94,15 +94,16 @@ button { font-family: var(--font-body); cursor: pointer; border: none; backgroun
 .brand-title { font-family: var(--font-display); font-size: 23px; font-weight: 700; color: var(--sy-green-dk); }
 .brand-sub { font-size: 12px; color: var(--sy-muted); letter-spacing: 0.3px; margin-top: 2px; }
 
-.nav-links { display: flex; gap: 0.4rem; margin-right: auto; }
+.nav-links { display: flex; gap: 0.2rem; margin-right: auto; }
 .nav-link {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
   border-radius: var(--r-md);
-  font-size: 16px; font-weight: 500;
+  font-size: 15px; font-weight: 500;
   color: var(--sy-ink-soft);
   transition: all 180ms ease;
   cursor: pointer;
   position: relative;
+  white-space: nowrap;
 }
 .nav-link:hover { background: var(--sy-green-pale); color: var(--sy-green-dk); }
 .nav-link.active { color: var(--sy-green-dk); font-weight: 700; }
@@ -2837,16 +2838,27 @@ html[dir="ltr"] .activity-text strong {
   /* English emphasis */
 }
 
-/* English typography refinements */
+/* English typography refinements
+   Latin glyphs are wider than Arabic at the same point size, so reduce
+   the upper end of clamp()s for English-only pages. Same visual weight,
+   less crowding. */
 html[dir="ltr"] .hero h1 {
   letter-spacing: -1.5px;
   line-height: 1.1;
+  font-size: clamp(2.2rem, 4.2vw, 3.6rem);
 }
 html[dir="ltr"] .section-title {
   letter-spacing: -0.5px;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
 }
 html[dir="ltr"] .brand-title {
   letter-spacing: -0.3px;
+  font-size: 20px;
+}
+/* Slightly tighter hero tagline for English so the hero block has
+   a more balanced rhythm */
+html[dir="ltr"] .hero-tag {
+  font-size: 1.15rem;
 }
 
 /* LTR popup direction */
@@ -3225,9 +3237,14 @@ html { scroll-behavior: smooth; }
 /* ==================== RESPONSIVE — MOBILE FIRST ==================== */
 
 /* Tablets and small laptops */
+@media (max-width: 1200px) {
+  /* Brand subtitle is the longest single piece of text in the nav. Hiding
+     it below 1200px gives the nav links + auth buttons room to breathe. */
+  .brand-sub { display: none; }
+}
 @media (max-width: 1024px) {
   .nav-inner { gap: 1rem; padding: 0.75rem 1rem; }
-  .nav-link { font-size: 15px; padding: 0.4rem 0.75rem; }
+  .nav-link { font-size: 14px; padding: 0.4rem 0.65rem; }
   .section { padding: 2.5rem 1rem; }
   .hero { padding: 3rem 1rem 2rem; }
   .hero-grid { gap: 2.5rem; }
