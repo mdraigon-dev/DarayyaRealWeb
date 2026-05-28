@@ -59,15 +59,6 @@ updates:
     body:
       ar: "سيتم البدء بالعمل فور انقضاء عطلة العيد"
       en: "سيتم البدء بالعمل فور انقضاء عطلة العيد"
-  - date:
-      ar: "منذ ٦ أيام"
-      en: "6 days ago"
-    author:
-      ar: "م. سامي الحوراني"
-      en: "Eng. Sami Al-Hourani"
-    body:
-      ar: "هذا أكثر مشاريع الحي الشرقي إلحاحاً. الكثير من العائلات لا تزال تستخدم حفراً جوفية."
-      en: "This is the Eastern District's most urgent project. Many families still use septic pits."
 photos:
   - scene: "sewer"
     status: "warning"
