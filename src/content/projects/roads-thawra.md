@@ -77,4 +77,12 @@ updates:
     body:
       ar: "تم الانتهاء من المسح الطبوغرافي للشارع. بدء التنفيذ بانتظار وصول التبرعات إلى ٤٠٪."
       en: "Topographic survey of the street completed. Execution begins once donations reach 40%."
+comments:
+  - author:
+      ar: "رئيس البلدية "
+      en: "رئيس البلدية "
+    body:
+      ar: "سيتم قطع المياة يوم الاثنين بسبب اعمال الصيانة"
+      en: "سيتم قطع المياة يوم الاثنين بسبب اعمال الصيانة"
+    date: "2026-06-05T20:15:52.302Z"
 ---
