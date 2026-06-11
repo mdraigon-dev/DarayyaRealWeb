@@ -19,8 +19,8 @@
 "donors": 148
 "daysLeft": 30
 "fundingDeadline": "2026-09-30"
-"lat": 36.231313
-"lng": 33.465545
+"lat": 33.465545
+"lng": 36.231313
 "subs":
   - "id": "item-1"
     "title":
