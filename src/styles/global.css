@@ -3652,6 +3652,28 @@ html { scroll-behavior: smooth; }
   line-height: 1.5;
 }
 
+/* Clickable location picker inside the coordinates card */
+.editor-map {
+  margin-bottom: 1rem;
+}
+.editor-map-canvas {
+  height: 320px;
+  width: 100%;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--sy-green-wash);
+  cursor: crosshair;
+  z-index: 1;
+}
+.editor-map-hint {
+  margin: 0.5rem 0 0;
+  font-size: 12px;
+  color: var(--sy-muted);
+  font-style: italic;
+  line-height: 1.5;
+}
+
 /* Bilingual side-by-side */
 .editor-bilingual-row {
   display: grid;

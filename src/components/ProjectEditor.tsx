@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { stringify as stringifyYaml } from 'yaml';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { commitFile, getFileSha } from '../data/git-gateway';
+import LocationPicker from './LocationPicker';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -651,6 +652,12 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
             ? 'القيم الافتراضية تشير إلى مركز داريّا. عدّلها إذا كان المشروع في موقع محدد.'
             : 'Defaults point to the center of Darayya. Change them if the project has a specific location.'}
         </p>
+        <LocationPicker
+          lat={state.lat}
+          lng={state.lng}
+          lang={lang}
+          onChange={(la, ln) => setState((s) => ({ ...s, lat: la, lng: ln }))}
+        />
         <div className="editor-row">
           <div className="editor-field editor-field-half">
             <label>{lang === 'ar' ? 'خط العرض (Latitude)' : 'Latitude'}</label>
