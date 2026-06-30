@@ -1370,6 +1370,46 @@ html[dir="rtl"] .donate-modal-custom-input input {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* Inline confirmation after a note/update is added (no full-screen takeover,
+   so the form stays open for the next entry). */
+.auth-note-form-flash,
+.auth-update-form-flash {
+  padding: 0.5rem 0.85rem;
+  background: var(--sy-green-pale);
+  border: 1px solid var(--sy-green);
+  color: var(--sy-green-dk);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+.auth-note-flash,
+.auth-update-flash {
+  color: var(--sy-green-dk);
+  font-size: 13px;
+  font-weight: 700;
+  margin-inline-end: 0.5rem;
+  align-self: center;
+}
+
+/* Optimistic items shown immediately, before the rebuild publishes them. */
+.update-pending,
+.comment-pending {
+  border-inline-start: 3px solid var(--sy-gold);
+  background: rgba(201, 161, 74, 0.06);
+}
+.pending-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--sy-gold-dk, #8a6d1f);
+  background: rgba(201, 161, 74, 0.16);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-inline-start: 0.5rem;
+  vertical-align: middle;
+}
 .auth-note-form-actions {
   display: flex;
   justify-content: flex-end;

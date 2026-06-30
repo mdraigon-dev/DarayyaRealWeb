@@ -73,6 +73,13 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // array so the math stays consistent across the page and the modal.
   const [allDemo, setAllDemo] = useState<DemoDonation[]>([]);
 
+  // Notes/updates added this session via the inline forms. Shown immediately
+  // so staff don't have to wait for the Netlify rebuild to see them. These
+  // live only in memory — a reload (after the rebuild lands) replaces them
+  // with the real, build-rendered items.
+  const [extraUpdates, setExtraUpdates] = useState<Update[]>([]);
+  const [extraComments, setExtraComments] = useState<Comment[]>([]);
+
   const refreshDemoDelta = () => {
     const all = loadDonations().donations.filter(d => d.projectId === project.id);
     setAllDemo(all);
@@ -278,11 +285,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
           )}
 
-          {project.updates && project.updates.length > 0 && (
+          {(extraUpdates.length > 0 || (project.updates && project.updates.length > 0)) && (
             <>
               <h3>{t(lang, 'updates_title')}</h3>
               <div className="timeline">
-                {project.updates.map((u, i) => (
+                {extraUpdates.map((u, i) => (
+                  <div className="update update-pending" key={`x-${i}`}>
+                    <div className="update-head">
+                      <span className="update-author">{loc(lang, u.author)}</span>
+                      <span className="update-date">{loc(lang, u.date)}</span>
+                      <span className="pending-badge">
+                        {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
+                      </span>
+                    </div>
+                    <div className="update-body">{loc(lang, u.body)}</div>
+                  </div>
+                ))}
+                {(project.updates || []).map((u, i) => (
                   <div className="update" key={i}>
                     <div className="update-head">
                       <span className="update-author">{loc(lang, u.author)}</span>
@@ -297,11 +316,12 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
 
           {/* Add Field Update — placed right after the timeline so admins/
               engineers can add a new update where they just read existing
-              ones. Hidden for everyone else. */}
+              ones. Hidden for everyone else. onAdded shows it immediately. */}
           <AuthAwareUpdateAdder
             projectId={project.id}
             lang={lang}
             engineers={project.engineers || []}
+            onAdded={(u) => setExtraUpdates((prev) => [u, ...prev])}
           />
 
           {project.engineers && project.engineers.length > 0 && (
@@ -329,22 +349,35 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
 
           {/* Add Note button — visible to admins AND engineers on this project.
               Inline form posts to comments[] via Git Gateway. The auth bar
-              shows who's signed in and their role. */}
+              shows who's signed in and their role. onAdded shows it immediately. */}
           <AuthAwareNoteAdder
             projectId={project.id}
             lang={lang}
             engineers={project.engineers || []}
+            onAdded={(c) => setExtraComments((prev) => [...prev, c])}
           />
 
-          {project.comments && project.comments.length > 0 && (
+          {((project.comments && project.comments.length > 0) || extraComments.length > 0) && (
             <>
               <h3>{t(lang, 'comments_title')}</h3>
               <div className="comments-list">
-                {project.comments.map((c, i) => (
+                {(project.comments || []).map((c, i) => (
                   <div className="comment" key={i}>
                     <div className="comment-head">
                       <span className="comment-author">{loc(lang, c.author)}</span>
                       {c.date && <span className="comment-date">{c.date}</span>}
+                    </div>
+                    <div className="comment-body">{loc(lang, c.body)}</div>
+                  </div>
+                ))}
+                {extraComments.map((c, i) => (
+                  <div className="comment comment-pending" key={`x-${i}`}>
+                    <div className="comment-head">
+                      <span className="comment-author">{loc(lang, c.author)}</span>
+                      {c.date && <span className="comment-date">{c.date}</span>}
+                      <span className="pending-badge">
+                        {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
+                      </span>
                     </div>
                     <div className="comment-body">{loc(lang, c.body)}</div>
                   </div>

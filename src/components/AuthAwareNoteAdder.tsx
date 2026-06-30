@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { useState, useEffect, useRef } from 'react';
 import { type Lang } from '../i18n/strings';
-import { getFileContent, commitFile } from '../data/git-gateway';
+import { appendProjectItem, type ProjectFileCache } from '../data/project-file-edit';
 import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -10,11 +9,16 @@ declare global {
   }
 }
 
+type Bilingual = { ar: string; en: string };
+type NewComment = { author: Bilingual; body: Bilingual; date: string };
+
 type Props = {
   projectId: string;
   lang: Lang;
   /** Engineers on this project — used to authorize posting */
   engineers: ProjectEngineer[];
+  /** Called after a note commits, so the page can show it without waiting for the rebuild */
+  onAdded?: (comment: NewComment) => void;
 };
 
 type AuthState =
@@ -25,7 +29,6 @@ type AuthState =
 type SaveState =
   | { kind: 'idle' }
   | { kind: 'saving' }
-  | { kind: 'success' }
   | { kind: 'error'; message: string };
 
 /**
@@ -39,12 +42,18 @@ type SaveState =
  * reads/modifies/writes the project's markdown file via Git Gateway.
  */
 
-export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props) {
+export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [expanded, setExpanded] = useState(false);
   const [body, setBody] = useState('');
   const [authorOverride, setAuthorOverride] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  const [flash, setFlash] = useState(false);
+
+  // Cached {content, sha} of the project file, carried across successive
+  // submits so rapid notes chain off the last commit's SHA instead of a
+  // laggy re-read. See data/project-file-edit.ts.
+  const cacheRef = useRef<ProjectFileCache | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,23 +107,9 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
     setSave({ kind: 'saving' });
 
     try {
-      const path = `src/content/projects/${projectId}.md`;
-      const file = await getFileContent(path);
-      if (!file) {
-        throw new Error(lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found');
-      }
-
-      // Split YAML frontmatter from markdown body
-      const m = file.content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-      if (!m) throw new Error(lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format');
-      const [, frontmatterText, markdownBody] = m;
-      const frontmatter = parseYaml(frontmatterText) as Record<string, unknown>;
-
-      // Build the new comment. Put the body in the language the user
-      // typed in; leave the other side empty so the build-time auto-
-      // translator fills it.
-      const existing = Array.isArray(frontmatter.comments) ? frontmatter.comments : [];
-      const newComment = {
+      // Body goes in the language the user typed; the other side is left
+      // empty for the build-time auto-translator to fill.
+      const newComment: NewComment = {
         author: { ar: effectiveAuthor, en: effectiveAuthor },
         body: {
           ar: lang === 'ar' ? trimmed : '',
@@ -122,31 +117,36 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
         },
         date: new Date().toISOString().slice(0, 10),
       };
-      frontmatter.comments = [...existing, newComment];
-
-      const newFrontmatter = stringifyYaml(frontmatter, {
-        lineWidth: 0,
-        defaultStringType: 'QUOTE_DOUBLE',
-        defaultKeyType: 'PLAIN',
-      });
-      const newFileContent = `---\n${newFrontmatter}---\n${markdownBody}`;
 
       const commitMessage = lang === 'ar'
         ? `إضافة ملاحظة على ${projectId} بواسطة ${effectiveAuthor}`
         : `Add note on ${projectId} by ${effectiveAuthor}`;
-      await commitFile(path, newFileContent, commitMessage, 'main', file.sha);
 
-      setSave({ kind: 'success' });
+      const { cache } = await appendProjectItem({
+        projectId,
+        field: 'comments',
+        item: newComment,
+        position: 'end',
+        message: commitMessage,
+        cache: cacheRef.current,
+      });
+      cacheRef.current = cache;
+
+      // Show it on the page right away, and keep the form open with cleared
+      // text so another note can be added immediately — no waiting on rebuild.
+      onAdded?.(newComment);
+      setSave({ kind: 'idle' });
       setBody('');
       setAuthorOverride('');
-      // Auto-collapse back to ready after a moment. We don't reload — the
-      // note won't appear until Netlify rebuilds.
-      setTimeout(() => {
-        setSave({ kind: 'idle' });
-        setExpanded(false);
-      }, 6000);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 4000);
     } catch (err: any) {
-      setSave({ kind: 'error', message: err?.message || 'Save failed' });
+      const message = err?.message === 'NOT_FOUND'
+        ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
+        : err?.message === 'INVALID_FORMAT'
+          ? (lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format')
+          : (err?.message || 'Save failed');
+      setSave({ kind: 'error', message });
     }
   };
 
@@ -159,8 +159,13 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
           : <>Signed in as <strong>{defaultAuthor}</strong> <span className="auth-note-role">({myRoleLabel})</span></>}
       </span>
 
-      {!expanded && save.kind !== 'success' && (
+      {!expanded && (
         <div className="auth-note-actions">
+          {flash && (
+            <span className="auth-note-flash">
+              ✓ {lang === 'ar' ? 'أُضيفت الملاحظة' : 'Note added'}
+            </span>
+          )}
           <button
             type="button"
             className="auth-note-btn-inline"
@@ -178,7 +183,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
         </div>
       )}
 
-      {expanded && save.kind !== 'success' && (
+      {expanded && (
         <form className="auth-note-form" onSubmit={handleSubmit}>
           <div className="auth-note-form-row">
             <input
@@ -208,6 +213,13 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
           {save.kind === 'error' && (
             <div className="auth-note-form-error">⚠ {save.message}</div>
           )}
+          {flash && save.kind !== 'error' && (
+            <div className="auth-note-form-flash">
+              ✓ {lang === 'ar'
+                ? 'أُضيفت الملاحظة وتظهر أدناه. يمكنك إضافة أخرى أو الضغط على «تم».'
+                : 'Note added and shown below. Add another or press Done.'}
+            </div>
+          )}
           <div className="auth-note-form-actions">
             <button
               type="button"
@@ -220,7 +232,9 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
               }}
               disabled={save.kind === 'saving'}
             >
-              {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+              {flash
+                ? (lang === 'ar' ? 'تم' : 'Done')
+                : (lang === 'ar' ? 'إلغاء' : 'Cancel')}
             </button>
             <button
               type="submit"
@@ -233,22 +247,6 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers }: Props
             </button>
           </div>
         </form>
-      )}
-
-      {save.kind === 'success' && (
-        <div className="auth-note-success">
-          <span className="auth-note-success-icon">✓</span>
-          <div>
-            <strong>
-              {lang === 'ar' ? 'تم حفظ الملاحظة' : 'Note saved'}
-            </strong>
-            <div className="auth-note-success-sub">
-              {lang === 'ar'
-                ? 'الموقع يُعاد بناؤه. ستظهر الملاحظة خلال ١–٣ دقائق.'
-                : 'Site is rebuilding. The note will appear in 1–3 minutes.'}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

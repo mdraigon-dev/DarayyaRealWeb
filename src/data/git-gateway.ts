@@ -14,6 +14,19 @@
 const GIT_GATEWAY_BASE = '/.netlify/git/github';
 
 /**
+ * Thrown when GitHub rejects a write because the file changed since the SHA
+ * we pinned (HTTP 409). Callers can catch this specifically to distinguish a
+ * genuine concurrent edit from other failures and recover (re-read + retry).
+ */
+export class GitConflictError extends Error {
+  readonly code = 'CONFLICT' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'GitConflictError';
+  }
+}
+
+/**
  * Get the current Netlify Identity user's JWT token. This token authorizes
  * the Git Gateway request and tells Netlify which user did the commit.
  */
@@ -93,6 +106,12 @@ export async function getFileContent(path: string, branch = 'main'): Promise<{ c
  *                 that exact version (GitHub returns a 409 if the file
  *                 changed since, which is the right behavior for a
  *                 read-modify-write — better than silently overwriting).
+ *
+ * Returns the new blob SHA of the committed file (from GitHub's PUT response).
+ * Chaining this SHA into the next commit lets a caller make several rapid
+ * edits to the same file without re-reading — which matters because GitHub's
+ * read API lags a write by up to ~a minute and would otherwise hand back a
+ * stale SHA and cause a spurious 409 on the next edit.
  */
 export async function commitFile(
   path: string,
@@ -100,7 +119,7 @@ export async function commitFile(
   message: string,
   branch = 'main',
   knownSha?: string,
-): Promise<void> {
+): Promise<string | null> {
   const token = await getToken();
   // Use the caller-provided SHA when available; only fetch fresh when not.
   // For brand-new files, callers pass null/undefined and we get null back.
@@ -133,12 +152,17 @@ export async function commitFile(
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     // GitHub returns 409 when the file changed between read and write.
-    // Surface a clear message so the caller's UI can suggest a refresh.
+    // Surface a typed error so callers can recover instead of just erroring.
     if (res.status === 409) {
-      throw new Error('File changed since you opened it. Refresh the page and try again.');
+      throw new GitConflictError('File changed since you opened it. Refresh the page and try again.');
     }
     throw new Error(`Commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
   }
+
+  // GitHub returns the new file metadata, including the blob SHA the next
+  // update must pin to. Return it so callers can chain edits without re-reading.
+  const data = await res.json().catch(() => null);
+  return data?.content?.sha ?? null;
 }
 
 /**

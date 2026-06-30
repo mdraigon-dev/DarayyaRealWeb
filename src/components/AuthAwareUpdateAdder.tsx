@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { useState, useEffect, useRef } from 'react';
 import { type Lang } from '../i18n/strings';
-import { getFileContent, commitFile } from '../data/git-gateway';
+import { appendProjectItem, type ProjectFileCache } from '../data/project-file-edit';
 import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -10,11 +9,16 @@ declare global {
   }
 }
 
+type Bilingual = { ar: string; en: string };
+type NewUpdate = { date: Bilingual; author: Bilingual; body: Bilingual };
+
 type Props = {
   projectId: string;
   lang: Lang;
   /** The project's engineers, used to authorize them as posters */
   engineers: ProjectEngineer[];
+  /** Called after an update commits, so the page can show it without waiting for the rebuild */
+  onAdded?: (update: NewUpdate) => void;
 };
 
 type AuthState =
@@ -25,7 +29,6 @@ type AuthState =
 type SaveState =
   | { kind: 'idle' }
   | { kind: 'saving' }
-  | { kind: 'success' }
   | { kind: 'error'; message: string };
 
 /**
@@ -43,13 +46,18 @@ type SaveState =
  * 'engineer-of-project' for this specific project (via classifyUser).
  * Logged-in users who aren't an engineer on this project see nothing.
  */
-export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Props) {
+export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdded }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [expanded, setExpanded] = useState(false);
   const [body, setBody] = useState('');
   const [authorOverride, setAuthorOverride] = useState('');
   const [dateOverride, setDateOverride] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  const [flash, setFlash] = useState(false);
+
+  // See AuthAwareNoteAdder / project-file-edit.ts — chains the file SHA across
+  // submits so rapid updates don't hit GitHub's read-after-write lag.
+  const cacheRef = useRef<ProjectFileCache | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,21 +106,9 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
     setSave({ kind: 'saving' });
 
     try {
-      const path = `src/content/projects/${projectId}.md`;
-      const file = await getFileContent(path);
-      if (!file) {
-        throw new Error(lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found');
-      }
-      const m = file.content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-      if (!m) throw new Error(lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format');
-      const [, frontmatterText, markdownBody] = m;
-      const frontmatter = parseYaml(frontmatterText) as Record<string, unknown>;
-
-      // Build a new update entry. Body and date are bilingual; we put the
-      // user's text in the lang they typed in, leave the other side empty
-      // so the build-time auto-translator picks it up.
-      const existing = Array.isArray(frontmatter.updates) ? frontmatter.updates : [];
-      const newUpdate = {
+      // Body/date go in the language the user typed; the other side is left
+      // empty for the build-time auto-translator to fill.
+      const newUpdate: NewUpdate = {
         date: {
           ar: lang === 'ar' ? effectiveDate : '',
           en: lang === 'en' ? effectiveDate : '',
@@ -123,31 +119,36 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
           en: lang === 'en' ? trimmed : '',
         },
       };
-      // Prepend so newest appears first in the timeline
-      frontmatter.updates = [newUpdate, ...existing];
-
-      const newFrontmatter = stringifyYaml(frontmatter, {
-        lineWidth: 0,
-        defaultStringType: 'QUOTE_DOUBLE',
-        defaultKeyType: 'PLAIN',
-      });
-      const newFileContent = `---\n${newFrontmatter}---\n${markdownBody}`;
 
       const commitMessage = lang === 'ar'
         ? `تحديث ميداني على ${projectId} بواسطة ${effectiveAuthor}`
         : `Field update on ${projectId} by ${effectiveAuthor}`;
-      await commitFile(path, newFileContent, commitMessage, 'main', file.sha);
 
-      setSave({ kind: 'success' });
+      // Prepend so newest appears first in the timeline.
+      const { cache } = await appendProjectItem({
+        projectId,
+        field: 'updates',
+        item: newUpdate,
+        position: 'start',
+        message: commitMessage,
+        cache: cacheRef.current,
+      });
+      cacheRef.current = cache;
+
+      onAdded?.(newUpdate);
+      setSave({ kind: 'idle' });
       setBody('');
       setAuthorOverride('');
       setDateOverride('');
-      setTimeout(() => {
-        setSave({ kind: 'idle' });
-        setExpanded(false);
-      }, 6000);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 4000);
     } catch (err: any) {
-      setSave({ kind: 'error', message: err?.message || 'Save failed' });
+      const message = err?.message === 'NOT_FOUND'
+        ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
+        : err?.message === 'INVALID_FORMAT'
+          ? (lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format')
+          : (err?.message || 'Save failed');
+      setSave({ kind: 'error', message });
     }
   };
 
@@ -167,8 +168,13 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
         </div>
       </div>
 
-      {!expanded && save.kind !== 'success' && (
+      {!expanded && (
         <div className="auth-update-actions">
+          {flash && (
+            <span className="auth-update-flash">
+              ✓ {lang === 'ar' ? 'نُشر التحديث' : 'Update added'}
+            </span>
+          )}
           <button
             type="button"
             className="auth-update-btn-inline"
@@ -179,7 +185,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
         </div>
       )}
 
-      {expanded && save.kind !== 'success' && (
+      {expanded && (
         <form className="auth-update-form" onSubmit={handleSubmit}>
           <div className="auth-update-form-row">
             <div className="auth-update-form-field">
@@ -225,6 +231,13 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
           {save.kind === 'error' && (
             <div className="auth-update-form-error">⚠ {save.message}</div>
           )}
+          {flash && save.kind !== 'error' && (
+            <div className="auth-update-form-flash">
+              ✓ {lang === 'ar'
+                ? 'نُشر التحديث ويظهر في الجدول الزمني أعلاه. يمكنك إضافة آخر أو الضغط على «تم».'
+                : 'Update published and shown in the timeline above. Add another or press Done.'}
+            </div>
+          )}
           <div className="auth-update-form-actions">
             <button
               type="button"
@@ -238,7 +251,9 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
               }}
               disabled={save.kind === 'saving'}
             >
-              {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+              {flash
+                ? (lang === 'ar' ? 'تم' : 'Done')
+                : (lang === 'ar' ? 'إلغاء' : 'Cancel')}
             </button>
             <button
               type="submit"
@@ -251,22 +266,6 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers }: Pro
             </button>
           </div>
         </form>
-      )}
-
-      {save.kind === 'success' && (
-        <div className="auth-update-success">
-          <span className="auth-update-success-icon">✓</span>
-          <div>
-            <strong>
-              {lang === 'ar' ? 'تم نشر التحديث' : 'Update published'}
-            </strong>
-            <div className="auth-update-success-sub">
-              {lang === 'ar'
-                ? 'الموقع يُعاد بناؤه. سيظهر التحديث خلال ١–٣ دقائق.'
-                : 'Site is rebuilding. Your update will appear in 1–3 minutes.'}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
