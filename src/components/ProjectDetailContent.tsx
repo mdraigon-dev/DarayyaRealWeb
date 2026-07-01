@@ -5,6 +5,7 @@ import AuthAwareNoteAdder from './AuthAwareNoteAdder';
 import AuthAwareUpdateAdder from './AuthAwareUpdateAdder';
 import AdminEditProjectButton from './AdminEditProjectButton';
 import DonationModal from './DonationModal';
+import ProjectLocationMap from './ProjectLocationMap';
 import { pickPhoto } from '../data/unsplash-photos';
 import { loadDonations, sumForProject, clearAllDonations, type DemoDonation } from '../data/demo-donations';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
@@ -52,6 +53,8 @@ type ProjectFull = {
   raisedUSD: number;
   donors: number;
   daysLeft: number;
+  lat?: number;
+  lng?: number;
   subs: Sub[];
   updates: Update[];
   photos: Photo[];
@@ -195,6 +198,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
       <div className="detail-grid">
         <div className="detail-main">
           <p style={{ fontSize: '1.1rem', color: 'var(--sy-ink-soft)' }}>{loc(lang, project.description)}</p>
+
+          {typeof project.lat === 'number' && typeof project.lng === 'number' && (
+            <div className="detail-map-section">
+              <div className="detail-map-title">
+                <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+                {lang === 'ar' ? 'موقع المشروع' : 'Project location'}
+              </div>
+              <ProjectLocationMap
+                lat={project.lat}
+                lng={project.lng}
+                health={project.health}
+                title={project.title}
+                location={project.location}
+                lang={lang}
+              />
+            </div>
+          )}
 
           <div className="hierarchy">
             <div className="hierarchy-title">

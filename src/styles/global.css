@@ -5595,3 +5595,30 @@ input[type="number"] {
   transition: all 160ms ease;
 }
 .editor-preset-chip:hover { background: var(--sy-green); color: #fff; border-color: var(--sy-green); }
+
+/* ====================================================================
+   SINGLE-PROJECT LOCATION MAP (project detail page)
+   ==================================================================== */
+.detail-map-section { margin: 1.75rem 0; }
+.detail-map-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--sy-green-dk);
+  margin-bottom: 0.75rem;
+}
+.detail-map { position: relative; }
+.detail-map-canvas {
+  height: 340px;
+  width: 100%;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--sy-green-wash);
+  z-index: 1;
+}
+@media (max-width: 640px) {
+  .detail-map-canvas { height: 260px; }
+}
