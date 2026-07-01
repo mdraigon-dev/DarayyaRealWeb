@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import AdminProfile from '../../../../components/AdminProfile.tsx';
+
+const lang = 'ar' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+const basePath = `${cleanBase}/${lang}`;
+---
+
+<BaseLayout
+  title="تفضيلات المسؤول — مَعَاً نَبْنِي داريَّا"
+  description="تفضيلات المسؤول"
+  lang={lang}
+  currentPage="admin"
+>
+  <AdminProfile lang={lang} basePath={basePath} client:load />
+</BaseLayout>

@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
-import { appendProjectItem, type ProjectFileCache } from '../data/project-file-edit';
+import { appendProjectItem } from '../data/project-file-edit';
+import { loadPrefs, preferredAuthorName, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -54,10 +55,11 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
   const [dateOverride, setDateOverride] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
+  const [prefs, setPrefs] = useState<AdminPrefs>(defaultPrefs());
 
-  // See AuthAwareNoteAdder / project-file-edit.ts — chains the file SHA across
-  // submits so rapid updates don't hit GitHub's read-after-write lag.
-  const cacheRef = useRef<ProjectFileCache | null>(null);
+  useEffect(() => {
+    if (auth.kind === 'authenticated') setPrefs(loadPrefs(auth.user.email));
+  }, [auth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +90,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
   const role = classifyUser(auth.user, engineers);
   if (!canPost(role)) return null;
 
-  const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
+  const defaultAuthor = preferredAuthorName(auth.user, prefs);
   const todayLabel = lang === 'ar' ? 'اليوم' : 'today';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,15 +127,13 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
         : `Field update on ${projectId} by ${effectiveAuthor}`;
 
       // Prepend so newest appears first in the timeline.
-      const { cache } = await appendProjectItem({
+      await appendProjectItem({
         projectId,
         field: 'updates',
         item: newUpdate,
         position: 'start',
         message: commitMessage,
-        cache: cacheRef.current,
       });
-      cacheRef.current = cache;
 
       onAdded?.(newUpdate);
       setSave({ kind: 'idle' });

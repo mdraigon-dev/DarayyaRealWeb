@@ -150,12 +150,18 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
         )}
         {authUser && (
           <div className="nav-auth-chip" title={authUser.email}>
-            <span className="nav-auth-chip-avatar" aria-hidden="true">
-              {(authUser.user_metadata?.full_name || authUser.email).charAt(0).toUpperCase()}
-            </span>
-            <span className="nav-auth-chip-name">
-              {firstName(authUser.user_metadata?.full_name) || firstEmailPart(authUser.email)}
-            </span>
+            <a
+              className="nav-auth-chip-link"
+              href={link('/admin/profile/')}
+              title={lang === 'ar' ? 'التفضيلات' : 'Preferences'}
+            >
+              <span className="nav-auth-chip-avatar" aria-hidden="true">
+                {(authUser.user_metadata?.full_name || authUser.email).charAt(0).toUpperCase()}
+              </span>
+              <span className="nav-auth-chip-name">
+                {firstName(authUser.user_metadata?.full_name) || firstEmailPart(authUser.email)}
+              </span>
+            </a>
             <button
               type="button"
               className="nav-auth-chip-logout"

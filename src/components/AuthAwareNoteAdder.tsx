@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
-import { appendProjectItem, type ProjectFileCache } from '../data/project-file-edit';
+import { appendProjectItem } from '../data/project-file-edit';
+import { loadPrefs, preferredAuthorName, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -49,11 +50,11 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
   const [authorOverride, setAuthorOverride] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
+  const [prefs, setPrefs] = useState<AdminPrefs>(defaultPrefs());
 
-  // Cached {content, sha} of the project file, carried across successive
-  // submits so rapid notes chain off the last commit's SHA instead of a
-  // laggy re-read. See data/project-file-edit.ts.
-  const cacheRef = useRef<ProjectFileCache | null>(null);
+  useEffect(() => {
+    if (auth.kind === 'authenticated') setPrefs(loadPrefs(auth.user.email));
+  }, [auth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +91,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
   const isAdmin = role === 'admin';
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
   const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
-  const defaultAuthor = auth.user.user_metadata?.full_name || auth.user.email;
+  const defaultAuthor = preferredAuthorName(auth.user, prefs);
   const myRoleLabel = roleLabel(role, lang);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,15 +123,13 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
         ? `إضافة ملاحظة على ${projectId} بواسطة ${effectiveAuthor}`
         : `Add note on ${projectId} by ${effectiveAuthor}`;
 
-      const { cache } = await appendProjectItem({
+      await appendProjectItem({
         projectId,
         field: 'comments',
         item: newComment,
         position: 'end',
         message: commitMessage,
-        cache: cacheRef.current,
       });
-      cacheRef.current = cache;
 
       // Show it on the page right away, and keep the form open with cleared
       // text so another note can be added immediately — no waiting on rebuild.

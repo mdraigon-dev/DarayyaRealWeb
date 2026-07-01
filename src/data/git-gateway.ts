@@ -49,9 +49,13 @@ async function getToken(): Promise<string> {
  */
 export async function getFileSha(path: string, branch = 'main'): Promise<string | null> {
   const token = await getToken();
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}`;
+  // no-store + a unique query param defeat any HTTP/CDN caching between the
+  // Git Gateway and us — critical right after a write, when a cached response
+  // would echo the pre-commit SHA and make the next commit 409.
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}&_=${Date.now()}`;
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
+    cache: 'no-store',
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -70,9 +74,11 @@ export async function getFileSha(path: string, branch = 'main'): Promise<string 
  */
 export async function getFileContent(path: string, branch = 'main'): Promise<{ content: string; sha: string } | null> {
   const token = await getToken();
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}`;
+  // See getFileSha — bust caches so we never read a stale post-commit version.
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}&_=${Date.now()}`;
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
+    cache: 'no-store',
   });
   if (res.status === 404) return null;
   if (!res.ok) {

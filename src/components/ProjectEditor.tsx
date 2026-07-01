@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { stringify as stringifyYaml } from 'yaml';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
-import { commitFile, getFileSha } from '../data/git-gateway';
+import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit';
+import { loadPrefs, defaultPrefs, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
 import LocationPicker from './LocationPicker';
 
 // ────────────────────────────────────────────────────────────────────
@@ -123,6 +123,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
    * token to read via Git Gateway). For new projects (isNew), stays
    * null — there's no existing file to race against. */
   const [editingSha, setEditingSha] = useState<string | null | undefined>(undefined);
+  const [prefs, setPrefs] = useState<AdminPrefs>(defaultPrefs());
 
   // Auth setup
   useEffect(() => {
@@ -147,9 +148,17 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     return () => { cancelled = true; };
   }, []);
 
-  // Once authenticated, fetch the current file SHA so we can detect
-  // concurrent edits at save time. For new projects there's nothing to
-  // fetch — editingSha stays null and commitFile will create the file.
+  // Load this admin's saved engineer presets once we know who they are.
+  useEffect(() => {
+    if (auth.kind === 'authenticated') setPrefs(loadPrefs(auth.user.email));
+  }, [auth]);
+
+  // Once authenticated, load the LIVE project file (not just the SHA). This
+  // matters because notes/updates added inline since the last build live only
+  // in the repo, not in the build-time props this editor was seeded with —
+  // hydrating them here means a later save won't silently drop them. Also
+  // seeds the shared SHA cache so the save pins correctly. New projects have
+  // no file yet, so editingSha stays null (create mode).
   useEffect(() => {
     if (auth.kind !== 'authenticated') return;
     if (isNew) {
@@ -159,13 +168,22 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     let cancelled = false;
     (async () => {
       try {
-        const path = `src/content/projects/${initial.id}.md`;
-        const sha = await getFileSha(path);
-        if (!cancelled) setEditingSha(sha);
+        const live = await loadProjectForEdit(initial.id);
+        if (cancelled || !live) {
+          if (!cancelled) setEditingSha(undefined);
+          return;
+        }
+        // Only pull the fields the inline forms can change out from under the
+        // editor. Everything else stays as the user loaded it.
+        setState((s) => ({
+          ...s,
+          comments: Array.isArray(live.comments) ? (live.comments as typeof s.comments) : s.comments,
+          updates: Array.isArray(live.updates) ? (live.updates as typeof s.updates) : s.updates,
+        }));
+        if (!cancelled) setEditingSha('loaded');
       } catch {
-        // Network/auth failure — fall back to letting commitFile fetch
-        // the SHA itself (the old behavior). Worst case is the
-        // concurrent-edit detection is disabled for this session.
+        // Network/auth failure — fall back to letting the commit helper sort
+        // out the SHA via its retry path.
         if (!cancelled) setEditingSha(undefined);
       }
     })();
@@ -258,34 +276,27 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       if (state.engineers.length > 0) frontmatter.engineers = state.engineers;
       if (state.comments.length > 0) frontmatter.comments = state.comments;
 
-      const yamlBlock = stringifyYaml(frontmatter, {
-        lineWidth: 0,
-        defaultStringType: 'QUOTE_DOUBLE',
-      });
-      const content = `---\n${yamlBlock}---\n`;
-
-      const path = `src/content/projects/${state.id}.md`;
       const commitMessage = isNew
         ? (lang === 'ar' ? `إنشاء مشروع: ${state.title.ar}` : `Create project: ${state.title.ar}`)
         : (lang === 'ar' ? `تعديل المشروع: ${state.title.ar}` : `Edit project: ${state.title.ar}`);
 
-      // Concurrent-edit protection: if we have the SHA from when this
-      // editor session started, pass it so commitFile can detect that
-      // someone else saved in the meantime.
-      //
-      // editingSha values:
-      //   undefined → still loading OR fetch failed (no protection;
-      //               fall back to commitFile's own SHA fetch)
-      //   null      → file didn't exist at start (new project case)
-      //   string    → the SHA to pin against
-      //
-      // For new projects (isNew) we always let commitFile fetch — there
-      // shouldn't be an existing file to pin against, but if there is
-      // (unlikely ID collision), we don't want to clobber it silently.
-      const sha: string | undefined = isNew
-        ? undefined
-        : (typeof editingSha === 'string' ? editingSha : undefined);
-      await commitFile(path, content, commitMessage, 'main', sha);
+      // create until the file exists, then update. editingSha === 'loaded'
+      // means either an existing project or a new one we already created this
+      // session; anything else on a new project is still a create.
+      const mode: 'create' | 'update' = (isNew && editingSha !== 'loaded') ? 'create' : 'update';
+
+      const newSha = await commitProjectFile({
+        projectId: state.id,
+        frontmatter,
+        message: commitMessage,
+        mode,
+      });
+
+      // Pin the NEXT save to what we just wrote — this is what stops the
+      // second save in a session from 409-ing on a stale SHA. (The shared
+      // cache also holds it, but flipping to 'loaded' switches create→update.)
+      void newSha;
+      setEditingSha('loaded');
 
       setSave({ kind: 'success' });
       // IMPORTANT: do NOT auto-redirect to the project's public page.
@@ -293,7 +304,17 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       // simply does not exist yet. Instead, the success screen below
       // explains what's happening and gives the user choices.
     } catch (err: any) {
-      setSave({ kind: 'error', message: err?.message || 'Save failed' });
+      const raw = err?.message || 'Save failed';
+      const message = raw === 'ID_EXISTS'
+        ? (lang === 'ar'
+            ? 'يوجد مشروع بهذا المعرف بالفعل. اختر معرفاً مختلفاً.'
+            : 'A project with this ID already exists. Choose a different ID.')
+        : raw === 'CONFLICT'
+          ? (lang === 'ar'
+              ? 'تعذّر الحفظ بسبب تعارض مستمر. حدّث الصفحة وحاول مجدداً.'
+              : "Couldn't save due to a persistent conflict. Refresh and try again.")
+          : raw;
+      setSave({ kind: 'error', message });
     }
   }
 
@@ -797,6 +818,38 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           <span className="editor-card-icon">👷</span>
           {lang === 'ar' ? 'الفريق والمهندسون' : 'Engineers & team'}
         </h3>
+
+        {prefs.engineerPresets.length > 0 && (
+          <div className="editor-preset-bar">
+            <span className="editor-preset-label">
+              {lang === 'ar' ? 'من القوالب المحفوظة:' : 'From your presets:'}
+            </span>
+            <div className="editor-preset-chips">
+              {prefs.engineerPresets.map((p: EngineerPreset, i: number) => {
+                const label = (lang === 'ar' ? p.name.ar || p.name.en : p.name.en || p.name.ar) || '—';
+                return (
+                  <button
+                    type="button"
+                    key={i}
+                    className="editor-preset-chip"
+                    onClick={() => update('engineers', [
+                      ...state.engineers,
+                      {
+                        name: { ar: p.name.ar, en: p.name.en },
+                        role: { ar: p.role.ar, en: p.role.en },
+                        email: p.email || '',
+                        phone: p.phone || '',
+                      },
+                    ])}
+                  >
+                    + {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {state.engineers.length === 0 && (
           <p className="editor-empty-note">
             {lang === 'ar' ? 'لا يوجد أعضاء فريق بعد.' : 'No team members yet.'}
