@@ -1,4 +1,4 @@
-# مَعَاً نَبْنِي داريَّا — Together We Rebuild Darayya
+# نماء | Namaa — Darayya reconstruction platform
 
 A bilingual (Arabic/English) reconstruction platform for the Darayya City Council in Syria. Built with **Astro**, **React**, **Decap CMS**, and deployed via **GitHub Pages**.
 

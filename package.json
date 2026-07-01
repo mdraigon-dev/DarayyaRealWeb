@@ -2,7 +2,7 @@
   "name": "darayya-platform",
   "type": "module",
   "version": "1.0.0",
-  "description": "Together We Rebuild Darayya — local council reconstruction platform",
+  "description": "Namaa (نماء) — Darayya local council reconstruction platform",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",

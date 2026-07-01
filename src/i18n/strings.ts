@@ -16,7 +16,7 @@ export const STRINGS = {
     nav_donate: 'تبرّع الآن',
     nav_currency_title: 'تبديل العملة',
     nav_menu: 'قائمة',
-    brand_title: 'مَعَاً نَبْنِي داريَّا',
+    brand_title: 'نماء | Namaa',
     brand_sub: 'منصة المجلس المحلي لإعادة الإعمار',
 
     // Home
@@ -172,7 +172,7 @@ export const STRINGS = {
     auth_signed_in_as: 'مسجّل دخوله كـ',
 
     // Footer
-    footer_brand: 'مَعَاً نَبْنِي داريَّا',
+    footer_brand: 'نماء | Namaa',
     footer_about: 'منصة المجلس المحلي لمدينة داريّا لإعادة الإعمار بمشاركة المجتمع المحلي وأبناء المدينة في المهجر. نعمل بشفافية كاملة لاستعادة مدينتنا، حجراً حجراً.',
     footer_nav: 'التصفّح',
     footer_contact: 'تواصل',
@@ -232,7 +232,7 @@ export const STRINGS = {
     nav_donate: 'Donate Now',
     nav_currency_title: 'Switch currency',
     nav_menu: 'Menu',
-    brand_title: 'Together We Rebuild Darayya',
+    brand_title: 'Namaa | نماء',
     brand_sub: 'City Council Reconstruction Platform',
 
     hero_eyebrow: 'Syrian Arab Republic — Darayya City Council',
@@ -381,7 +381,7 @@ export const STRINGS = {
     auth_signout_btn: 'Sign out',
     auth_signed_in_as: 'Signed in as',
 
-    footer_brand: 'Together We Rebuild Darayya',
+    footer_brand: 'Namaa | نماء',
     footer_about: 'The Darayya City Council\'s platform for reconstruction with participation from the local community and the diaspora. We work with complete transparency to restore our city, stone by stone.',
     footer_nav: 'Navigation',
     footer_contact: 'Contact',

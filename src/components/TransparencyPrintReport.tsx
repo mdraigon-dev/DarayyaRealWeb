@@ -122,7 +122,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
               {lang === 'ar' ? 'تقرير الشفافية المالي' : 'Financial Transparency Report'}
             </h1>
             <p className="print-subtitle">
-              {lang === 'ar' ? 'مجلس مدينة داريّا — معاً نَبْنِي داريّا' : 'Darayya City Council — Together We Rebuild Darayya'}
+              {lang === 'ar' ? 'مجلس مدينة داريّا — نماء' : 'Darayya City Council — Namaa'}
             </p>
             <p className="print-meta">
               {lang === 'ar' ? 'تاريخ التوليد: ' : 'Generated: '}{generatedDate}
