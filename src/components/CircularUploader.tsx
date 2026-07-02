@@ -105,6 +105,11 @@ export default function CircularUploader({ lang, onClose }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Random ID suffix, generated once per form session. Keeping it stable
+  // across submit attempts means a retry after a mid-upload failure reuses
+  // the same file path (idempotent) instead of leaving an orphan file from
+  // the first attempt and uploading a duplicate under a new name.
+  const suffixRef = useRef<string>(randomSuffix());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +130,7 @@ export default function CircularUploader({ lang, onClose }: Props) {
       // Build a unique ID: date + slug + random suffix. The slug can be
       // empty (Arabic-only titles), so the random suffix guarantees uniqueness.
       const slug = slugify(titleEn || titleAr);
-      const id = `${date}-${slug || 'doc'}-${randomSuffix()}`;
+      const id = `${date}-${slug || 'doc'}-${suffixRef.current}`;
       const ext = extForMime(file.type, file.name);
       const publicFilePath = `/circulars/files/${id}.${ext}`;
       const repoFilePath = `public/circulars/files/${id}.${ext}`;

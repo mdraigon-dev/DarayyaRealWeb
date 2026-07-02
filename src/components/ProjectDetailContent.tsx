@@ -7,7 +7,7 @@ import AdminEditProjectButton from './AdminEditProjectButton';
 import DonationModal from './DonationModal';
 import ProjectLocationMap from './ProjectLocationMap';
 import { pickPhoto } from '../data/unsplash-photos';
-import { loadDonations, sumForProject, clearAllDonations, type DemoDonation } from '../data/demo-donations';
+import { loadDonations, clearAllDonations, type DemoDonation } from '../data/demo-donations';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 

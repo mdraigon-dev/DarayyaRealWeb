@@ -4,7 +4,7 @@ import { adminData } from '../data/admin-sample';
 import { loadDonations, type DemoDonation } from '../data/demo-donations';
 import { applyDemoToProjects, displayStatus } from '../data/donation-math';
 import { buildActivityFeed } from '../data/activity-feed';
-import { classifyUser, canPost, type AuthUser } from '../data/permissions';
+import { classifyUser, type AuthUser } from '../data/permissions';
 
 declare global {
   interface Window {

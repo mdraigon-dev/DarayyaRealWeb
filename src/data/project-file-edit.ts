@@ -54,7 +54,7 @@ const backoff = (i: number) => Math.min(6000, 500 * 2 ** i);
 const projectPath = (id: string) => `src/content/projects/${id}.md`;
 
 function splitFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
-  const m = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) throw new Error('INVALID_FORMAT');
   return { frontmatter: parseYaml(m[1]) as Record<string, unknown>, body: m[2] };
 }
@@ -157,8 +157,16 @@ export async function commitProjectFile(opts: {
   const content = `---\n${stringifyYaml(opts.frontmatter, YAML_OPTS_EDITOR)}---\n`;
 
   if (opts.mode === 'create') {
+    // Fast pre-check: if a file with this ID already exists, refuse before
+    // committing anything. (Passing `undefined` here would make commitFile
+    // fetch the existing SHA and silently overwrite the other project.)
+    const existing = await getFileSha(path).catch(() => null);
+    if (existing) throw new Error('ID_EXISTS');
     try {
-      const newSha = await commitFile(path, content, opts.message, 'main', undefined);
+      // Explicit null = commit with NO sha. If the file was created in the
+      // window between the check and the write, GitHub rejects with 409/422
+      // rather than overwriting — which we surface as ID_EXISTS too.
+      const newSha = await commitFile(path, content, opts.message, 'main', null);
       recordCommit(path, content, newSha);
       return newSha;
     } catch (err) {

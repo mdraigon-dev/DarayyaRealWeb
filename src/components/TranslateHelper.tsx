@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { t, type Lang } from '../i18n/strings';
+import { type Lang } from '../i18n/strings';
 
 type Props = { lang: Lang };
 

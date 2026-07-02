@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
+import { loc, type Lang } from '../i18n/strings';
 import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit';
 import { loadPrefs, defaultPrefs, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
 import LocationPicker from './LocationPicker';
@@ -116,7 +116,6 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   const [state, setState] = useState<ProjectFormState>(initial);
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
-  const [showSubItems, setShowSubItems] = useState(initial.subs.length > 0);
 
   /* SHA of the file when this editor session started, used to detect
    * concurrent edits. Fetched after auth completes (we need the user's
