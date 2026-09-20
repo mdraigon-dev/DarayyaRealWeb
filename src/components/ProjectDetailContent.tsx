@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
-import AuthAwareUpdateAdder from './AuthAwareUpdateAdder';
+import AuthAwareUpdateAdder, { type PendingPhoto } from './AuthAwareUpdateAdder';
 import AdminEditProjectButton from './AdminEditProjectButton';
 import AdminFundUpdater from './AdminFundUpdater';
 import ProjectLocationMap from './ProjectLocationMap';
@@ -76,6 +76,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // with the real, build-rendered items.
   const [extraUpdates, setExtraUpdates] = useState<Update[]>([]);
   const [extraComments, setExtraComments] = useState<Comment[]>([]);
+  const [extraPhotos, setExtraPhotos] = useState<PendingPhoto[]>([]);
 
   // Live funding figures. Seeded from the built-in project data (the real,
   // committed numbers) and bumped optimistically when an admin records a
@@ -238,14 +239,32 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </p>
           </div>
 
-          {project.photos && project.photos.length > 0 && (
+          {((project.photos && project.photos.length > 0) || extraPhotos.length > 0) && (
             <div className="photo-section">
               <div className="photo-section-title">
                 <span style={{ color: 'var(--sy-gold)' }}>◆</span>
                 {t(lang, 'photos_title')}
               </div>
               <div className="photo-grid">
-                {project.photos.map((photo, i) => (
+                {/* Photos just uploaded this session — shown from a local preview
+                    with a badge until the rebuild serves the committed file. */}
+                {extraPhotos.map((photo, i) => (
+                  <div className="photo-pending-wrap" key={`x-${i}`}>
+                    <span className="pending-badge photo-pending-badge">
+                      {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
+                    </span>
+                    <ProjectPhoto
+                      src={photo.previewUrl}
+                      status={photo.status}
+                      caption={loc(lang, photo.caption)}
+                      date={loc(lang, photo.date)}
+                      lang={lang}
+                      projectId={project.id}
+                      photoIndex={i}
+                    />
+                  </div>
+                ))}
+                {(project.photos || []).map((photo, i) => (
                   <ProjectPhoto
                     key={i}
                     scene={photo.scene}
@@ -304,7 +323,11 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             projectId={project.id}
             lang={lang}
             engineers={project.engineers || []}
-            onAdded={(u) => setExtraUpdates((prev) => [u, ...prev])}
+            projectHealth={project.health}
+            onAdded={({ update, photos }) => {
+              setExtraUpdates((prev) => [update, ...prev]);
+              if (photos.length > 0) setExtraPhotos((prev) => [...photos, ...prev]);
+            }}
           />
 
           {project.engineers && project.engineers.length > 0 && (
