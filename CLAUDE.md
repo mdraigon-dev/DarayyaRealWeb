@@ -5,17 +5,17 @@ This file gives you (Claude Code) the context you need to work on this codebase 
 ## What to do FIRST when this is a fresh clone
 
 1. **Install dependencies**: `npm install`
-2. **Replace placeholders** in `astro.config.mjs` (site, base) and `public/admin/config.yml` (backend.repo) with the user's actual GitHub username and repo name. Ask them if you don't know.
+2. **Update `astro.config.mjs`** — set `site:` to the user's actual Netlify URL (or custom domain). No `base` path is needed on Netlify. The Decap backend is `git-gateway`, so `public/admin/config.yml` needs no repo placeholder.
 3. **Test the build locally**: `npm run build` — if this succeeds, the site is deploy-ready.
-4. **Help the user push to GitHub** if not already pushed.
+4. **Help the user push to GitHub and connect Netlify** if not already done (see README).
 
 ## Architecture overview
 
-- **Astro 5** static site generator. Output is plain HTML/CSS/JS, hosted on GitHub Pages.
+- **Astro 5** static site generator. Output is plain HTML/CSS/JS, hosted on Netlify.
 - **React 18** for interactive components (everything client-side: nav, map, filters).
 - **Astro Content Collections** with Zod schemas validate the project Markdown files.
-- **Decap CMS** at `/admin/` for non-technical editing.
-- **GitHub Actions** auto-deploys on push to `main`.
+- **Decap CMS** at `/admin/` for non-technical editing, plus a custom dashboard/editor at `/{lang}/admin/` that commits via Netlify Git Gateway.
+- **Netlify** auto-builds on every push to `main` (build command in `netlify.toml` runs the auto-translator first).
 
 ## Key files
 
@@ -23,7 +23,8 @@ This file gives you (Claude Code) the context you need to work on this codebase 
 - `src/content/config.ts` — Zod schema. If you change this, also update `public/admin/config.yml` to keep them in sync.
 - `src/i18n/strings.ts` — all UI strings. ~150 keys in `ar` and `en`. Add new strings here, never hard-code Arabic or English in components.
 - `src/styles/global.css` — every visual style. Design tokens at the top.
-- `astro.config.mjs` — `site` and `base` must match the GitHub Pages URL.
+- `astro.config.mjs` — `site` must match the deployed Netlify URL (used for SEO/absolute links; routing is unaffected).
+- `src/data/` — client-side logic: donation math, Git Gateway client, permissions, admin prefs. `git-gateway.ts` + `project-file-edit.ts` are shared by every surface that commits content.
 
 ## Common tasks
 
@@ -35,9 +36,8 @@ This file gives you (Claude Code) the context you need to work on this codebase 
 The user should use the Decap CMS UI at `/admin/`. If they ask you to add one programmatically, create a new file `src/content/projects/SLUG.md` matching the schema in `src/content/config.ts`. Look at an existing project for reference.
 
 ### Changing the URL structure
-1. Update `astro.config.mjs` `base`
-2. Update `public/admin/config.yml` `backend.repo`
-3. Update any `BASE_URL` references — but everything should use `import.meta.env.BASE_URL` already.
+1. On Netlify no `base` is needed. If moving to subdirectory hosting (e.g. GitHub Pages), set `base` in `astro.config.mjs`.
+2. Components already build links from `import.meta.env.BASE_URL` — keep it that way; never hard-code `/ar/...` roots.
 
 ## Things to be careful about
 
@@ -45,7 +45,8 @@ The user should use the Decap CMS UI at `/admin/`. If they ask you to add one pr
 - **Currency is always stored as USD** in the data. Display conversion happens at render time via `fmtMoney(lang, currency, usdAmount)`.
 - **Map and other Leaflet code only runs client-side** because Leaflet needs `window`. All map components use `client:load`.
 - **The logo is an SVG symbol** embedded once in `BaseLayout.astro`, referenced via `<use href="#darayya-logo">`. This is why `_logo_symbol.html.txt` exists — it gets inlined at build time.
-- **The Council Dashboard at `/ar/admin/` is auth-gated.** It uses Netlify Identity (loaded via `<script>` in the page) and `<AuthGate>` component. The dashboard uses `client:only="react"` (not `client:load`) so its HTML and data are NEVER server-rendered — they only appear in the page after the user is authenticated client-side. This is important: if you change it to `client:load`, sample donation data leaks into static HTML.
+- **The Council Dashboard at `/ar/admin/` is partially gated.** The page itself is public (`client:load`) and shows overview stats plus clearly-labeled Demo Mode donation data; only the Project Management table and editing tools are gated behind Netlify Identity (client-side check in `AdminDashboard`). All data on the public part is either build-time project data or fake/demo data — no real financial data may ever be embedded in static HTML. If real donations are added in v2, the dashboard must move behind server-side auth with data from a backend API.
+- **Creating a project must never overwrite an existing one.** `commitProjectFile` in `src/data/project-file-edit.ts` handles this: create mode checks for an existing file and commits with no SHA so GitHub rejects collisions (surfaced as `ID_EXISTS`). Don't "simplify" it back to a plain commit.
 
 ## Things to NOT do without asking the user
 
@@ -64,12 +65,13 @@ The most common issue is one of:
 ## Deploy checklist
 
 Before pushing for the first time, the user should:
-- [ ] Replace `YOUR_USERNAME` and `USERNAME` in `astro.config.mjs` and `public/admin/config.yml`
 - [ ] Run `npm run build` locally and verify no errors
-- [ ] Push to GitHub
-- [ ] Enable GitHub Pages with "GitHub Actions" as the source
-- [ ] (Optional) Set up Decap OAuth — see README
+- [ ] Push to GitHub and connect the repo to Netlify (it reads `netlify.toml` automatically)
+- [ ] Update `site:` in `astro.config.mjs` to the assigned Netlify URL, commit, push
+- [ ] Enable Netlify Identity (Invite only) + Git Gateway, and invite staff — see README Step 4
+- [ ] (Optional) Set `MYMEMORY_EMAIL` env var to raise the auto-translation quota
 
 After deploy, the site is at:
-- `https://USERNAME.github.io/darayya-platform/`
-- Admin: `https://USERNAME.github.io/darayya-platform/admin/`
+- `https://YOUR-SITE-NAME.netlify.app/`
+- Decap CMS: `https://YOUR-SITE-NAME.netlify.app/admin/`
+- Dashboard: `https://YOUR-SITE-NAME.netlify.app/ar/admin/`

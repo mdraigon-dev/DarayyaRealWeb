@@ -21,6 +21,16 @@ const dir = lang === 'ar' ? 'rtl' : 'ltr';
 // Pass the current URL pathname into Nav so its lang toggle can swap
 // /ar/<path> ↔ /en/<path> even before client-side hydration completes.
 const pathname = Astro.url.pathname;
+
+// SEO: canonical + hreflang alternates. Every BaseLayout page lives under
+// /ar/ or /en/, so the counterpart URL is a simple locale-segment swap.
+const site = (Astro.site?.href ?? '/').replace(/\/$/, '');
+const canonicalUrl = `${site}${pathname}`;
+const otherLang = lang === 'ar' ? 'en' : 'ar';
+const otherPathname = pathname.replace(`/${lang}/`, `/${otherLang}/`);
+const alternateUrl = `${site}${otherPathname}`;
+const arUrl = lang === 'ar' ? canonicalUrl : alternateUrl;
+const enUrl = lang === 'en' ? canonicalUrl : alternateUrl;
 ---
 
 <!DOCTYPE html>
@@ -31,6 +41,16 @@ const pathname = Astro.url.pathname;
   <meta name="theme-color" content="#00582C" />
   <title>{title}</title>
   {description && <meta name="description" content={description} />}
+
+  <link rel="canonical" href={canonicalUrl} />
+  <link rel="alternate" hreflang="ar" href={arUrl} />
+  <link rel="alternate" hreflang="en" href={enUrl} />
+  <link rel="alternate" hreflang="x-default" href={arUrl} />
+  <meta property="og:title" content={title} />
+  {description && <meta property="og:description" content={description} />}
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:locale" content={lang === 'ar' ? 'ar_SY' : 'en_US'} />
 
   <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL}logos/darayya-emblem.svg`} />
 

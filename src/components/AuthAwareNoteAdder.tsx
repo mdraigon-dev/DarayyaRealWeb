@@ -90,7 +90,10 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
 
   const isAdmin = role === 'admin';
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
-  const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
+  // Respect the configured base path (matters if the site is ever served
+  // from a subdirectory again, e.g. GitHub Pages) — same pattern as
+  // AdminDashboard's edit links.
+  const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang_seg}/admin/edit/${projectId}/`;
   const defaultAuthor = preferredAuthorName(auth.user, prefs);
   const myRoleLabel = roleLabel(role, lang);
 

@@ -1,6 +1,6 @@
 # نماء | Namaa — Darayya reconstruction platform
 
-A bilingual (Arabic/English) reconstruction platform for the Darayya City Council in Syria. Built with **Astro**, **React**, **Decap CMS**, and deployed via **GitHub Pages**.
+A bilingual (Arabic/English) reconstruction platform for the Darayya City Council in Syria. Built with **Astro**, **React**, **Decap CMS**, and deployed via **Netlify**.
 
 [![Status](https://img.shields.io/badge/status-v1-007A3D)](.) [![Lang](https://img.shields.io/badge/lang-AR%20%2B%20EN-C9A14A)](.) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -10,23 +10,22 @@ A bilingual (Arabic/English) reconstruction platform for the Darayya City Counci
 
 Three things in one repo:
 
-1. **Public website** at `https://USERNAME.github.io/darayya-platform/` — bilingual site showing reconstruction projects with map, photos, transparency reports.
-2. **Council Dashboard** at `/ar/admin/` and `/en/admin/` — **staff-only**, requires login. Shows live overview: donations feed, weekly chart, alerts, activity log, top donors, project management table.
+1. **Public website** at `https://YOUR-SITE-NAME.netlify.app/` — bilingual site showing reconstruction projects with map, photos, transparency reports.
+2. **Council Dashboard** at `/ar/admin/` and `/en/admin/` — the overview (stats, weekly chart, donations feed, activity log) is publicly viewable; the **Project Management table and editing tools appear only after staff sign in** with Netlify Identity.
 3. **Decap CMS editor** at `/admin/` — **staff-only**, requires login. Friendly forms for editing project content. Saves directly to GitHub.
 
-Both staff pages share the same login session. Staff log in once and can use both.
+All staff surfaces share the same Netlify Identity session. Staff log in once and can use them all.
 
-When staff edit a project in Decap and click "Publish":
-When staff edit a project in Decap and click "Publish":
-- Decap commits the change to GitHub via Git Gateway
+When staff edit a project (in Decap, the dashboard editor, or an inline form) and save:
+- The change is committed to GitHub via Git Gateway
 - Netlify rebuilds the site automatically
-- The public site updates in about 60 seconds
+- The public site updates in about 1–3 minutes
 
 ## Authentication model
 
 The dashboard and CMS use **Netlify Identity** for login (configured in the Netlify dashboard, see Step 4 below).
 
-The dashboard at `/ar/admin/` is publicly viewable — anyone can see the project list, donations feed, and activity. Editing actions (✎ Edit, + New Project) link to Decap CMS at `/admin/`, which requires login.
+The dashboard page at `/ar/admin/` is publicly viewable — anyone can see the overview stats, donations feed, and activity. The Project Management table and all editing actions (✎ Edit, + New Project, inline notes/updates) only appear for signed-in staff, and every write goes through Git Gateway, which requires a valid Identity session.
 
 When v2 adds real donation processing, the dashboard should be moved behind authentication and real financial data should come from a backend API — never embed real financial data in static HTML.
 
@@ -115,13 +114,14 @@ npm install
 npm run dev
 ```
 
-The site opens at `http://localhost:4321/darayya-platform/`. The admin panel is at `http://localhost:4321/darayya-platform/admin/`.
+The site opens at `http://localhost:4321/` (it redirects to `/ar/`). The Decap admin panel is at `http://localhost:4321/admin/`.
 
-To preview changes from Decap locally without OAuth, run:
+To edit content through Decap locally without logging in, run:
 ```bash
-npm run cms       # in a separate terminal — proxies to GitHub
-npm run dev       # then visit /admin/ and log in
+npm run cms       # in a separate terminal — local proxy that edits files on disk
+npm run dev       # then visit http://localhost:4321/admin/
 ```
+Edits made this way are written straight to your working copy (no commits) — review them with `git diff` and commit yourself.
 
 ---
 
@@ -176,10 +176,12 @@ darayya-platform/
 │   │   │       └── [id].astro      # AR project detail (dynamic)
 │   │   └── en/
 │   │       └── ... (mirrors AR)
+│   ├── data/                       # ← Client-side logic (donation math, Git Gateway client, permissions…)
 │   └── styles/
 │       └── global.css              # ← Design tokens + all CSS
-└── .github/workflows/
-    └── deploy.yml                  # ← GitHub Pages deploy workflow
+├── scripts/
+│   └── auto-translate.mjs          # ← Fills empty EN fields during Netlify builds
+└── netlify.toml                    # ← Build command + redirects
 ```
 
 ---
@@ -203,8 +205,8 @@ Fonts:
 
 ## What's NOT included in v1
 
-- **Real payment processing** — donation button shows but is disabled (the modal says "Online donations coming soon"). Add later via LaunchGood, a partner NGO, or a custom Stripe integration in a separate backend.
-- **Admin dashboard** — the public admin in `/admin/` is for *editing content* (Decap CMS). A separate analytics dashboard (donations feed, charts, alerts) was in the demo but isn't in this build — that's a v2 feature requiring a backend.
+- **Real payment processing** — the donation flow runs in a clearly-labeled Demo Mode: donations are saved only in the visitor's own browser (localStorage) and no money moves. Add real payments later via LaunchGood, a partner NGO, or a custom Stripe integration in a separate backend.
+- **Server-side authorization** — role checks (admin vs engineer) run client-side; any invited Identity user can technically commit via Git Gateway. Fine for a small trusted staff (all commits carry the author's identity in git history); a Netlify Function in front of Git Gateway would be the v2 hardening step.
 
 ---
 
