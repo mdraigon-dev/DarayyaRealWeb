@@ -15,7 +15,7 @@
   "ar": "مدّ خط صرف صحي جديد للحي الشرقي الذي لم تكن لديه شبكة قبل الحرب، يخدم ١٢٠ منزلاً."
   "en": "Laying a new sewer line for the Eastern District which had no network before the war, serving 120 homes."
 "budgetUSD": 15000
-"raisedUSD": 10300
+"raisedUSD": 16500
 "donors": 19
 "daysLeft": 70
 "lat": 33.46369
@@ -29,7 +29,7 @@
       "ar": "٧٠٠ م"
       "en": "700 m"
     "budgetUSD": 26000
-    "raisedUSD": 0
+    "raisedUSD": 15000
   - "id": "se2"
     "title":
       "ar": "الفروع للمنازل"
