@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import HealthPill from './HealthPill';
 import ProjectPhoto from './ProjectPhoto';
 import AuthAwareNoteAdder from './AuthAwareNoteAdder';
-import AuthAwareUpdateAdder from './AuthAwareUpdateAdder';
+import AuthAwareUpdateAdder, { type PendingPhoto } from './AuthAwareUpdateAdder';
 import AdminEditProjectButton from './AdminEditProjectButton';
-import DonationModal from './DonationModal';
+import AdminFundUpdater from './AdminFundUpdater';
 import ProjectLocationMap from './ProjectLocationMap';
 import { pickPhoto } from '../data/unsplash-photos';
-import { loadDonations, clearAllDonations, type DemoDonation } from '../data/demo-donations';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
@@ -70,11 +69,6 @@ type Props = {
 
 export default function ProjectDetailContent({ project, lang, basePath }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
-  const [modalOpen, setModalOpen] = useState(false);
-  // All demo donations for THIS project loaded on mount. We derive everything
-  // (project totals, sub-project waterfall, donor count) from this single
-  // array so the math stays consistent across the page and the modal.
-  const [allDemo, setAllDemo] = useState<DemoDonation[]>([]);
 
   // Notes/updates added this session via the inline forms. Shown immediately
   // so staff don't have to wait for the Netlify rebuild to see them. These
@@ -82,64 +76,52 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // with the real, build-rendered items.
   const [extraUpdates, setExtraUpdates] = useState<Update[]>([]);
   const [extraComments, setExtraComments] = useState<Comment[]>([]);
+  const [extraPhotos, setExtraPhotos] = useState<PendingPhoto[]>([]);
 
-  const refreshDemoDelta = () => {
-    const all = loadDonations().donations.filter(d => d.projectId === project.id);
-    setAllDemo(all);
-  };
+  // Live funding figures. Seeded from the built-in project data (the real,
+  // committed numbers) and bumped optimistically when an admin records a
+  // contribution below, so they see it before the rebuild lands. Public
+  // visitors just see the committed values.
+  const [liveRaised, setLiveRaised] = useState(project.raisedUSD);
+  const [liveSubs, setLiveSubs] = useState(project.subs || []);
+  const [fundFlash, setFundFlash] = useState(false);
 
-  useEffect(() => {
-    refreshDemoDelta();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
-
-  // Build the breakdown: targeted-by-sub map + undirected total
-  const demoBreakdown: DemoBreakdown = (() => {
-    const targetedBySub: Record<string, number> = {};
-    let undirectedTotal = 0;
-    for (const d of allDemo) {
-      if (d.subId) {
-        targetedBySub[d.subId] = (targetedBySub[d.subId] || 0) + d.amountUSD;
-      } else {
-        undirectedTotal += d.amountUSD;
-      }
-    }
-    return { targetedBySub, undirectedTotal };
-  })();
-
-  // Waterfall-allocated displayed amount per sub
-  const subRaisedDisplayed = computeSubRaised(project.subs || [], demoBreakdown);
-  // True project-level total (= sum of waterfall'd sub totals, or fallback)
-  const displayedRaised = computeProjectRaised(project.raisedUSD, project.subs || [], demoBreakdown);
-  // Donor count is just the count of donations on this device
-  const displayedDonors = project.donors + allDemo.length;
-  // Total project budget = sum of subs when present, else project.budgetUSD
-  const totalBudget = (project.subs && project.subs.length > 0)
-    ? project.subs.reduce((s, x) => s + x.budgetUSD, 0)
+  // Donations are no longer collected online, so there is no demo/browser
+  // layer to fold in — funding shown is exactly what management has recorded.
+  const emptyBreakdown: DemoBreakdown = { targetedBySub: {}, undirectedTotal: 0 };
+  const subRaisedDisplayed = computeSubRaised(liveSubs, emptyBreakdown);
+  const displayedRaised = computeProjectRaised(liveRaised, liveSubs, emptyBreakdown);
+  const displayedDonors = project.donors;
+  const totalBudget = (liveSubs.length > 0)
+    ? liveSubs.reduce((s, x) => s + x.budgetUSD, 0)
     : project.budgetUSD;
   const pct = Math.min(
     100,
     Math.round((displayedRaised / Math.max(1, totalBudget)) * 100)
   );
-  const totalDemoAmount = allDemo.reduce((s, d) => s + d.amountUSD, 0);
 
-  // Effective display status: 'funding' that reached 100% reads as 'active'
-  // to visitors. Use displayedRaised + totalBudget (demo-aware) for the check.
+  // Effective display status: 'funding' that reached 100% reads as 'active'.
   const effStatus = displayStatus({
     status: project.status,
     raisedUSD: displayedRaised,
     budgetUSD: totalBudget,
   });
 
-  const handleResetDemo = () => {
-    if (typeof window === 'undefined') return;
-    const confirmMsg = lang === 'ar'
-      ? 'هل تريد حذف جميع التبرعات التجريبية من هذا الجهاز؟'
-      : 'Clear all demo donations from this device?';
-    if (window.confirm(confirmMsg)) {
-      clearAllDonations();
-      refreshDemoDelta();
+  // Apply an admin's recorded contribution to the on-screen totals now.
+  const handleFundsUpdated = ({ subId, amount }: { subId?: string; amount: number }) => {
+    if (subId) {
+      setLiveSubs((prev) => {
+        const next = prev.map((s) =>
+          s.id === subId ? { ...s, raisedUSD: Math.max(0, s.raisedUSD + amount) } : s
+        );
+        setLiveRaised(next.reduce((a, s) => a + s.raisedUSD, 0));
+        return next;
+      });
+    } else {
+      setLiveRaised((r) => Math.max(0, r + amount));
     }
+    setFundFlash(true);
+    setTimeout(() => setFundFlash(false), 4000);
   };
 
   return (
@@ -222,18 +204,13 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               {t(lang, 'hierarchy_title')}
             </div>
             <div className="tree">
-              {project.subs.map((s, i) => {
-                // Waterfall-applied raised amount (handles both targeted
-                // and undirected demo donations correctly)
+              {liveSubs.map((s, i) => {
                 const subDisplayedRaised = subRaisedDisplayed[s.id] ?? s.raisedUSD;
-                const subDemoDelta = subDisplayedRaised - s.raisedUSD;
-                const targetedDelta = demoBreakdown.targetedBySub[s.id] || 0;
-                const fromWaterfall = subDemoDelta - targetedDelta;
                 const subPct = Math.min(
                   100,
                   Math.round((subDisplayedRaised / Math.max(1, s.budgetUSD)) * 100)
                 );
-                const isLast = i === project.subs.length - 1;
+                const isLast = i === liveSubs.length - 1;
                 return (
                   <div key={s.id} className={`tree-node ${isLast ? 'last' : 'continues'}`}>
                     <div className="tree-line"></div>
@@ -243,19 +220,6 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                           <div className="tree-node-title">{loc(lang, s.title)}</div>
                           <div className="tree-node-meta">
                             {loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%
-                            {subDemoDelta > 0 && (
-                              <span className="tree-node-demo-tag" title={
-                                fromWaterfall > 0 && targetedDelta > 0
-                                  ? (lang === 'ar'
-                                      ? `موجّه: ${fmtMoney(lang, currency, targetedDelta)} • تلقائي: ${fmtMoney(lang, currency, fromWaterfall)}`
-                                      : `Targeted: ${fmtMoney(lang, currency, targetedDelta)} • Auto-fill: ${fmtMoney(lang, currency, fromWaterfall)}`)
-                                  : fromWaterfall > 0
-                                    ? (lang === 'ar' ? 'تم التعبئة تلقائياً من تبرعات المشروع العامة' : 'Auto-filled from project-wide donations')
-                                    : (lang === 'ar' ? 'تبرع موجّه لهذا البند' : 'Targeted to this item')
-                              }>
-                                ★ +{fmtMoney(lang, currency, subDemoDelta)} {lang === 'ar' ? 'تجريبي' : 'demo'}
-                              </span>
-                            )}
                           </div>
                         </div>
                         <div className="tree-node-amount">
@@ -275,14 +239,32 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </p>
           </div>
 
-          {project.photos && project.photos.length > 0 && (
+          {((project.photos && project.photos.length > 0) || extraPhotos.length > 0) && (
             <div className="photo-section">
               <div className="photo-section-title">
                 <span style={{ color: 'var(--sy-gold)' }}>◆</span>
                 {t(lang, 'photos_title')}
               </div>
               <div className="photo-grid">
-                {project.photos.map((photo, i) => (
+                {/* Photos just uploaded this session — shown from a local preview
+                    with a badge until the rebuild serves the committed file. */}
+                {extraPhotos.map((photo, i) => (
+                  <div className="photo-pending-wrap" key={`x-${i}`}>
+                    <span className="pending-badge photo-pending-badge">
+                      {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
+                    </span>
+                    <ProjectPhoto
+                      src={photo.previewUrl}
+                      status={photo.status}
+                      caption={loc(lang, photo.caption)}
+                      date={loc(lang, photo.date)}
+                      lang={lang}
+                      projectId={project.id}
+                      photoIndex={i}
+                    />
+                  </div>
+                ))}
+                {(project.photos || []).map((photo, i) => (
                   <ProjectPhoto
                     key={i}
                     scene={photo.scene}
@@ -341,7 +323,11 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             projectId={project.id}
             lang={lang}
             engineers={project.engineers || []}
-            onAdded={(u) => setExtraUpdates((prev) => [u, ...prev])}
+            projectHealth={project.health}
+            onAdded={({ update, photos }) => {
+              setExtraUpdates((prev) => [update, ...prev]);
+              if (photos.length > 0) setExtraPhotos((prev) => [...photos, ...prev]);
+            }}
           />
 
           {project.engineers && project.engineers.length > 0 && (
@@ -409,7 +395,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
 
         <div>
           <div className="donate-card">
-            <h3>{t(lang, 'donate_title')}</h3>
+            <h3>{t(lang, 'contribute_title')}</h3>
             <div className="donate-stat">
               <div className="donate-stat-big">{fmtMoney(lang, currency, displayedRaised)}</div>
               <div className="donate-stat-of">
@@ -421,65 +407,44 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 </div>
                 <div className="progress-meta">
                   <span className="progress-percent">{fmtNum(lang, pct)}%</span>
-                  <span className="progress-amount">
-                    {fmtNum(lang, displayedDonors)}{' '}
-                    {displayedDonors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
-                  </span>
+                  {displayedRaised >= totalBudget && (
+                    <span className="progress-amount">
+                      {lang === 'ar' ? '✓ مموّل بالكامل' : '✓ Fully funded'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            <button
-              className="btn-donate-full"
-              onClick={() => setModalOpen(true)}
-              disabled={displayedRaised >= totalBudget}
-            >
-              {displayedRaised >= totalBudget
-                ? (lang === 'ar' ? '✓ ممول بالكامل' : '✓ Fully funded')
-                : t(lang, 'donate_btn')}
-            </button>
-
-            <div className="donate-options donate-demo-note">
-              <span className="donate-demo-pill">★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}</span>{' '}
-              {lang === 'ar'
-                ? 'التبرعات تُحفظ في متصفحك فقط — للعرض التجريبي'
-                : 'Donations are saved in your browser only — for demonstration'}
+            {/* Public contribution message — online donations are not offered;
+                funding is arranged through the committee. */}
+            <div className="contribute-msg">
+              <p>
+                {t(lang, 'contribute_msg_before')}{' '}
+                <strong className="committee-name">{t(lang, 'committee_name')}</strong>{' '}
+                {t(lang, 'contribute_msg_after')}
+              </p>
+              <p className="contribute-note">{t(lang, 'contribute_note')}</p>
             </div>
 
-            {totalDemoAmount > 0 && (
-              <div className="donate-reset-row">
-                <span className="donate-reset-note">
-                  {lang === 'ar'
-                    ? `أضفت ${fmtMoney(lang, currency, totalDemoAmount)} تجريبياً (${fmtNum(lang, allDemo.length)} تبرع)`
-                    : `You've added ${fmtMoney(lang, currency, totalDemoAmount)} in demo donations (${fmtNum(lang, allDemo.length)})`}
-                </span>
-                <button
-                  type="button"
-                  className="donate-reset-btn"
-                  onClick={handleResetDemo}
-                >
-                  ↺ {lang === 'ar' ? 'إعادة تعيين' : 'Reset'}
-                </button>
-              </div>
+            {fundFlash && (
+              <div className="fund-admin-flash">✓ {t(lang, 'fund_added')}</div>
             )}
+
+            {/* Admin-only: record a real contribution against the funds. */}
+            <AdminFundUpdater
+              projectId={project.id}
+              subs={liveSubs}
+              projectRaisedUSD={liveRaised}
+              totalBudgetUSD={totalBudget}
+              engineers={project.engineers || []}
+              lang={lang}
+              currency={currency}
+              onUpdated={handleFundsUpdated}
+            />
           </div>
         </div>
       </div>
-
-      {/* Demo donation modal */}
-      <DonationModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onDonated={refreshDemoDelta}
-        projectId={project.id}
-        projectTitle={project.title}
-        projectBudgetUSD={project.budgetUSD}
-        projectRaisedUSD={project.raisedUSD}
-        subs={project.subs}
-        demoBreakdown={demoBreakdown}
-        lang={lang}
-        currency={currency}
-      />
     </section>
   );
 }

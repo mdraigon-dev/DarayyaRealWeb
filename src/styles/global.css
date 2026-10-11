@@ -5622,3 +5622,174 @@ input[type="number"] {
 @media (max-width: 640px) {
   .detail-map-canvas { height: 260px; }
 }
+
+/* ====================================================================
+   CONTRIBUTION MODEL (public message + admin fund updater)
+   Online donations were removed — funding is arranged via the committee.
+   ==================================================================== */
+.contribute-msg {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--sy-green-wash);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+}
+.contribute-msg p { margin: 0; font-size: 15px; line-height: 1.7; color: var(--sy-ink-soft); }
+.contribute-msg .committee-name {
+  color: var(--sy-green-dk);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.contribute-note {
+  margin-top: 0.6rem !important;
+  font-size: 13px !important;
+  color: var(--sy-muted) !important;
+}
+
+.fund-admin {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--sy-paper-pure, #fff);
+  border: 1px solid var(--sy-gold);
+  border-radius: var(--r-md);
+}
+.fund-admin-head { display: flex; align-items: flex-start; gap: 0.6rem; }
+.fund-admin-icon {
+  width: 28px; height: 28px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sy-gold); color: #fff;
+  border-radius: 50%; font-weight: 700; font-size: 15px;
+}
+.fund-admin-head strong { color: var(--sy-green-dk); font-size: 15px; }
+.fund-admin-sub { font-size: 12px; color: var(--sy-muted); line-height: 1.5; margin-top: 2px; }
+.fund-admin-current {
+  margin: 0.75rem 0;
+  font-size: 14px;
+  color: var(--sy-ink-soft);
+}
+.fund-admin-current strong { color: var(--sy-green-dk); }
+.fund-admin-form { display: flex; flex-direction: column; gap: 0.6rem; }
+.fund-admin-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.fund-admin-field > span { font-size: 12px; font-weight: 600; color: var(--sy-ink-soft); }
+.fund-admin-select,
+.fund-admin-input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--sy-ink);
+  background: #fff;
+  box-sizing: border-box;
+}
+.fund-admin-select:focus,
+.fund-admin-input:focus {
+  outline: none;
+  border-color: var(--sy-green);
+  box-shadow: 0 0 0 3px var(--sy-green-pale);
+}
+.fund-admin-error {
+  padding: 0.45rem 0.7rem;
+  background: rgba(206, 17, 38, 0.08);
+  border: 1px solid var(--sy-red);
+  color: var(--sy-red);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+.fund-admin-flash {
+  padding: 0.45rem 0.7rem;
+  background: var(--sy-green-pale);
+  border: 1px solid var(--sy-green);
+  color: var(--sy-green-dk);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 700;
+}
+.fund-admin-btn {
+  padding: 0.65rem 1rem;
+  background: var(--sy-green);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.fund-admin-btn:hover:not(:disabled) { background: var(--sy-green-dk); }
+.fund-admin-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ====================================================================
+   FIELD-UPDATE PHOTO UPLOAD (engineers attach site photos to an update)
+   ==================================================================== */
+.auth-update-photos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
+}
+.auth-update-photo-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--sy-green-pale);
+  border: 1px dashed var(--sy-green-lt);
+  border-radius: var(--r-md);
+  color: var(--sy-green-dk);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.auth-update-photo-add:hover { background: var(--sy-green-wash); border-color: var(--sy-green); }
+.auth-update-photo-add:has(input:disabled) { opacity: 0.55; cursor: not-allowed; }
+.auth-update-photo-hint { font-size: 12px; color: var(--sy-muted); }
+
+.auth-update-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+.auth-update-thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--sy-rule-soft);
+  background: var(--sy-green-wash);
+}
+.auth-update-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.auth-update-thumb-remove {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-update-thumb-remove:hover { background: var(--sy-red); }
+
+/* Optimistic photo (uploaded this session, awaiting rebuild) */
+.photo-pending-wrap { position: relative; }
+.photo-pending-badge {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  z-index: 2;
+}

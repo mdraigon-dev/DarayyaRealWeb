@@ -118,6 +118,44 @@ export async function appendProjectItem(opts: {
   throw lastErr ?? new GitConflictError('CONFLICT');
 }
 
+/**
+ * Append several items to different frontmatter arrays in a SINGLE commit.
+ * Used when one action touches more than one list — e.g. a field update that
+ * also drops photos into the gallery — so they land together atomically and
+ * share the same retry-through-lag protection as appendProjectItem.
+ */
+export async function appendProjectItems(opts: {
+  projectId: string;
+  ops: Array<{ field: 'comments' | 'updates' | 'photos'; item: unknown; position: 'start' | 'end' }>;
+  message: string;
+}): Promise<void> {
+  const path = projectPath(opts.projectId);
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const base = await loadBase(path);
+    const { frontmatter, body } = splitFrontmatter(base.content);
+
+    for (const op of opts.ops) {
+      const existing = Array.isArray(frontmatter[op.field]) ? (frontmatter[op.field] as unknown[]) : [];
+      frontmatter[op.field] = op.position === 'start' ? [op.item, ...existing] : [...existing, op.item];
+    }
+    const newContent = `---\n${stringifyYaml(frontmatter, YAML_OPTS_APPEND)}---\n${body}`;
+
+    try {
+      const newSha = await commitFile(path, newContent, opts.message, 'main', base.sha);
+      recordCommit(path, newContent, newSha);
+      return;
+    } catch (err) {
+      if (!(err instanceof GitConflictError)) throw err;
+      lastErr = err;
+      await sleep(backoff(attempt));
+      await refreshCacheAfterConflict(path);
+    }
+  }
+  throw lastErr ?? new GitConflictError('CONFLICT');
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Full project editor: write the whole file
 // ────────────────────────────────────────────────────────────────────
@@ -195,4 +233,66 @@ export async function commitProjectFile(opts: {
     }
   }
   throw lastErr ?? new GitConflictError('CONFLICT');
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Admin fund updates: record a contribution against a project (or a sub)
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Add `amountUSD` to a project's raised funds and commit it — the persistent
+ * replacement for the old browser-only demo donations. Management records real
+ * contributions here; once the site rebuilds, every visitor sees the new total.
+ *
+ * Targeting:
+ *   - subId given → add to that sub-item's raisedUSD. The project-level
+ *     raisedUSD is then reset to the sum of the subs, because the display math
+ *     (computeProjectRaised) derives the project total from the subs whenever
+ *     subs exist. Keeping the two in sync means the number is right even if
+ *     something reads the top-level field directly.
+ *   - no subId → add to the project-level raisedUSD (used for projects that
+ *     have no sub-items).
+ *
+ * amountUSD may be negative to correct an over-entry; totals never go below 0.
+ * Runs through the same shared-cache + retry-through-lag path as every other
+ * commit here, so rapid successive updates don't 409 on a stale SHA.
+ *
+ * Returns the new project-level total and, when a sub was targeted, its total.
+ */
+export async function addProjectFunds(opts: {
+  projectId: string;
+  subId?: string;
+  amountUSD: number;
+  message: string;
+}): Promise<{ projectRaised: number; subRaised?: number }> {
+  const frontmatter = await loadProjectForEdit(opts.projectId);
+  if (!frontmatter) throw new Error('NOT_FOUND');
+
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
+  let result: { projectRaised: number; subRaised?: number };
+
+  if (opts.subId) {
+    const subs = Array.isArray(frontmatter.subs) ? (frontmatter.subs as Record<string, unknown>[]) : [];
+    const sub = subs.find((s) => s.id === opts.subId);
+    if (!sub) throw new Error('SUB_NOT_FOUND');
+    const newSubRaised = Math.max(0, num(sub.raisedUSD) + opts.amountUSD);
+    sub.raisedUSD = newSubRaised;
+    // Keep the project-level field equal to the sum of the subs.
+    const projectRaised = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
+    frontmatter.raisedUSD = projectRaised;
+    result = { projectRaised, subRaised: newSubRaised };
+  } else {
+    const projectRaised = Math.max(0, num(frontmatter.raisedUSD) + opts.amountUSD);
+    frontmatter.raisedUSD = projectRaised;
+    result = { projectRaised };
+  }
+
+  await commitProjectFile({
+    projectId: opts.projectId,
+    frontmatter,
+    message: opts.message,
+    mode: 'update',
+  });
+
+  return result;
 }

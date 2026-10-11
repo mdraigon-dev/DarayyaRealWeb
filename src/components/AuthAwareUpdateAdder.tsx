@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type Lang } from '../i18n/strings';
-import { appendProjectItem } from '../data/project-file-edit';
+import { appendProjectItems } from '../data/project-file-edit';
 import { loadPrefs, preferredAuthorName, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
+import {
+  uploadProjectPhoto,
+  isAllowedImage,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES_PER_UPDATE,
+} from '../data/image-upload';
 import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -11,15 +17,23 @@ declare global {
 }
 
 type Bilingual = { ar: string; en: string };
+type Health = 'healthy' | 'warning' | 'stalled' | 'completed';
 type NewUpdate = { date: Bilingual; author: Bilingual; body: Bilingual };
+type NewPhoto = { src: string; status: Health; caption: Bilingual; date: Bilingual };
+/** A photo plus a local preview URL, so the page can show it before rebuild. */
+export type PendingPhoto = NewPhoto & { previewUrl: string };
+
+type PickedImage = { file: File; url: string };
 
 type Props = {
   projectId: string;
   lang: Lang;
   /** The project's engineers, used to authorize them as posters */
   engineers: ProjectEngineer[];
-  /** Called after an update commits, so the page can show it without waiting for the rebuild */
-  onAdded?: (update: NewUpdate) => void;
+  /** Current project health — stamped onto uploaded photos as their status */
+  projectHealth: Health;
+  /** Called after the update commits, so the page can show it before rebuild */
+  onAdded?: (payload: { update: NewUpdate; photos: PendingPhoto[] }) => void;
 };
 
 type AuthState =
@@ -47,15 +61,49 @@ type SaveState =
  * 'engineer-of-project' for this specific project (via classifyUser).
  * Logged-in users who aren't an engineer on this project see nothing.
  */
-export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdded }: Props) {
+export default function AuthAwareUpdateAdder({ projectId, lang, engineers, projectHealth, onAdded }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [expanded, setExpanded] = useState(false);
   const [body, setBody] = useState('');
   const [authorOverride, setAuthorOverride] = useState('');
   const [dateOverride, setDateOverride] = useState('');
+  const [images, setImages] = useState<PickedImage[]>([]);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
   const [prefs, setPrefs] = useState<AdminPrefs>(defaultPrefs());
+
+  // Track the picked images in a ref so the unmount cleanup revokes whatever
+  // is current, without re-running (and prematurely revoking) on every change.
+  const imagesRef = useRef<PickedImage[]>([]);
+  imagesRef.current = images;
+  useEffect(() => () => { imagesRef.current.forEach((im) => URL.revokeObjectURL(im.url)); }, []);
+
+  const addFiles = (fileList: FileList | null) => {
+    if (!fileList) return;
+    setSave({ kind: 'idle' });
+    const picked: PickedImage[] = [];
+    for (const file of Array.from(fileList)) {
+      if (!isAllowedImage(file) || file.size > MAX_IMAGE_BYTES) {
+        setSave({
+          kind: 'error',
+          message: lang === 'ar'
+            ? 'الصور المقبولة: JPG أو PNG أو WebP أو GIF، وبحجم أقصاه ٨ ميغابايت.'
+            : 'Allowed images: JPG, PNG, WebP or GIF, up to 8 MB each.',
+        });
+        continue;
+      }
+      picked.push({ file, url: URL.createObjectURL(file) });
+    }
+    setImages((prev) => [...prev, ...picked].slice(0, MAX_IMAGES_PER_UPDATE));
+  };
+
+  const removeImage = (idx: number) => {
+    setImages((prev) => {
+      const target = prev[idx];
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
 
   useEffect(() => {
     if (auth.kind === 'authenticated') setPrefs(loadPrefs(auth.user.email));
@@ -126,20 +174,40 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
         ? `تحديث ميداني على ${projectId} بواسطة ${effectiveAuthor}`
         : `Field update on ${projectId} by ${effectiveAuthor}`;
 
-      // Prepend so newest appears first in the timeline.
-      await appendProjectItem({
+      // 1) Upload each image as its own binary commit, collecting the served
+      //    paths. Photos carry the update's text as caption and the project's
+      //    current health as their status badge.
+      const pendingPhotos: PendingPhoto[] = [];
+      const photoOps: Array<{ field: 'photos'; item: NewPhoto; position: 'end' }> = [];
+      for (const im of images) {
+        const { src } = await uploadProjectPhoto(projectId, im.file, `${commitMessage} (photo)`);
+        const photo: NewPhoto = {
+          src,
+          status: projectHealth,
+          caption: { ar: lang === 'ar' ? trimmed : '', en: lang === 'en' ? trimmed : '' },
+          date: { ar: lang === 'ar' ? effectiveDate : '', en: lang === 'en' ? effectiveDate : '' },
+        };
+        photoOps.push({ field: 'photos', item: photo, position: 'end' });
+        pendingPhotos.push({ ...photo, previewUrl: im.url });
+      }
+
+      // 2) Commit the update (+ any photo entries) to the project file in one go.
+      //    Prepend the update so newest appears first in the timeline.
+      await appendProjectItems({
         projectId,
-        field: 'updates',
-        item: newUpdate,
-        position: 'start',
+        ops: [
+          { field: 'updates', item: newUpdate, position: 'start' },
+          ...photoOps,
+        ],
         message: commitMessage,
       });
 
-      onAdded?.(newUpdate);
+      onAdded?.({ update: newUpdate, photos: pendingPhotos });
       setSave({ kind: 'idle' });
       setBody('');
       setAuthorOverride('');
       setDateOverride('');
+      setImages([]); // preview URLs now owned by the parent for optimistic display
       setFlash(true);
       setTimeout(() => setFlash(false), 4000);
     } catch (err: any) {
@@ -147,7 +215,11 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
         ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
         : err?.message === 'INVALID_FORMAT'
           ? (lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format')
-          : (err?.message || 'Save failed');
+          : err?.message === 'IMAGE_TYPE'
+            ? (lang === 'ar' ? 'نوع صورة غير مدعوم.' : 'Unsupported image type.')
+            : err?.message === 'IMAGE_SIZE'
+              ? (lang === 'ar' ? 'حجم الصورة يتجاوز ٨ ميغابايت.' : 'Image exceeds 8 MB.')
+              : (err?.message || 'Save failed');
       setSave({ kind: 'error', message });
     }
   };
@@ -228,6 +300,47 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, onAdd
             disabled={save.kind === 'saving'}
             autoFocus
           />
+
+          {/* Site photos — engineers attach progress images with the update. */}
+          <div className="auth-update-photos">
+            <label className="auth-update-photo-add">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
+                disabled={save.kind === 'saving' || images.length >= MAX_IMAGES_PER_UPDATE}
+                style={{ display: 'none' }}
+              />
+              <span>📷 {lang === 'ar' ? 'إضافة صور من موقع العمل' : 'Add site photos'}</span>
+            </label>
+            <span className="auth-update-photo-hint">
+              {lang === 'ar'
+                ? `حتى ${MAX_IMAGES_PER_UPDATE} صور · JPG/PNG/WebP/GIF · ٨ ميغابايت للصورة`
+                : `Up to ${MAX_IMAGES_PER_UPDATE} · JPG/PNG/WebP/GIF · 8 MB each`}
+            </span>
+
+            {images.length > 0 && (
+              <div className="auth-update-thumbs">
+                {images.map((im, i) => (
+                  <div className="auth-update-thumb" key={i}>
+                    <img src={im.url} alt="" />
+                    {save.kind !== 'saving' && (
+                      <button
+                        type="button"
+                        className="auth-update-thumb-remove"
+                        onClick={() => removeImage(i)}
+                        aria-label={lang === 'ar' ? 'إزالة' : 'Remove'}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {save.kind === 'error' && (
             <div className="auth-update-form-error">⚠ {save.message}</div>
           )}
