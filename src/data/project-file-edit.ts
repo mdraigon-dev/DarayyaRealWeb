@@ -25,7 +25,7 @@
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { getFileContent, getFileSha, commitFile, GitConflictError } from './git-gateway';
+import { getFileContent, getFileSha, commitFile, deleteFile, GitConflictError } from './git-gateway';
 
 export type ProjectFileCache = { content: string; sha: string };
 
@@ -253,7 +253,9 @@ export async function commitProjectFile(opts: {
  *   - no subId → add to the project-level raisedUSD (used for projects that
  *     have no sub-items).
  *
- * amountUSD may be negative to correct an over-entry; totals never go below 0.
+ * amountUSD must be positive and may not push the target past its budget
+ * (throws INVALID_AMOUNT / EXCEEDS_BUDGET). Corrections go through the full
+ * project editor, which sets the raised figure directly.
  * Runs through the same shared-cache + retry-through-lag path as every other
  * commit here, so rapid successive updates don't 409 on a stale SHA.
  *
@@ -265,6 +267,11 @@ export async function addProjectFunds(opts: {
   amountUSD: number;
   message: string;
 }): Promise<{ projectRaised: number; subRaised?: number }> {
+  // Contributions only go up, and never past the planned budget. The UI checks
+  // this too, but the authoritative check is here, against the LIVE file: the
+  // page may be stale, or another admin may have recorded funds since it loaded.
+  if (!Number.isFinite(opts.amountUSD) || opts.amountUSD <= 0) throw new Error('INVALID_AMOUNT');
+
   const frontmatter = await loadProjectForEdit(opts.projectId);
   if (!frontmatter) throw new Error('NOT_FOUND');
 
@@ -275,14 +282,16 @@ export async function addProjectFunds(opts: {
     const subs = Array.isArray(frontmatter.subs) ? (frontmatter.subs as Record<string, unknown>[]) : [];
     const sub = subs.find((s) => s.id === opts.subId);
     if (!sub) throw new Error('SUB_NOT_FOUND');
-    const newSubRaised = Math.max(0, num(sub.raisedUSD) + opts.amountUSD);
+    const newSubRaised = num(sub.raisedUSD) + opts.amountUSD;
+    if (newSubRaised > num(sub.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
     sub.raisedUSD = newSubRaised;
     // Keep the project-level field equal to the sum of the subs.
     const projectRaised = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
     frontmatter.raisedUSD = projectRaised;
     result = { projectRaised, subRaised: newSubRaised };
   } else {
-    const projectRaised = Math.max(0, num(frontmatter.raisedUSD) + opts.amountUSD);
+    const projectRaised = num(frontmatter.raisedUSD) + opts.amountUSD;
+    if (projectRaised > num(frontmatter.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
     frontmatter.raisedUSD = projectRaised;
     result = { projectRaised };
   }
@@ -295,4 +304,110 @@ export async function addProjectFunds(opts: {
   });
 
   return result;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Admin deletes: remove a note, field update or photo
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Does `fileItem` (from the repo) correspond to `shown` (what the page renders)?
+ *
+ * Exact equality is too strict: the build's auto-translator fills empty `en`
+ * sides and adds `en_auto` flags, so the rendered copy can carry text the repo
+ * file doesn't have yet. So we treat the file item as a *subset* of the shown
+ * one: every non-empty value in the file must equal the shown value, empty
+ * file values are allowed to differ (a translation filled them in), and
+ * `*_auto` flags are ignored. At least one non-empty value must actually match,
+ * so two blank items never count as the same.
+ */
+export function itemMatches(fileItem: unknown, shown: unknown): boolean {
+  let matchedSomething = false;
+  const walk = (f: unknown, s: unknown): boolean => {
+    if (f === undefined || f === null || f === '') return true;
+    if (typeof f !== 'object') {
+      if (typeof f === 'string' && typeof s === 'string' ? f.trim() === s.trim() : f === s) {
+        matchedSomething = true;
+        return true;
+      }
+      return false;
+    }
+    if (Array.isArray(f)) return false; // no list values in comments/updates/photos
+    if (!s || typeof s !== 'object') return false;
+    for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
+      if (k.endsWith('_auto')) continue;
+      if (!walk(v, (s as Record<string, unknown>)[k])) return false;
+    }
+    return true;
+  };
+  return walk(fileItem, shown) && matchedSomething;
+}
+
+/**
+ * Remove one item from a frontmatter list and commit. `item` is the item as the
+ * page shows it; the first matching entry in the LIVE file is removed (see
+ * itemMatches). Throws ITEM_NOT_FOUND if it's no longer there — e.g. another
+ * admin already deleted it.
+ *
+ * For a photo whose image was uploaded through the site (/uploads/projects/…),
+ * the image file is deleted too, after the entry is gone — so the page never
+ * points at a missing file. That second step is best-effort: if it fails, the
+ * photo is already off the site and only an orphaned file remains.
+ */
+export async function removeProjectItem(opts: {
+  projectId: string;
+  field: 'comments' | 'updates' | 'photos';
+  item: unknown;
+  message: string;
+}): Promise<void> {
+  const path = projectPath(opts.projectId);
+  let lastErr: unknown;
+  let removed: unknown;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const base = await loadBase(path);
+    const { frontmatter, body } = splitFrontmatter(base.content);
+    const list = Array.isArray(frontmatter[opts.field]) ? (frontmatter[opts.field] as unknown[]) : [];
+    const idx = list.findIndex((x) => itemMatches(x, opts.item));
+
+    if (idx < 0) {
+      // A cold read can lag a recent write (e.g. an item added from another
+      // tab). Give the read API one more chance before concluding it's gone.
+      if (attempt === 0) {
+        await sleep(backoff(0));
+        await refreshCacheAfterConflict(path);
+        continue;
+      }
+      throw new Error('ITEM_NOT_FOUND');
+    }
+
+    removed = list[idx];
+    frontmatter[opts.field] = list.filter((_, i) => i !== idx);
+    const newContent = `---\n${stringifyYaml(frontmatter, YAML_OPTS_APPEND)}---\n${body}`;
+
+    try {
+      const newSha = await commitFile(path, newContent, opts.message, 'main', base.sha);
+      recordCommit(path, newContent, newSha);
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      if (!(err instanceof GitConflictError)) throw err;
+      lastErr = err;
+      await sleep(backoff(attempt));
+      await refreshCacheAfterConflict(path);
+    }
+  }
+  if (lastErr) throw lastErr;
+  if (removed === undefined) throw new Error('ITEM_NOT_FOUND');
+
+  if (opts.field === 'photos') {
+    const src = (removed as { src?: unknown }).src;
+    if (typeof src === 'string' && src.startsWith('/uploads/projects/')) {
+      try {
+        await deleteFile(`public${src}`, `${opts.message} (image file)`);
+      } catch {
+        // Entry is already removed; an orphaned file is harmless.
+      }
+    }
+  }
 }

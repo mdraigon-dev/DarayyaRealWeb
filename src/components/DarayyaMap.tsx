@@ -80,7 +80,6 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
           </div>
           <div class="popup-meta">
             <span>${fmtNum(lang, pct)}${t(lang, 'map_popup_funded')}</span>
-            <span><strong>${fmtNum(lang, p.donors)}</strong> ${t(lang, 'map_popup_donor')}</span>
           </div>
           <a class="popup-btn" href="${basePath}/projects/${p.id}/">${t(lang, 'map_popup_view')}</a>
         </div>

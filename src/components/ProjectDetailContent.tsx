@@ -6,7 +6,12 @@ import AuthAwareUpdateAdder, { type PendingPhoto } from './AuthAwareUpdateAdder'
 import AdminEditProjectButton from './AdminEditProjectButton';
 import AdminFundUpdater from './AdminFundUpdater';
 import ProjectLocationMap from './ProjectLocationMap';
-import { pickPhoto } from '../data/unsplash-photos';
+import AdminDeleteButton from './AdminDeleteButton';
+import PhotoLightbox, { type LightboxItem } from './PhotoLightbox';
+import { pickPhoto, unsplashUrl, type SceneType } from '../data/unsplash-photos';
+import { removeProjectItem } from '../data/project-file-edit';
+import { classifyUser } from '../data/permissions';
+import { useIdentity } from '../data/use-identity';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
@@ -78,6 +83,33 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   const [extraComments, setExtraComments] = useState<Comment[]>([]);
   const [extraPhotos, setExtraPhotos] = useState<PendingPhoto[]>([]);
 
+  // Admins can delete notes, field updates and photos from this page. Items
+  // from the build are hidden by `${field}:${index}` once their delete commits;
+  // items added this session are simply dropped from the extra* lists.
+  const identity = useIdentity();
+  const isAdmin = identity.kind === 'authenticated'
+    && classifyUser(identity.user, project.engineers || []) === 'admin';
+  const [hidden, setHidden] = useState<Record<string, true>>({});
+  const [deleteFlash, setDeleteFlash] = useState(false);
+  const hide = (field: string, i: number) => setHidden((h) => ({ ...h, [`${field}:${i}`]: true }));
+
+  const deleteItem = async (field: 'comments' | 'updates' | 'photos', item: unknown, after: () => void) => {
+    const who = identity.kind === 'authenticated' ? identity.user.email : 'admin';
+    const label = field === 'comments' ? 'note' : field === 'updates' ? 'field update' : 'photo';
+    await removeProjectItem({
+      projectId: project.id,
+      field,
+      item,
+      message: `Delete ${label} on ${project.id} by ${who}`,
+    });
+    after();
+    setDeleteFlash(true);
+    setTimeout(() => setDeleteFlash(false), 5000);
+  };
+
+  // Photo viewer. Index into lightboxItems, built below alongside the grid.
+  const [lightboxAt, setLightboxAt] = useState<number | null>(null);
+
   // Live funding figures. Seeded from the built-in project data (the real,
   // committed numbers) and bumped optimistically when an admin records a
   // contribution below, so they see it before the rebuild lands. Public
@@ -91,7 +123,6 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   const emptyBreakdown: DemoBreakdown = { targetedBySub: {}, undirectedTotal: 0 };
   const subRaisedDisplayed = computeSubRaised(liveSubs, emptyBreakdown);
   const displayedRaised = computeProjectRaised(liveRaised, liveSubs, emptyBreakdown);
-  const displayedDonors = project.donors;
   const totalBudget = (liveSubs.length > 0)
     ? liveSubs.reduce((s, x) => s + x.budgetUSD, 0)
     : project.budgetUSD;
@@ -123,6 +154,43 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
     setFundFlash(true);
     setTimeout(() => setFundFlash(false), 4000);
   };
+
+  // ── Gallery ────────────────────────────────────────────────────────
+  // One pass builds both what the grid shows and what the viewer can page
+  // through, so a card's lightbox index always lines up with its position.
+  // Photos with no real or stock image (the generated SVG fallback) appear in
+  // the grid but have nothing to enlarge, so they get no viewer entry.
+  const lightboxItems: LightboxItem[] = [];
+  const pushLightbox = (it: LightboxItem) => { lightboxItems.push(it); return lightboxItems.length - 1; };
+
+  const pendingCards = extraPhotos.map((photo) => ({
+    photo,
+    lb: pushLightbox({ url: photo.previewUrl, caption: loc(lang, photo.caption), date: loc(lang, photo.date) }),
+  }));
+
+  const builtCards = (project.photos || [])
+    .map((photo, i) => ({ photo, i }))
+    .filter(({ i }) => !hidden[`photos:${i}`])
+    .map(({ photo, i }) => {
+      let lb: number | null = null;
+      const caption = loc(lang, photo.caption);
+      const date = loc(lang, photo.date);
+      if (photo.src) {
+        lb = pushLightbox({ url: photo.src, caption, date });
+      } else {
+        // Same pick ProjectPhoto makes, at a size worth zooming into.
+        const stock = pickPhoto(project.id, (photo.scene || 'building') as SceneType, i);
+        if (stock) lb = pushLightbox({ url: unsplashUrl(stock, 1800), caption, date, illustrative: true });
+      }
+      return { photo, i, lb };
+    });
+
+  const visibleUpdates = (project.updates || [])
+    .map((u, i) => ({ u, i }))
+    .filter(({ i }) => !hidden[`updates:${i}`]);
+  const visibleComments = (project.comments || [])
+    .map((c, i) => ({ c, i }))
+    .filter(({ i }) => !hidden[`comments:${i}`]);
 
   return (
     <section className="section">
@@ -167,13 +235,6 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               {fmtNum(lang, project.daysLeft)} {t(lang, 'days_remaining')}
             </span>
           )}
-          <span className="detail-loc-item">
-            <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-            </svg>
-            {fmtNum(lang, project.donors)} {project.donors === 1 ? t(lang, 'progress_donor') : t(lang, 'progress_donors')}
-          </span>
         </div>
       </div>
 
@@ -239,7 +300,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </p>
           </div>
 
-          {((project.photos && project.photos.length > 0) || extraPhotos.length > 0) && (
+          {(builtCards.length > 0 || pendingCards.length > 0) && (
             <div className="photo-section">
               <div className="photo-section-title">
                 <span style={{ color: 'var(--sy-gold)' }}>◆</span>
@@ -248,11 +309,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               <div className="photo-grid">
                 {/* Photos just uploaded this session — shown from a local preview
                     with a badge until the rebuild serves the committed file. */}
-                {extraPhotos.map((photo, i) => (
-                  <div className="photo-pending-wrap" key={`x-${i}`}>
+                {pendingCards.map(({ photo, lb }, i) => (
+                  <div className="photo-item photo-pending-wrap" key={`x-${i}`}>
                     <span className="pending-badge photo-pending-badge">
                       {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
                     </span>
+                    {isAdmin && (
+                      <AdminDeleteButton
+                        lang={lang}
+                        variant="overlay"
+                        what={lang === 'ar' ? 'الصورة' : 'photo'}
+                        onConfirm={() => {
+                          const { previewUrl: _preview, ...entry } = photo;
+                          return deleteItem('photos', entry, () =>
+                            setExtraPhotos((prev) => prev.filter((x) => x !== photo)));
+                        }}
+                      />
+                    )}
                     <ProjectPhoto
                       src={photo.previewUrl}
                       status={photo.status}
@@ -261,21 +334,32 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       lang={lang}
                       projectId={project.id}
                       photoIndex={i}
+                      onOpen={() => setLightboxAt(lb)}
                     />
                   </div>
                 ))}
-                {(project.photos || []).map((photo, i) => (
-                  <ProjectPhoto
-                    key={i}
-                    scene={photo.scene}
-                    src={photo.src}
-                    status={photo.status}
-                    caption={loc(lang, photo.caption)}
-                    date={loc(lang, photo.date)}
-                    lang={lang}
-                    projectId={project.id}
-                    photoIndex={i}
-                  />
+                {builtCards.map(({ photo, i, lb }) => (
+                  <div className="photo-item" key={i}>
+                    {isAdmin && (
+                      <AdminDeleteButton
+                        lang={lang}
+                        variant="overlay"
+                        what={lang === 'ar' ? 'الصورة' : 'photo'}
+                        onConfirm={() => deleteItem('photos', photo, () => hide('photos', i))}
+                      />
+                    )}
+                    <ProjectPhoto
+                      scene={photo.scene}
+                      src={photo.src}
+                      status={photo.status}
+                      caption={loc(lang, photo.caption)}
+                      date={loc(lang, photo.date)}
+                      lang={lang}
+                      projectId={project.id}
+                      photoIndex={i}
+                      onOpen={lb === null ? undefined : () => setLightboxAt(lb)}
+                    />
+                  </div>
                 ))}
               </div>
               {/* Credits footer — explains the illustrative photo policy */}
@@ -287,7 +371,17 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
           )}
 
-          {(extraUpdates.length > 0 || (project.updates && project.updates.length > 0)) && (
+          {lightboxAt !== null && lightboxItems[lightboxAt] && (
+            <PhotoLightbox
+              items={lightboxItems}
+              index={lightboxAt}
+              lang={lang}
+              onIndex={setLightboxAt}
+              onClose={() => setLightboxAt(null)}
+            />
+          )}
+
+          {(extraUpdates.length > 0 || visibleUpdates.length > 0) && (
             <>
               <h3>{t(lang, 'updates_title')}</h3>
               <div className="timeline">
@@ -299,15 +393,30 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       <span className="pending-badge">
                         {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
                       </span>
+                      {isAdmin && (
+                        <AdminDeleteButton
+                          lang={lang}
+                          what={lang === 'ar' ? 'التحديث' : 'update'}
+                          onConfirm={() => deleteItem('updates', u, () =>
+                            setExtraUpdates((prev) => prev.filter((x) => x !== u)))}
+                        />
+                      )}
                     </div>
                     <div className="update-body">{loc(lang, u.body)}</div>
                   </div>
                 ))}
-                {(project.updates || []).map((u, i) => (
+                {visibleUpdates.map(({ u, i }) => (
                   <div className="update" key={i}>
                     <div className="update-head">
                       <span className="update-author">{loc(lang, u.author)}</span>
                       <span className="update-date">{loc(lang, u.date)}</span>
+                      {isAdmin && (
+                        <AdminDeleteButton
+                          lang={lang}
+                          what={lang === 'ar' ? 'التحديث' : 'update'}
+                          onConfirm={() => deleteItem('updates', u, () => hide('updates', i))}
+                        />
+                      )}
                     </div>
                     <div className="update-body">{loc(lang, u.body)}</div>
                   </div>
@@ -363,15 +472,22 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             onAdded={(c) => setExtraComments((prev) => [...prev, c])}
           />
 
-          {((project.comments && project.comments.length > 0) || extraComments.length > 0) && (
+          {(visibleComments.length > 0 || extraComments.length > 0) && (
             <>
               <h3>{t(lang, 'comments_title')}</h3>
               <div className="comments-list">
-                {(project.comments || []).map((c, i) => (
+                {visibleComments.map(({ c, i }) => (
                   <div className="comment" key={i}>
                     <div className="comment-head">
                       <span className="comment-author">{loc(lang, c.author)}</span>
                       {c.date && <span className="comment-date">{c.date}</span>}
+                      {isAdmin && (
+                        <AdminDeleteButton
+                          lang={lang}
+                          what={lang === 'ar' ? 'الملاحظة' : 'note'}
+                          onConfirm={() => deleteItem('comments', c, () => hide('comments', i))}
+                        />
+                      )}
                     </div>
                     <div className="comment-body">{loc(lang, c.body)}</div>
                   </div>
@@ -384,12 +500,28 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       <span className="pending-badge">
                         {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
                       </span>
+                      {isAdmin && (
+                        <AdminDeleteButton
+                          lang={lang}
+                          what={lang === 'ar' ? 'الملاحظة' : 'note'}
+                          onConfirm={() => deleteItem('comments', c, () =>
+                            setExtraComments((prev) => prev.filter((x) => x !== c)))}
+                        />
+                      )}
                     </div>
                     <div className="comment-body">{loc(lang, c.body)}</div>
                   </div>
                 ))}
               </div>
             </>
+          )}
+
+          {deleteFlash && (
+            <div className="admin-toast" role="status">
+              ✓ {lang === 'ar'
+                ? 'تم الحذف. تتحدّث الصفحة العامة بعد إعادة بناء الموقع (١–٣ دقائق).'
+                : 'Deleted. The public page updates after the site rebuilds (1–3 min).'}
+            </div>
           )}
         </div>
 

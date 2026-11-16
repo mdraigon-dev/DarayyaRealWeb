@@ -5793,3 +5793,166 @@ input[type="number"] {
   inset-inline-start: 8px;
   z-index: 2;
 }
+
+/* ====================================================================
+   ADMIN DELETE CONTROLS (notes, field updates, photos)
+   ==================================================================== */
+/* Keep author at the start and date + controls together at the end, instead
+   of space-between spreading three or four items across the row. */
+.update-head > .update-date,
+.comment-head > .comment-date { margin-inline-start: auto; }
+
+.admin-del { display: inline-flex; align-items: center; gap: 0.35rem; }
+.admin-del-inline { margin-inline-start: 0.6rem; }
+.admin-del-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--sy-rule-soft);
+  background: var(--sy-paper-pure, #fff);
+  font-size: 13px; line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: all 160ms ease;
+}
+.admin-del-btn:hover, .admin-del-btn:focus-visible {
+  opacity: 1; border-color: var(--sy-red); background: rgba(206, 17, 38, 0.08);
+}
+.admin-del-open {
+  padding: 3px 4px 3px 8px;
+  border-radius: 999px;
+  background: var(--sy-paper-pure, #fff);
+  border: 1px solid var(--sy-red);
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.admin-del-q { font-weight: 700; color: var(--sy-red); white-space: nowrap; }
+.admin-del-yes, .admin-del-no {
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.admin-del-yes { background: var(--sy-red); color: #fff; border: 1px solid var(--sy-red); }
+.admin-del-no { background: transparent; color: var(--sy-ink-soft); border: 1px solid var(--sy-rule-soft); }
+.admin-del-error { font-size: 12px; color: var(--sy-red); font-weight: 600; }
+
+/* On a photo: bottom-left of the image (the status/illustrative badges own the top corners) */
+.photo-item { position: relative; }
+.admin-del-overlay {
+  position: absolute;
+  top: 136px; left: 10px;
+  z-index: 4;
+}
+.admin-del-overlay .admin-del-btn { opacity: 0.92; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+.admin-del-overlay .admin-del-error {
+  background: var(--sy-paper-pure, #fff); padding: 2px 6px; border-radius: 6px;
+}
+
+.admin-toast {
+  position: fixed;
+  bottom: 1.25rem; left: 50%; transform: translateX(-50%);
+  z-index: 9000;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 1.1rem;
+  background: var(--sy-green-dk); color: #fff;
+  border-radius: var(--r-md);
+  font-size: 14px; font-weight: 600;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+}
+
+/* ====================================================================
+   PHOTO LIGHTBOX
+   ==================================================================== */
+.photo-card-clickable { cursor: zoom-in; }
+.photo-card-clickable:focus-visible { outline: 3px solid var(--sy-gold); outline-offset: 2px; }
+
+.lb-overlay {
+  position: fixed; inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: rgba(8, 12, 10, 0.98);
+  backdrop-filter: blur(6px);
+  color: #fff;
+}
+.lb-toolbar {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem;
+  padding: 0.75rem 1rem;
+}
+.lb-spacer { flex: 1; }
+.lb-counter { font-size: 14px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.lb-zoom { display: inline-flex; align-items: center; background: rgba(255,255,255,0.08); border-radius: 999px; }
+.lb-zoom button, .lb-close, .lb-open {
+  min-width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 999px;
+  background: transparent; color: #fff;
+  font-size: 20px; line-height: 1; cursor: pointer; text-decoration: none;
+}
+.lb-zoom button:disabled { opacity: 0.3; cursor: default; }
+.lb-zoom-level { font-size: 13px !important; font-variant-numeric: tabular-nums; min-width: 56px !important; }
+.lb-close, .lb-open { background: rgba(255,255,255,0.08); }
+.lb-zoom button:not(:disabled):hover, .lb-close:hover, .lb-open:hover { background: rgba(255,255,255,0.2); }
+
+.lb-stage {
+  position: relative;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  touch-action: none;            /* pinch/drag drive our zoom, not the browser's */
+  cursor: zoom-in;
+  user-select: none;
+}
+.lb-stage.is-zoomed { cursor: grab; }
+.lb-stage.is-zoomed:active { cursor: grabbing; }
+.lb-img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 90ms ease-out;
+  will-change: transform;
+}
+.lb-failed { opacity: 0.8; font-size: 15px; }
+
+.lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px;
+  border-radius: 999px; border: none;
+  background: rgba(255,255,255,0.12); color: #fff;
+  font-size: 30px; line-height: 1; cursor: pointer;
+  z-index: 2;
+}
+.lb-nav:hover { background: rgba(255,255,255,0.25); }
+.lb-prev { inset-inline-start: 12px; }
+.lb-next { inset-inline-end: 12px; }
+
+.lb-caption {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 0.4rem 0.9rem;
+  padding: 0.75rem 1rem 1rem;
+  text-align: center;
+  font-size: 15px;
+}
+.lb-caption-date { opacity: 0.7; font-size: 13px; }
+.lb-illustrative {
+  background: var(--sy-gold); color: #1a1a1a;
+  padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+.lb-hint { flex-basis: 100%; opacity: 0.5; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .lb-nav { width: 40px; height: 40px; font-size: 24px; }
+  .lb-hint { display: none; }
+}
+
+/* ====================================================================
+   FUND UPDATER — amount cap
+   ==================================================================== */
+.fund-admin-amount-row { display: flex; gap: 0.5rem; }
+.fund-admin-amount-row .fund-admin-input { flex: 1; }
+.fund-admin-max {
+  padding: 0 0.85rem;
+  border: 1px solid var(--sy-green-lt);
+  border-radius: var(--r-md);
+  background: var(--sy-green-pale);
+  color: var(--sy-green-dk);
+  font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.fund-admin-max:disabled { opacity: 0.5; cursor: not-allowed; }
+.fund-admin-remaining { font-size: 12px; color: var(--sy-muted); font-weight: 500; }

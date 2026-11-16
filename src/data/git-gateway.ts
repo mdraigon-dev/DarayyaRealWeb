@@ -232,3 +232,32 @@ export async function commitBinaryFile(
     throw new Error(`Binary commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
   }
 }
+
+/**
+ * Delete a file from the repo via Git Gateway. Used to remove an uploaded
+ * site photo's image once its gallery entry is gone. Returns false if the file
+ * was already absent. GitHub requires the current blob SHA for a delete, so we
+ * read it fresh (uncached) first; a 409 here just means it moved under us.
+ */
+export async function deleteFile(path: string, message: string, branch = 'main'): Promise<boolean> {
+  const token = await getToken();
+  const sha = await getFileSha(path, branch);
+  if (!sha) return false;
+
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message, sha, branch }),
+  });
+  if (res.status === 404) return false;
+  if (res.status === 409) throw new GitConflictError('File changed while deleting.');
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Delete failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+  }
+  return true;
+}
