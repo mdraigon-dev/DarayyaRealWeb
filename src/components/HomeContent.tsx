@@ -27,7 +27,7 @@ type Props = {
   projects: HomeProject[];
 };
 
-export default function HomeContent({ lang, basePath, baseUrl, projects: rawProjects }: Props) {
+export default function HomeContent({ lang, basePath, projects: rawProjects }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
   // Hold the RAW demo donation array in state, not augmented projects.

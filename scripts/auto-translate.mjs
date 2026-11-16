@@ -5,9 +5,10 @@
  * Fills empty `en:` fields in src/content/projects/*.md by calling
  * the MyMemory free translation API on the corresponding `ar:` text.
  *
- * Runs as part of the GitHub Actions workflow before `astro build`.
- * Commits the filled-in translations back to the repo on `main` so
- * the next build has the data baked in.
+ * Runs as part of the Netlify build (see netlify.toml) before `astro build`.
+ * Translations are written to the build machine's working copy only —
+ * they are NOT committed back to the repo. Each build regenerates them
+ * (the script skips any field a human has already filled).
  *
  * HOW THE FILE IS WALKED
  * ----------------------
@@ -65,9 +66,13 @@ async function translate(arText) {
   // MyMemory rejects requests > 500 bytes; truncate longer ones with a warning
   let q = arText;
   if (Buffer.byteLength(q, 'utf8') > MAX_QUERY_BYTES) {
-    // Truncate to ~480 bytes worth of UTF-8 — cut to the nearest space
+    // Truncate to ~480 bytes worth of UTF-8 — cut to the nearest space.
+    // Drop whole code points (Array.from iterates by code point), not
+    // UTF-16 units, so we never split a surrogate pair mid-character.
+    let cps = Array.from(q);
     while (Buffer.byteLength(q, 'utf8') > MAX_QUERY_BYTES) {
-      q = q.slice(0, -1);
+      cps = cps.slice(0, -1);
+      q = cps.join('');
     }
     const lastSpace = q.lastIndexOf(' ');
     if (lastSpace > 100) q = q.slice(0, lastSpace) + '…';
@@ -162,7 +167,7 @@ async function processFile(filePath) {
 
   // Split out the frontmatter between the two `---` lines.
   // We only translate inside the frontmatter; body text is left alone.
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
     console.log(`  - Skipping ${path.basename(filePath)} (no frontmatter)`);
     return 0;
