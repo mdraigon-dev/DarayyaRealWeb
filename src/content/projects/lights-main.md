@@ -15,7 +15,7 @@
   "ar": "تركيب ٤٢ عمود إنارة LED على طول الشارع الرئيسي الذي يربط أحياء داريّا الثلاثة."
   "en": "Installing 42 LED light poles along the main street connecting the three Darayya districts."
 "budgetUSD": 38000
-"raisedUSD": 5200
+"raisedUSD": 15500
 "donors": 28
 "daysLeft": 55
 "lat": 33.4515
@@ -29,7 +29,7 @@
       "ar": "١٤ عمود"
       "en": "14 poles"
     "budgetUSD": 12500
-    "raisedUSD": 2200
+    "raisedUSD": 12500
   - "id": "lm2"
     "title":
       "ar": "المنطقة الوسطى"
