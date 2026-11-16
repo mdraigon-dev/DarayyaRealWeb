@@ -40,13 +40,5 @@ subs:
     budgetUSD: 10000
     raisedUSD: 1000
 updates: []
-photos:
-  - scene: "internet"
-    status: "warning"
-    caption:
-      ar: "الموافقة الفنية على الموقع وصلت"
-      en: "Technical approval of the site received"
-    date:
-      ar: "منذ ٦ أيام"
-      en: "6 days ago"
+photos: []
 ---
