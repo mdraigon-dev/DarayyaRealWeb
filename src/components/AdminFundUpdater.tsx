@@ -94,11 +94,29 @@ export default function AdminFundUpdater({
     ? subs.reduce((a, s) => a + s.raisedUSD, 0)
     : projectRaisedUSD;
 
+  // The most that can still be added to the chosen target without passing its
+  // budget. Contributions can only go up, and never beyond what was planned.
+  const targetSub = hasSubs ? subs.find((s) => s.id === target) : undefined;
+  const remaining = Math.max(
+    0,
+    targetSub
+      ? targetSub.budgetUSD - targetSub.raisedUSD
+      : totalBudgetUSD - projectRaisedUSD,
+  );
+  const fullyFunded = remaining <= 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt === 0) {
+    if (!Number.isFinite(amt) || amt <= 0) {
       setSave({ kind: 'error', message: t(lang, 'fund_invalid') });
+      return;
+    }
+    if (amt > remaining) {
+      setSave({
+        kind: 'error',
+        message: t(lang, 'fund_exceeds', { max: fmtMoney(lang, currency, remaining) }),
+      });
       return;
     }
     setSave({ kind: 'saving' });
@@ -108,8 +126,7 @@ export default function AdminFundUpdater({
         ? loc(lang, subs.find((s) => s.id === subId)!.title)
         : 'project';
       const who = auth.user.email;
-      const sign = amt > 0 ? '+' : '';
-      const message = `Update funds: ${sign}$${amt} to ${targetLabel} (${projectId}) by ${who}`;
+      const message = `Update funds: +$${amt} to ${targetLabel} (${projectId}) by ${who}`;
 
       await addProjectFunds({ projectId, subId, amountUSD: amt, message });
 
@@ -123,6 +140,10 @@ export default function AdminFundUpdater({
       const message =
         raw === 'NOT_FOUND'
           ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
+          : raw === 'EXCEEDS_BUDGET'
+            ? t(lang, 'fund_exceeds_live')
+          : raw === 'INVALID_AMOUNT'
+            ? t(lang, 'fund_invalid')
           : raw === 'CONFLICT'
             ? (lang === 'ar'
                 ? 'تعذّر الحفظ بسبب تعارض مستمر. حدّث الصفحة وحاول مجدداً.'
@@ -148,7 +169,9 @@ export default function AdminFundUpdater({
         {fmtMoney(lang, currency, totalBudgetUSD)}
       </div>
 
-      <form className="fund-admin-form" onSubmit={handleSubmit}>
+      {/* noValidate: our own checks show a bilingual message naming the
+          maximum, instead of the browser's generic min/max bubble. */}
+      <form className="fund-admin-form" onSubmit={handleSubmit} noValidate>
         {hasSubs && (
           <label className="fund-admin-field">
             <span>{t(lang, 'fund_target_label')}</span>
@@ -169,16 +192,36 @@ export default function AdminFundUpdater({
 
         <label className="fund-admin-field">
           <span>{t(lang, 'fund_amount_label')}</span>
-          <input
-            type="number"
-            className="fund-admin-input"
-            dir="ltr"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder={t(lang, 'fund_amount_ph')}
-            step="1"
-            disabled={save.kind === 'saving'}
-          />
+          <div className="fund-admin-amount-row">
+            <input
+              type="number"
+              className="fund-admin-input"
+              dir="ltr"
+              inputMode="decimal"
+              min={1}
+              max={remaining}
+              step="any"
+              value={amount}
+              // Strip any minus sign so a negative "donation" can't be typed.
+              onChange={(e) => { setAmount(e.target.value.replace(/-/g, '')); setSave({ kind: 'idle' }); }}
+              onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
+              placeholder={t(lang, 'fund_amount_ph')}
+              disabled={save.kind === 'saving' || fullyFunded}
+            />
+            <button
+              type="button"
+              className="fund-admin-max"
+              onClick={() => setAmount(String(remaining))}
+              disabled={save.kind === 'saving' || fullyFunded}
+            >
+              {t(lang, 'fund_max_btn')}
+            </button>
+          </div>
+          <span className="fund-admin-remaining">
+            {fullyFunded
+              ? t(lang, 'fund_target_full')
+              : t(lang, 'fund_remaining', { amount: fmtMoney(lang, currency, remaining) })}
+          </span>
         </label>
 
         {save.kind === 'error' && (
@@ -191,7 +234,7 @@ export default function AdminFundUpdater({
         <button
           type="submit"
           className="fund-admin-btn"
-          disabled={save.kind === 'saving' || !amount.trim()}
+          disabled={save.kind === 'saving' || !amount.trim() || fullyFunded}
         >
           {save.kind === 'saving' ? t(lang, 'fund_adding') : t(lang, 'fund_add_btn')}
         </button>

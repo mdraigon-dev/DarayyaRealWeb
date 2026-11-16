@@ -16,7 +16,24 @@ type Props = {
   projectId?: string;
   /** Position of this photo within the project's photo list, for variety. */
   photoIndex?: number;
+  /** When given, the card is clickable and opens the photo in the lightbox. */
+  onOpen?: () => void;
 };
+
+/** Click/keyboard props that turn a photo card into a button that opens the viewer. */
+function openProps(onOpen: (() => void) | undefined, lang: Lang, caption: string) {
+  if (!onOpen) return { className: 'photo-card' };
+  return {
+    className: 'photo-card photo-card-clickable',
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-label': lang === 'ar' ? `تكبير الصورة: ${caption}` : `Enlarge photo: ${caption}`,
+    onClick: onOpen,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+    },
+  };
+}
 
 const TINTS: Record<Status, { sky1: string; sky2: string; ground: string; mood: string }> = {
   healthy:   { sky1: '#A8D8B9', sky2: '#7AC495', ground: '#C7B58A', mood: '#FFEFB8' },
@@ -39,11 +56,12 @@ export default function ProjectPhoto({
   lang,
   projectId,
   photoIndex = 0,
+  onOpen,
 }: Props) {
   // Prefer uploaded image if provided — no illustrative badge needed for real photos
   if (src) {
     return (
-      <div className="photo-card">
+      <div {...openProps(onOpen, lang, caption)}>
         <span className={`photo-status-badge ${status}`}>{t(lang, `photo_status_${status}` as any)}</span>
         <img className="photo-scene" src={src} alt={caption} style={{ width: '100%', height: 180, objectFit: 'cover' }} />
         <div className="photo-meta">
@@ -89,6 +107,7 @@ export default function ProjectPhoto({
       caption={caption}
       date={date}
       lang={lang}
+      onOpen={onOpen}
     />
   );
 }
@@ -104,6 +123,7 @@ function UnsplashOrFallback({
   caption,
   date,
   lang,
+  onOpen,
 }: {
   photo: NonNullable<ReturnType<typeof pickPhoto>>;
   sceneKey: SceneType;
@@ -111,11 +131,13 @@ function UnsplashOrFallback({
   caption: string;
   date: string;
   lang: Lang;
+  onOpen?: () => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
 
+  // Once the stock image has failed there's nothing worth enlarging.
   return (
-    <div className="photo-card">
+    <div {...openProps(imgFailed ? undefined : onOpen, lang, caption)}>
       <span className={`photo-status-badge ${status}`}>{t(lang, `photo_status_${status}` as any)}</span>
 
       {/* Persistent ILLUSTRATIVE badge — non-dismissible, top-left */}

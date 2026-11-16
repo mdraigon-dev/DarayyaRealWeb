@@ -613,7 +613,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
               type="number"
               className="editor-number-input"
               value={state.raisedUSD}
-              onChange={(e) => update('raisedUSD', Math.max(0, parseInt(e.target.value, 10) || 0))}
+              onChange={(e) => update('raisedUSD', Math.min(state.budgetUSD, Math.max(0, parseInt(e.target.value, 10) || 0)))}
               min={0}
               max={state.budgetUSD}
             />
@@ -783,10 +783,11 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                   type="number"
                   className="editor-number-input"
                   min={0}
+                  max={s.budgetUSD}
                   value={s.raisedUSD}
                   onChange={(e) => {
                     const next = [...state.subs];
-                    next[i] = { ...s, raisedUSD: Math.max(0, parseInt(e.target.value, 10) || 0) };
+                    next[i] = { ...s, raisedUSD: Math.min(s.budgetUSD, Math.max(0, parseInt(e.target.value, 10) || 0)) };
                     update('subs', next);
                   }}
                 />

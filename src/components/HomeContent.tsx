@@ -49,7 +49,6 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
 
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
   const completed = projects.filter(p => p.status === 'completed').length;
   const open = projects.filter(p => displayStatus(p) === 'funding').length;
 
@@ -104,10 +103,6 @@ export default function HomeContent({ lang, basePath, baseUrl, projects: rawProj
             <div className="stat-row">
               <span className="stat-label">{t(lang, 'hero_stat_target')}</span>
               <span className="stat-value">{fmtMoney(lang, currency, totalBudget)}</span>
-            </div>
-            <div className="stat-row">
-              <span className="stat-label">{t(lang, 'hero_stat_donors')}</span>
-              <span className="stat-value">{fmtNum(lang, totalDonors)}</span>
             </div>
             <div className="stat-row">
               <span className="stat-label">{t(lang, 'hero_stat_open')}</span>
