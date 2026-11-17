@@ -49,12 +49,6 @@ photos:
   - scene: "light"
     status: "healthy"
     caption:
-      ar: "تجارب الإضاءة على عمودين ناجحة"
-      en: "Lighting tests on two poles successful"
-    at: "2026-05-23"
-  - scene: "light"
-    status: "healthy"
-    caption:
       ar: "الأطفال يحبّون الإنارة الجديدة"
       en: "Children love the new lighting"
     at: "2026-05-21"
