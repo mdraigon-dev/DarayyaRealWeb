@@ -293,9 +293,14 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       delete frontmatter.daysLeft;
       if (state.deadline) frontmatter.deadline = state.deadline; else delete frontmatter.deadline;
       // Lists this form manages: written when non-empty, removed when emptied.
+      // Rows left blank are dropped rather than saved: an empty entry would
+      // fail the site's content check and stop the next deploy.
+      const hasText = (b?: { ar?: string; en?: string }) => !!((b?.ar || '').trim() || (b?.en || '').trim());
       const lists: Array<[string, unknown[]]> = [
-        ['subs', state.subs], ['updates', state.updates],
-        ['engineers', state.engineers], ['comments', state.comments],
+        ['subs', state.subs.filter((x) => hasText(x.title))],
+        ['updates', state.updates.filter((x) => hasText(x.body))],
+        ['engineers', state.engineers.filter((x) => hasText(x.name))],
+        ['comments', state.comments.filter((x) => hasText(x.body))],
       ];
       for (const [key, list] of lists) {
         if (list.length > 0) frontmatter[key] = list; else delete frontmatter[key];

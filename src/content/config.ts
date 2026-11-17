@@ -12,10 +12,27 @@ import { defineCollection, z } from 'astro:content';
 // is. Relative text like "3 days ago" is never stored — see src/data/time.ts.
 const isoAt = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/, 'Use an ISO date, e.g. 2026-11-17');
 
+// A bilingual text needs at least ONE language. Posts made from the site are
+// written in whichever language the author is using, so an English-only note
+// arrives with `ar: ""` (auto-translate fills the other side when it can).
+// Requiring Arabic here used to fail the whole Netlify build — and with it
+// every later deploy — the moment someone posted in English.
 const bilingual = z.object({
-  ar: z.string().min(1, 'العربية مطلوبة'),
+  ar: z.string().optional().default(''),
   en: z.string().optional().default(''),
   en_auto: z.boolean().optional(),
+  ar_auto: z.boolean().optional(),
+}).refine((v) => v.ar.trim() !== '' || v.en.trim() !== '', {
+  message: 'Arabic or English text is required / النص مطلوب بالعربية أو الإنجليزية',
+});
+
+// Labels that may legitimately be blank (an author name, a photo caption, a
+// legacy date). A blank one must never block the build.
+const bilingualLabel = z.object({
+  ar: z.string().optional().default(''),
+  en: z.string().optional().default(''),
+  en_auto: z.boolean().optional(),
+  ar_auto: z.boolean().optional(),
 });
 
 // ============================================================
@@ -65,7 +82,7 @@ const projectCollection = defineCollection({
       z.object({
         id: z.string(),
         title: bilingual,
-        length: bilingual,
+        length: bilingualLabel,
         budgetUSD: z.number().positive(),
         raisedUSD: z.number().min(0),
       })
@@ -76,8 +93,8 @@ const projectCollection = defineCollection({
       z.object({
         at: isoAt.optional(),
         /** Legacy free-text date ("3 days ago") — superseded by `at` */
-        date: bilingual.optional(),
-        author: bilingual,
+        date: bilingualLabel.optional(),
+        author: bilingualLabel,
         body: bilingual,
       })
     ).default([]),
@@ -88,10 +105,10 @@ const projectCollection = defineCollection({
         src: z.string().optional(),
         scene: z.enum(['road', 'water', 'sewer', 'light', 'internet', 'building', 'park']).optional(),
         status: z.enum(['healthy', 'warning', 'stalled', 'completed']),
-        caption: bilingual,
+        caption: bilingualLabel,
         at: isoAt.optional(),
         /** Legacy free-text date — superseded by `at` */
-        date: bilingual.optional(),
+        date: bilingualLabel.optional(),
       })
     ).default([]),
 
@@ -112,7 +129,7 @@ const projectCollection = defineCollection({
     engineers: z.array(
       z.object({
         name: bilingual,
-        role: bilingual,
+        role: bilingualLabel,
         phone: z.string().optional(),
         email: z.string().optional(),
       })
@@ -121,7 +138,7 @@ const projectCollection = defineCollection({
     // General notes/comments
     comments: z.array(
       z.object({
-        author: bilingual,
+        author: bilingualLabel,
         body: bilingual,
         at: isoAt.optional(),
         /** Legacy date string — superseded by `at` */
@@ -139,7 +156,7 @@ const updatesCollection = defineCollection({
   schema: z.object({
     date: z.string(),
     projectId: z.string(),
-    author: bilingual,
+    author: bilingualLabel,
     body: bilingual,
   }),
 });

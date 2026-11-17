@@ -74,6 +74,21 @@ export function preferredAuthorName(
   return user.user_metadata?.full_name || user.email;
 }
 
+/**
+ * The author shown publicly on a note or update. Same as preferredAuthorName
+ * but never an email address — those end up in the repo and on public pages.
+ * Falls back to "City Council" when the account has no display name.
+ */
+export function publicAuthor(
+  typed: string,
+  user: { email: string; user_metadata?: { full_name?: string } },
+  prefs: AdminPrefs | null | undefined,
+): { ar: string; en: string } {
+  const n = (typed.trim() || preferredAuthorName(user, prefs)).trim();
+  if (n && !n.includes('@')) return { ar: n, en: n };
+  return { ar: 'مجلس المدينة', en: 'City Council' };
+}
+
 function isEngineerPreset(x: unknown): x is EngineerPreset {
   if (!x || typeof x !== 'object') return false;
   const e = x as Record<string, unknown>;
