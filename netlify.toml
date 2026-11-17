@@ -27,6 +27,18 @@
   NODE_VERSION = "20"
 
 # =====================================================================
+# Security headers (applied to every response)
+# =====================================================================
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# =====================================================================
 # Redirects
 # =====================================================================
 
@@ -36,11 +48,16 @@
   to = "/admin/"
   status = 301
 
-# Send root "/" to the Arabic homepage
+# Send root "/" to the Arabic homepage.
+# force = true is required: the build emits /index.html (a meta-refresh
+# fallback page), and Netlify redirects don't shadow existing files unless
+# forced. Without it this rule never fires and visitors get the slower
+# client-side redirect instead.
 [[redirects]]
   from = "/"
   to = "/ar/"
   status = 302
+  force = true
 
 # SPA-style fallback for Decap CMS routes
 [[redirects]]

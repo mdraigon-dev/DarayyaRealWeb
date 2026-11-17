@@ -121,7 +121,6 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   const [state, setState] = useState<ProjectFormState>(initial);
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
-  const [showSubItems, setShowSubItems] = useState(initial.subs.length > 0);
 
   /* SHA of the file when this editor session started, used to detect
    * concurrent edits. Fetched after auth completes (we need the user's
