@@ -45,11 +45,5 @@ updates:
     body:
       ar: "تم اعتماد المشروع رسمياً وفتح باب التبرعات. الأعمدة ستكون من نوع LED بضمان ٥ سنوات."
       en: "Project officially approved and donations are open. Poles are LED type with a 5-year warranty."
-photos:
-  - scene: "light"
-    status: "healthy"
-    caption:
-      ar: "الأطفال يحبّون الإنارة الجديدة"
-      en: "Children love the new lighting"
-    at: "2026-05-21"
+photos: []
 ---
