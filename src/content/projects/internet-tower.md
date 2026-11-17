@@ -15,7 +15,7 @@ description:
   ar: "برج اتصالات يخدم ١٢٠ منزلاً في الحي الغربي بسرعة تصل إلى ٥٠ ميغابت، بالشراكة مع شركة الاتصالات السورية."
   en: "A communications tower serving 120 homes in the Western District at speeds up to 50 Mbps, in partnership with the Syrian Telecom Company."
 budgetUSD: 32000
-raisedUSD: 3800
+raisedUSD: 8800
 lat: 33.4565
 lng: 36.24
 subs:
@@ -27,7 +27,7 @@ subs:
       ar: "٢٥ م ارتفاع"
       en: "25 m height"
     budgetUSD: 22000
-    raisedUSD: 2800
+    raisedUSD: 7800
   - id: "i2"
     title:
       ar: "كبلات الألياف للحي"
@@ -68,4 +68,8 @@ comments:
       ar: "سوف تنقطع مياه الشرب اليوم لاصلاح كابل الهاتف"
       en: ""
     at: "2026-11-17T16:04:35.775Z"
+fundLog:
+  - at: "2026-11-17T16:05:44.092Z"
+    amountUSD: 5000
+    subId: "i1"
 ---
