@@ -37,19 +37,6 @@ subs:
       en: "1.4 km"
     budgetUSD: 10000
     raisedUSD: 1000
-updates:
-  - at: "2026-05-19"
-    author:
-      ar: "مجلس المدينة"
-      en: "City Council"
-    body:
-      ar: "تم توقيع مذكرة تفاهم مع شركة الاتصالات. هذا المشروع سيُغيّر حياة كثير من العائلات."
-      en: "A memorandum of understanding signed with the Telecom Company. This project will change the lives of many families."
-photos:
-  - scene: "internet"
-    status: "warning"
-    caption:
-      ar: "الموافقة الفنية على الموقع وصلت"
-      en: "Technical approval of the site received"
-    at: "2026-05-19"
+updates: []
+photos: []
 ---

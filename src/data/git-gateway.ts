@@ -14,6 +14,16 @@
 const GIT_GATEWAY_BASE = '/.netlify/git/github';
 
 /**
+ * Encode a repo file path for use in a Git Gateway / GitHub contents URL.
+ * Each segment is percent-encoded individually so `/` separators survive —
+ * encoding the whole path would turn them into %2F, which some proxies
+ * normalize or reject.
+ */
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
  * Thrown when GitHub rejects a write because the file changed since the SHA
  * we pinned (HTTP 409). Callers can catch this specifically to distinguish a
  * genuine concurrent edit from other failures and recover (re-read + retry).
@@ -52,7 +62,7 @@ export async function getFileSha(path: string, branch = 'main'): Promise<string 
   // no-store + a unique query param defeat any HTTP/CDN caching between the
   // Git Gateway and us — critical right after a write, when a cached response
   // would echo the pre-commit SHA and make the next commit 409.
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}&_=${Date.now()}`;
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodePath(path)}?ref=${branch}&_=${Date.now()}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
     cache: 'no-store',
@@ -75,7 +85,7 @@ export async function getFileSha(path: string, branch = 'main'): Promise<string 
 export async function getFileContent(path: string, branch = 'main'): Promise<{ content: string; sha: string } | null> {
   const token = await getToken();
   // See getFileSha — bust caches so we never read a stale post-commit version.
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}?ref=${branch}&_=${Date.now()}`;
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodePath(path)}?ref=${branch}&_=${Date.now()}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' },
     cache: 'no-store',
@@ -112,6 +122,9 @@ export async function getFileContent(path: string, branch = 'main'): Promise<{ c
  *                 that exact version (GitHub returns a 409 if the file
  *                 changed since, which is the right behavior for a
  *                 read-modify-write — better than silently overwriting).
+ *                 Pass `null` explicitly to commit WITHOUT a SHA — i.e. a
+ *                 pure "create". If the file already exists, GitHub rejects
+ *                 the write (409/422) instead of overwriting it.
  *
  * Returns the new blob SHA of the committed file (from GitHub's PUT response).
  * Chaining this SHA into the next commit lets a caller make several rapid
@@ -124,19 +137,20 @@ export async function commitFile(
   content: string,
   message: string,
   branch = 'main',
-  knownSha?: string,
+  knownSha?: string | null,
 ): Promise<string | null> {
   const token = await getToken();
-  // Use the caller-provided SHA when available; only fetch fresh when not.
-  // For brand-new files, callers pass null/undefined and we get null back.
+  // Use the caller-provided SHA when available (null = deliberately none,
+  // for creates); only fetch fresh when the caller passed nothing at all.
   const sha = knownSha !== undefined ? knownSha : await getFileSha(path, branch);
 
-  // GitHub's content API expects base64-encoded content. We use the
-  // standard "encode to UTF-8 bytes, then base64" sequence: encodeURIComponent
-  // produces percent-encoded UTF-8, unescape decodes those to a raw byte
-  // string, and btoa converts bytes to base64. This is the canonical way
-  // to base64-encode arbitrary Unicode text in a browser.
-  const base64 = btoa(unescape(encodeURIComponent(content)));
+  // GitHub's content API expects base64-encoded content: encode the string
+  // to UTF-8 bytes, then base64 the bytes. (The old unescape() trick is
+  // deprecated — TextEncoder is the modern equivalent.)
+  const bytes = new TextEncoder().encode(content);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
 
   const body: Record<string, unknown> = {
     message,
@@ -145,7 +159,7 @@ export async function commitFile(
   };
   if (sha) body.sha = sha; // include only when updating
 
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}`;
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodePath(path)}`;
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
@@ -157,9 +171,11 @@ export async function commitFile(
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    // GitHub returns 409 when the file changed between read and write.
-    // Surface a typed error so callers can recover instead of just erroring.
-    if (res.status === 409) {
+    // 409: the file changed between read and write.
+    // 422: we wrote without a SHA but the file already exists (a "create"
+    //      colliding with an existing file). Both are conflicts — surface a
+    //      typed error so callers can recover instead of just erroring.
+    if (res.status === 409 || res.status === 422) {
       throw new GitConflictError('File changed since you opened it. Refresh the page and try again.');
     }
     throw new Error(`Commit failed: HTTP ${res.status} ${text.slice(0, 200)}`);
@@ -198,7 +214,7 @@ export async function commitBinaryFile(
   };
   if (sha) body.sha = sha;
 
-  const url = `${GIT_GATEWAY_BASE}/contents/${encodeURIComponent(path)}`;
+  const url = `${GIT_GATEWAY_BASE}/contents/${encodePath(path)}`;
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
