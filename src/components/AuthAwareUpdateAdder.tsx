@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { type Lang } from '../i18n/strings';
 import { appendProjectItems } from '../data/project-file-edit';
-import { loadPrefs, preferredAuthorName, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
+import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import {
   uploadProjectPhoto,
   isAllowedImage,
@@ -153,7 +153,8 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
       });
       return;
     }
-    const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
+    const author = publicAuthor(authorOverride, auth.user, prefs);
+    const effectiveAuthor = lang === 'ar' ? author.ar : author.en;
     if (day > localToday()) {
       setSave({
         kind: 'error',
@@ -169,7 +170,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
       // empty for the build-time auto-translator to fill.
       const newUpdate: NewUpdate = {
         at,
-        author: { ar: effectiveAuthor, en: effectiveAuthor },
+        author,
         body: {
           ar: lang === 'ar' ? trimmed : '',
           en: lang === 'en' ? trimmed : '',
@@ -275,7 +276,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
                 className="auth-update-form-author"
                 value={authorOverride}
                 onChange={(e) => setAuthorOverride(e.target.value)}
-                placeholder={defaultAuthor}
+                placeholder={publicAuthor('', auth.user, prefs)[lang]}
                 maxLength={80}
                 disabled={save.kind === 'saving'}
               />

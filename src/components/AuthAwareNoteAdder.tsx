@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
 import { appendProjectItem } from '../data/project-file-edit';
-import { loadPrefs, preferredAuthorName, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
+import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
 
 declare global {
@@ -104,14 +104,15 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
       });
       return;
     }
-    const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
+    const author = publicAuthor(authorOverride, auth.user, prefs);
+    const effectiveAuthor = lang === 'ar' ? author.ar : author.en;
     setSave({ kind: 'saving' });
 
     try {
       // Body goes in the language the user typed; the other side is left
       // empty for the build-time auto-translator to fill.
       const newComment: NewComment = {
-        author: { ar: effectiveAuthor, en: effectiveAuthor },
+        author,
         body: {
           ar: lang === 'ar' ? trimmed : '',
           en: lang === 'en' ? trimmed : '',
@@ -190,7 +191,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
               className="auth-note-form-author"
               value={authorOverride}
               onChange={(e) => setAuthorOverride(e.target.value)}
-              placeholder={defaultAuthor}
+              placeholder={publicAuthor('', auth.user, prefs)[lang]}
               maxLength={80}
               disabled={save.kind === 'saving'}
             />

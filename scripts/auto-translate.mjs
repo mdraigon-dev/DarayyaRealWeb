@@ -58,7 +58,7 @@ let translationsAttempted = 0;
 let translationsSucceeded = 0;
 let translationsFailed = 0;
 
-async function translate(arText) {
+async function translate(arText, langpair = 'ar|en') {
   // Skip empty strings
   if (!arText || !arText.trim()) return null;
 
@@ -74,7 +74,7 @@ async function translate(arText) {
     console.warn(`  ⚠ Truncated long text from ${Buffer.byteLength(arText, 'utf8')} to ${Buffer.byteLength(q, 'utf8')} bytes`);
   }
 
-  const params = new URLSearchParams({ q, langpair: 'ar|en' });
+  const params = new URLSearchParams({ q, langpair });
   if (EMAIL) params.set('de', EMAIL);
   const url = `https://api.mymemory.translated.net/get?${params}`;
 
@@ -139,6 +139,19 @@ async function walkAndTranslate(node) {
         // Mark this translation as machine-generated so the public site
         // can show a small "auto-translated" badge.
         node.en_auto = true;
+        filled++;
+      }
+    }
+    // The reverse: something posted in English only (from the site's English
+    // pages) gets an Arabic version, flagged `ar_auto`. If translation is
+    // unavailable the Arabic pages simply show the English text.
+    const arEmpty = !node.ar.trim();
+    const enText = typeof node.en === 'string' ? node.en.trim() : '';
+    if (arEmpty && enText) {
+      const translation = await translate(enText, 'en|ar');
+      if (translation) {
+        node.ar = translation;
+        node.ar_auto = true;
         filled++;
       }
     }

@@ -566,7 +566,8 @@ export function fmtNum(lang: Lang, n: number): string {
 export function loc<T extends { ar: string; en?: string }>(lang: Lang, obj: T | undefined): string {
   if (!obj) return '';
   if (lang === 'en') return obj.en || obj.ar;
-  return obj.ar;
+  // Something posted in English only still shows on the Arabic page.
+  return obj.ar || obj.en || '';
 }
 
 /**
