@@ -37,7 +37,14 @@ subs:
       en: "1.4 km"
     budgetUSD: 10000
     raisedUSD: 1000
-updates: []
+updates:
+  - at: "2026-11-17T16:02:59.517Z"
+    author:
+      ar: "m.draigon@gmail.com"
+      en: "m.draigon@gmail.com"
+    body:
+      ar: ""
+      en: "the water is shut off today for phone repair"
 photos: []
 comments:
   - author:
