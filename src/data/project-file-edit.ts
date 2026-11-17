@@ -232,70 +232,123 @@ export async function commitProjectFile(opts: {
 // ────────────────────────────────────────────────────────────────────
 
 /**
- * Add `amountUSD` to a project's raised funds and commit it — the persistent
- * replacement for the old browser-only demo donations. Management records real
- * contributions here; once the site rebuilds, every visitor sees the new total.
+ * Re-read → change → commit, retried through GitHub's read-after-write lag.
  *
- * Targeting:
- *   - subId given → add to that sub-item's raisedUSD. The project-level
- *     raisedUSD is then reset to the sum of the subs, because the display math
- *     (computeProjectRaised) derives the project total from the subs whenever
- *     subs exist. Keeping the two in sync means the number is right even if
- *     something reads the top-level field directly.
- *   - no subId → add to the project-level raisedUSD (used for projects that
- *     have no sub-items).
+ * Unlike commitProjectFile (which re-pins the SAME content on a conflict, fine
+ * for the editor), this re-applies `mutate` to the freshly read file on every
+ * attempt. So a note posted by someone else in between is kept, and any check
+ * inside `mutate` (like the budget cap) runs against the current numbers.
+ * `mutate` may throw to abort; it returns whatever the caller wants back.
+ */
+async function mutateProjectFile<T>(
+  projectId: string,
+  mutate: (fm: Record<string, unknown>) => T,
+  message: string,
+): Promise<T> {
+  const path = projectPath(projectId);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const base = await loadBase(path);
+    const { frontmatter, body } = splitFrontmatter(base.content);
+    const result = mutate(frontmatter);
+    const newContent = `---\n${stringifyYaml(frontmatter, YAML_OPTS_APPEND)}---\n${body}`;
+    try {
+      const newSha = await commitFile(path, newContent, message, 'main', base.sha);
+      recordCommit(path, newContent, newSha);
+      return result;
+    } catch (err) {
+      if (!(err instanceof GitConflictError)) throw err;
+      lastErr = err;
+      await sleep(backoff(attempt));
+      await refreshCacheAfterConflict(path);
+    }
+  }
+  throw lastErr ?? new GitConflictError('CONFLICT');
+}
+
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
+
+export type FundEntry = { at: string; amountUSD: number; subId?: string; by?: string };
+
+/**
+ * Record a contribution: add `amountUSD` to the project (or one sub-item) and
+ * append a matching fundLog entry, in ONE commit — the raised figure and its
+ * audit trail can never drift apart. This is the persistent replacement for
+ * the old browser-only demo donations.
  *
- * amountUSD must be positive and may not push the target past its budget
- * (throws INVALID_AMOUNT / EXCEEDS_BUDGET). Corrections go through the full
- * project editor, which sets the raised figure directly.
- * Runs through the same shared-cache + retry-through-lag path as every other
- * commit here, so rapid successive updates don't 409 on a stale SHA.
+ * Contributions only go up and never past the budget (INVALID_AMOUNT /
+ * EXCEEDS_BUDGET). The check runs against the live file on every attempt, so
+ * a stale page or a second admin can't push it over.
  *
- * Returns the new project-level total and, when a sub was targeted, its total.
+ * With sub-items, the project-level raisedUSD is reset to the sum of the subs,
+ * matching how the site computes the project total.
  */
 export async function addProjectFunds(opts: {
   projectId: string;
   subId?: string;
   amountUSD: number;
   message: string;
-}): Promise<{ projectRaised: number; subRaised?: number }> {
-  // Contributions only go up, and never past the planned budget. The UI checks
-  // this too, but the authoritative check is here, against the LIVE file: the
-  // page may be stale, or another admin may have recorded funds since it loaded.
+  /** Display name of the admin recording it (shown in the activity log) */
+  by?: string;
+}): Promise<{ projectRaised: number; subRaised?: number; entry: FundEntry }> {
   if (!Number.isFinite(opts.amountUSD) || opts.amountUSD <= 0) throw new Error('INVALID_AMOUNT');
+  const entry: FundEntry = {
+    at: new Date().toISOString(),
+    amountUSD: opts.amountUSD,
+    ...(opts.subId ? { subId: opts.subId } : {}),
+    ...(opts.by ? { by: opts.by } : {}),
+  };
 
-  const frontmatter = await loadProjectForEdit(opts.projectId);
-  if (!frontmatter) throw new Error('NOT_FOUND');
+  return mutateProjectFile(opts.projectId, (fm) => {
+    let out: { projectRaised: number; subRaised?: number };
+    if (opts.subId) {
+      const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
+      const sub = subs.find((s) => s.id === opts.subId);
+      if (!sub) throw new Error('SUB_NOT_FOUND');
+      const newSubRaised = num(sub.raisedUSD) + opts.amountUSD;
+      if (newSubRaised > num(sub.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
+      sub.raisedUSD = newSubRaised;
+      fm.raisedUSD = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
+      out = { projectRaised: fm.raisedUSD as number, subRaised: newSubRaised };
+    } else {
+      const projectRaised = num(fm.raisedUSD) + opts.amountUSD;
+      if (projectRaised > num(fm.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
+      fm.raisedUSD = projectRaised;
+      out = { projectRaised };
+    }
+    fm.fundLog = [...(Array.isArray(fm.fundLog) ? fm.fundLog : []), entry];
+    return { ...out, entry };
+  }, opts.message);
+}
 
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
-  let result: { projectRaised: number; subRaised?: number };
+/**
+ * Delete a recorded contribution from the activity log. The amount is taken
+ * back off the project (or its sub-item) in the same commit — otherwise the
+ * raised total would include money with no record behind it. Never goes
+ * below zero. Throws ITEM_NOT_FOUND if the entry is already gone.
+ */
+export async function removeFundEntry(opts: {
+  projectId: string;
+  entry: FundEntry;
+  message: string;
+}): Promise<void> {
+  await mutateProjectFile(opts.projectId, (fm) => {
+    const log = Array.isArray(fm.fundLog) ? (fm.fundLog as FundEntry[]) : [];
+    const idx = log.findIndex((e) =>
+      e.at === opts.entry.at && num(e.amountUSD) === opts.entry.amountUSD && (e.subId || '') === (opts.entry.subId || ''));
+    if (idx < 0) throw new Error('ITEM_NOT_FOUND');
+    const amount = num(log[idx].amountUSD);
+    fm.fundLog = log.filter((_, i) => i !== idx);
 
-  if (opts.subId) {
-    const subs = Array.isArray(frontmatter.subs) ? (frontmatter.subs as Record<string, unknown>[]) : [];
-    const sub = subs.find((s) => s.id === opts.subId);
-    if (!sub) throw new Error('SUB_NOT_FOUND');
-    const newSubRaised = num(sub.raisedUSD) + opts.amountUSD;
-    if (newSubRaised > num(sub.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
-    sub.raisedUSD = newSubRaised;
-    // Keep the project-level field equal to the sum of the subs.
-    const projectRaised = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
-    frontmatter.raisedUSD = projectRaised;
-    result = { projectRaised, subRaised: newSubRaised };
-  } else {
-    const projectRaised = num(frontmatter.raisedUSD) + opts.amountUSD;
-    if (projectRaised > num(frontmatter.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
-    frontmatter.raisedUSD = projectRaised;
-    result = { projectRaised };
-  }
-
-  await commitProjectFile({
-    projectId: opts.projectId,
-    frontmatter,
-    message: opts.message,
-    mode: 'update',
-  });
-
-  return result;
+    const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
+    const sub = opts.entry.subId ? subs.find((s) => s.id === opts.entry.subId) : undefined;
+    if (sub) {
+      sub.raisedUSD = Math.max(0, num(sub.raisedUSD) - amount);
+      fm.raisedUSD = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
+    } else {
+      fm.raisedUSD = Math.max(0, num(fm.raisedUSD) - amount);
+    }
+  }, opts.message);
 }
 
 // ────────────────────────────────────────────────────────────────────

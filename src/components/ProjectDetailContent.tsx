@@ -12,6 +12,8 @@ import { pickPhoto, unsplashUrl, type SceneType } from '../data/unsplash-photos'
 import { removeProjectItem } from '../data/project-file-edit';
 import { classifyUser } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
+import TimeStamp from './TimeStamp';
+import { formatAbsolute, daysUntil, useNow } from '../data/time';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 
@@ -23,13 +25,15 @@ type Sub = {
   budgetUSD: number;
   raisedUSD: number;
 };
-type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
+// `at` is the real timestamp; `date` is legacy free text kept only as a fallback.
+type Update = { at?: string; date?: Bilingual; author: Bilingual; body: Bilingual };
 type Photo = {
   src?: string;
   scene?: 'road' | 'water' | 'sewer' | 'light' | 'internet' | 'building' | 'park';
   status: 'healthy' | 'warning' | 'stalled' | 'completed';
   caption: Bilingual;
-  date: Bilingual;
+  at?: string;
+  date?: Bilingual;
 };
 
 type Engineer = {
@@ -42,6 +46,7 @@ type Engineer = {
 type Comment = {
   author: Bilingual;
   body: Bilingual;
+  at?: string;
   date?: string;
 };
 
@@ -55,8 +60,7 @@ type ProjectFull = {
   description: Bilingual;
   budgetUSD: number;
   raisedUSD: number;
-  donors: number;
-  daysLeft: number;
+  deadline?: string;
   lat?: number;
   lng?: number;
   subs: Sub[];
@@ -87,6 +91,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // from the build are hidden by `${field}:${index}` once their delete commits;
   // items added this session are simply dropped from the extra* lists.
   const identity = useIdentity();
+  const now = useNow();
   const isAdmin = identity.kind === 'authenticated'
     && classifyUser(identity.user, project.engineers || []) === 'admin';
   const [hidden, setHidden] = useState<Record<string, true>>({});
@@ -165,7 +170,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
 
   const pendingCards = extraPhotos.map((photo) => ({
     photo,
-    lb: pushLightbox({ url: photo.previewUrl, caption: loc(lang, photo.caption), date: loc(lang, photo.date) }),
+    lb: pushLightbox({ url: photo.previewUrl, caption: loc(lang, photo.caption), date: formatAbsolute(photo.at, lang) }),
   }));
 
   const builtCards = (project.photos || [])
@@ -174,7 +179,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
     .map(({ photo, i }) => {
       let lb: number | null = null;
       const caption = loc(lang, photo.caption);
-      const date = loc(lang, photo.date);
+      const date = photo.at ? formatAbsolute(photo.at, lang) : loc(lang, photo.date);
       if (photo.src) {
         lb = pushLightbox({ url: photo.src, caption, date });
       } else {
@@ -226,13 +231,17 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </svg>
             {loc(lang, project.location)}
           </span>
-          {project.daysLeft > 0 && (
+          {/* Days left is computed from the deadline in the visitor's browser
+              (now is null during the server render), so it never goes stale. */}
+          {project.deadline && now && daysUntil(project.deadline, now) >= 0 && (
             <span className="detail-loc-item">
               <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
-              {fmtNum(lang, project.daysLeft)} {t(lang, 'days_remaining')}
+              {daysUntil(project.deadline, now) === 0
+                ? t(lang, 'deadline_today')
+                : `${fmtNum(lang, daysUntil(project.deadline, now))} ${t(lang, 'days_remaining')}`}
             </span>
           )}
         </div>
@@ -330,7 +339,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       src={photo.previewUrl}
                       status={photo.status}
                       caption={loc(lang, photo.caption)}
-                      date={loc(lang, photo.date)}
+                      date={<TimeStamp at={photo.at} lang={lang} mode="date" />}
                       lang={lang}
                       projectId={project.id}
                       photoIndex={i}
@@ -353,7 +362,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                       src={photo.src}
                       status={photo.status}
                       caption={loc(lang, photo.caption)}
-                      date={loc(lang, photo.date)}
+                      date={<TimeStamp at={photo.at} lang={lang} mode="date" fallback={loc(lang, photo.date)} />}
                       lang={lang}
                       projectId={project.id}
                       photoIndex={i}
@@ -389,7 +398,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                   <div className="update update-pending" key={`x-${i}`}>
                     <div className="update-head">
                       <span className="update-author">{loc(lang, u.author)}</span>
-                      <span className="update-date">{loc(lang, u.date)}</span>
+                      <TimeStamp className="update-date" at={u.at} lang={lang} fallback={loc(lang, u.date)} />
                       <span className="pending-badge">
                         {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
                       </span>
@@ -409,7 +418,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                   <div className="update" key={i}>
                     <div className="update-head">
                       <span className="update-author">{loc(lang, u.author)}</span>
-                      <span className="update-date">{loc(lang, u.date)}</span>
+                      <TimeStamp className="update-date" at={u.at} lang={lang} fallback={loc(lang, u.date)} />
                       {isAdmin && (
                         <AdminDeleteButton
                           lang={lang}
@@ -480,7 +489,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                   <div className="comment" key={i}>
                     <div className="comment-head">
                       <span className="comment-author">{loc(lang, c.author)}</span>
-                      {c.date && <span className="comment-date">{c.date}</span>}
+                      <TimeStamp className="comment-date" at={c.at || c.date} lang={lang} />
                       {isAdmin && (
                         <AdminDeleteButton
                           lang={lang}
@@ -496,7 +505,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                   <div className="comment comment-pending" key={`x-${i}`}>
                     <div className="comment-head">
                       <span className="comment-author">{loc(lang, c.author)}</span>
-                      {c.date && <span className="comment-date">{c.date}</span>}
+                      <TimeStamp className="comment-date" at={c.at || c.date} lang={lang} />
                       <span className="pending-badge">
                         {lang === 'ar' ? 'قيد النشر' : 'Publishing…'}
                       </span>

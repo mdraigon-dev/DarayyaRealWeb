@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
-import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects, displayStatus } from '../data/donation-math';
+import { displayStatus } from '../data/donation-math';
+import { lastActivityAt, type ActivityProject } from '../data/activity-feed';
+import { formatAbsolute } from '../data/time';
 
 type Bilingual = { ar: string; en: string };
 type Sub = { id: string; budgetUSD: number; raisedUSD: number };
-type Project = {
+type Project = Omit<ActivityProject, 'title' | 'subs'> & {
   id: string;
   status: string;
   category: string;
@@ -13,8 +14,6 @@ type Project = {
   location: Bilingual;
   budgetUSD: number;
   raisedUSD: number;
-  donors: number;
-  daysLeft: number;
   subs?: Sub[];
 };
 
@@ -30,27 +29,19 @@ type Props = {
  *
  * Single-page printable transparency report. Rendered at /xx/transparency/print/.
  *
- * Loads demo donations from localStorage and augments each project before
- * rendering, so the printed PDF includes the user's contributions in totals
- * AND per-project rows. Auto-calls window.print() ~900ms after mount — the
- * extra delay (vs the previous 700ms) gives time to load demo donations
- * before printing.
+ * Figures come straight from the recorded project data. Auto-calls
+ * window.print() shortly after mount.
  */
 export default function TransparencyPrintReport({ projects: rawProjects, lang, emblemSvg }: Props) {
   const currency: 'USD' | 'SYP' = 'USD';
 
-  // Augment projects with demo donations on mount
-  const [projects, setProjects] = useState<Project[]>(rawProjects);
-  const [demoApplied, setDemoApplied] = useState(false);
-  useEffect(() => {
-    const donations = loadDonations().donations;
-    setProjects(applyDemoToProjects(rawProjects, donations));
-    setDemoApplied(true);
-  }, [rawProjects]);
+  const projects = rawProjects;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
+  const gap = Math.max(0, totalBudget - totalRaised);
   const completed = projects.filter(p => p.status === 'completed').length;
   const active = projects.filter(p => displayStatus(p) === 'active').length;
   const open = projects.filter(p => displayStatus(p) === 'funding').length;
@@ -58,19 +49,18 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
 
   const now = new Date();
   const generatedDate = now.toLocaleDateString(
-    lang === 'ar' ? 'ar-EG' : 'en-US',
+    lang === 'ar' ? 'ar-SY' : 'en-GB',
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
 
-  // Auto-trigger the print dialog after demo donations are applied so the
-  // PDF reflects them. Some browsers block window.print() shortly after
+  // Auto-trigger the print dialog once the page has rendered. Some browsers block window.print() shortly after
   // navigation (popup-blocker heuristic), so we also leave a very
   // obvious manual "Print" button at the top of the page.
   // Two requestAnimationFrame calls + a small delay give the browser time
   // to commit the React-rendered DOM before printing — without these,
   // print previews sometimes captured the page mid-render.
   useEffect(() => {
-    if (!demoApplied) return;
+    if (!mounted) return;
     let cancelled = false;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -82,7 +72,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
       });
     });
     return () => { cancelled = true; };
-  }, [demoApplied]);
+  }, [mounted]);
 
   const sortedProjects = [...projects].sort((a, b) => b.raisedUSD - a.raisedUSD);
 
@@ -151,10 +141,10 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
               </div>
             </div>
             <div className="print-stat-card">
-              <div className="print-stat-label">{lang === 'ar' ? 'عدد المتبرعين' : 'Donors'}</div>
-              <div className="print-stat-value">{fmtNum(lang, totalDonors)}</div>
+              <div className="print-stat-label">{lang === 'ar' ? 'المتبقّي المطلوب' : 'Still Needed'}</div>
+              <div className="print-stat-value">{fmtMoney(lang, currency, gap)}</div>
               <div className="print-stat-sub">
-                {lang === 'ar' ? 'عبر جميع المشاريع' : 'across all projects'}
+                {lang === 'ar' ? 'لاستكمال تمويل جميع المشاريع' : 'to fully fund every project'}
               </div>
             </div>
             <div className="print-stat-card">
@@ -180,7 +170,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
                 <th className="print-table-num">{lang === 'ar' ? 'الميزانية' : 'Budget'}</th>
                 <th className="print-table-num">{lang === 'ar' ? 'المحصّل' : 'Raised'}</th>
                 <th className="print-table-num">%</th>
-                <th className="print-table-num">{lang === 'ar' ? 'متبرعون' : 'Donors'}</th>
+                <th>{lang === 'ar' ? 'آخر تحديث' : 'Last update'}</th>
                 <th>{lang === 'ar' ? 'الحالة' : 'Status'}</th>
               </tr>
             </thead>
@@ -195,7 +185,9 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
                     <td className="print-table-num">{fmtMoney(lang, currency, p.budgetUSD)}</td>
                     <td className="print-table-num">{fmtMoney(lang, currency, p.raisedUSD)}</td>
                     <td className="print-table-num"><strong>{fmtNum(lang, pct)}%</strong></td>
-                    <td className="print-table-num">{fmtNum(lang, p.donors)}</td>
+                    <td className="print-table-secondary">
+                      {(() => { const at = lastActivityAt(p); return at ? formatAbsolute(at.slice(0, 10), lang) : '—'; })()}
+                    </td>
                     <td>
                       <span className={`print-status print-status-${effStatus}`}>
                         {statusLabel(lang, effStatus)}
@@ -211,7 +203,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
                 <td className="print-table-num"><strong>{fmtMoney(lang, currency, totalBudget)}</strong></td>
                 <td className="print-table-num"><strong>{fmtMoney(lang, currency, totalRaised)}</strong></td>
                 <td className="print-table-num"><strong>{fmtNum(lang, fundingRate)}%</strong></td>
-                <td className="print-table-num"><strong>{fmtNum(lang, totalDonors)}</strong></td>
+                <td></td>
                 <td></td>
               </tr>
             </tfoot>
@@ -222,7 +214,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
           <p>
             {lang === 'ar'
               ? 'هذا التقرير مُولَّد من البيانات الحالية على المنصة. للتقارير الرسمية المعتمدة، تواصل مع المجلس.'
-              : 'This report is generated from current platform data. For official audited reports, contact the council.'}
+              : 'This report is generated from current platform data. For official audited reports, contact the City Council.'}
           </p>
           <p className="print-footer-url">
             {lang === 'ar' ? 'الموقع: ' : 'Site: '}
@@ -237,7 +229,7 @@ export default function TransparencyPrintReport({ projects: rawProjects, lang, e
 function statusLabel(lang: Lang, status: string): string {
   if (lang === 'ar') {
     return ({
-      funding: 'مفتوح للتبرع',
+      funding: 'مفتوح للتمويل',
       active: 'قيد التنفيذ',
       completed: 'مكتمل',
       planning: 'قيد التخطيط',

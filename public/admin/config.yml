@@ -158,21 +158,12 @@ collections:
         default: 0
         hint: "ابدأ بـ ٠ للمشاريع الجديدة"
 
-      - label: "👥 عدد المتبرعين"
-        name: "donors"
-        widget: "number"
-        value_type: "int"
-        min: 0
-        default: 0
-        hint: "ابدأ بـ ٠ للمشاريع الجديدة"
-
-      - label: "⏱️ الأيام المتبقية للتمويل"
-        name: "daysLeft"
-        widget: "number"
-        value_type: "int"
-        min: 0
-        default: 30
-        hint: "الافتراضي ٣٠ يوماً"
+      - label: "⏱️ الموعد النهائي للتمويل (اختياري)"
+        name: "deadline"
+        widget: "string"
+        required: false
+        pattern: ['^\d{4}-\d{2}-\d{2}(T.*)?$', 'استخدم تاريخاً مثل 2026-11-17']
+        hint: "تاريخ بصيغة 2026-12-31. يحسب الموقع الأيام المتبقية تلقائياً."
 
       # ─── 6. إعدادات متقدمة ───────────────────────────────────────
       - label: "🔧 المعرّف الفريد (رمز المشروع)"
@@ -252,11 +243,11 @@ collections:
         summary: "{{fields.body.ar}}"
         fields:
           - label: "التاريخ"
-            name: "date"
-            widget: "object"
-            fields:
-              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: منذ ٣ أيام، ١٥ نيسان ٢٠٢٦" }
-              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+            name: "at"
+            widget: "string"
+            required: false
+            pattern: ['^\d{4}-\d{2}-\d{2}(T.*)?$', 'استخدم تاريخاً مثل 2026-11-17']
+            hint: "يُملأ تلقائياً عند النشر من الموقع. صيغة: 2026-11-17 أو 2026-11-17T15:07:00Z"
           - label: "الكاتب"
             name: "author"
             widget: "object"
@@ -290,7 +281,7 @@ collections:
             fields:
               - { label: "بالعربية ★",    name: "ar", widget: "text" }
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "text", required: false, default: "" }
-          - { label: "التاريخ (اختياري)",  name: "date", widget: "string", required: false, hint: "YYYY-MM-DD" }
+          - { label: "التاريخ",  name: "at", widget: "string", required: false, hint: "يُملأ تلقائياً عند النشر من الموقع. صيغة: 2026-11-17 أو 2026-11-17T15:07:00Z" }
 
       # ─── 11. صور من الميدان ─────────────────────────────────────
       - label: "📷 صور من الميدان"
@@ -336,12 +327,25 @@ collections:
             fields:
               - { label: "بالعربية ★",    name: "ar", widget: "string" }
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
-          - label: "تاريخ التقاط الصورة"
-            name: "date"
-            widget: "object"
-            fields:
-              - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: منذ يومين" }
-              - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
+          - label: "تاريخ الصورة"
+            name: "at"
+            widget: "string"
+            required: false
+            pattern: ['^\d{4}-\d{2}-\d{2}(T.*)?$', 'استخدم تاريخاً مثل 2026-11-17']
+            hint: "يُملأ تلقائياً عند النشر من الموقع. صيغة: 2026-11-17 أو 2026-11-17T15:07:00Z"
+
+      # ─── سجل المساهمات (يُسجَّل من صفحة المشروع) ─────────────────
+      - label: "💰 سجل المساهمات المسجّلة"
+        name: "fundLog"
+        widget: "list"
+        required: false
+        hint: "يُضاف تلقائياً عند تسجيل مساهمة من صفحة المشروع. يفضَّل عدم التعديل يدوياً."
+        summary: "{{fields.at}} — ${{fields.amountUSD}}"
+        fields:
+          - { label: "التاريخ", name: "at", widget: "string" }
+          - { label: "المبلغ (USD)", name: "amountUSD", widget: "number", value_type: "float", min: 0 }
+          - { label: "البند (اختياري)", name: "subId", widget: "string", required: false }
+          - { label: "سجّلها", name: "by", widget: "string", required: false }
 
       # ─── 12. نص حر (نادراً ما يُستخدم) ──────────────────────────
       - label: "نص إضافي حر (نادر الاستخدام)"
@@ -416,6 +420,7 @@ collections:
           - { label: "محضر اجتماع", value: "minutes" }
           - { label: "أخرى", value: "other" }
       - { label: "تاريخ الإصدار (YYYY-MM-DD)", name: "date", widget: "string" }
+      - { label: "تاريخ النشر على الموقع", name: "at", widget: "string", required: false, hint: "يُملأ تلقائياً عند النشر من الموقع. صيغة: 2026-11-17 أو 2026-11-17T15:07:00Z" }
       - { label: "مسار الملف العام", name: "file", widget: "string", hint: "/circulars/files/...", required: false, default: "" }
       - { label: "حجم الملف (بايت)", name: "fileSize", widget: "number", required: false, default: 0 }
       - { label: "نوع MIME", name: "fileType", widget: "string", required: false, default: "application/octet-stream" }

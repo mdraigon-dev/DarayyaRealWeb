@@ -5,6 +5,8 @@ import HomeContent from '../../components/HomeContent.tsx';
 import { t } from '../../i18n/strings';
 
 const projects = await getCollection('projects');
+// Published documents feed the public activity log.
+const documents = (await getCollection('circulars')).map(c => ({ ...c.data, source: c.id }));
 const projectData = projects
   .map(p => p.data)
   .sort((a, b) => a.order - b.order);
@@ -25,6 +27,7 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
     basePath={basePath}
     baseUrl={baseUrl}
     projects={projectData}
+    documents={documents}
     client:load
   />
 </BaseLayout>

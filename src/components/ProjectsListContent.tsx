@@ -1,8 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
 import { t, fmtNum, type Lang } from '../i18n/strings';
-import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects } from '../data/donation-math';
 
 type Props = {
   lang: Lang;
@@ -18,17 +16,7 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
   const [statusKey, setStatusKey] = useState<typeof STATUSES[number]>('funding');
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  // Hold the RAW donation array in state, not augmented projects.
-  // Derive on every render to avoid state-flap bugs.
-  const [donations, setDonations] = useState<{ projectId: string; subId?: string; amountUSD: number }[]>([]);
-  useEffect(() => {
-    const refresh = () => setDonations(loadDonations().donations);
-    refresh();
-    document.addEventListener('visibilitychange', refresh);
-    return () => document.removeEventListener('visibilitychange', refresh);
-  }, []);
-
-  const projects = applyDemoToProjects(rawProjects, donations);
+  const projects = rawProjects;
 
   const filtered = useMemo(() => projects.filter(p =>
     (catKey === 'all' || p.category === catKey) &&

@@ -13,7 +13,6 @@ type MapProject = {
   health: 'healthy' | 'warning' | 'stalled' | 'completed';
   raisedUSD: number;
   budgetUSD: number;
-  donors: number;
 };
 
 type Props = {

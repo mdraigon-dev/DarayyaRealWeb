@@ -9,6 +9,8 @@ type Props = {
   onConfirm: () => Promise<void>;
   /** 'overlay' sits on top of a photo; 'inline' sits in a text row */
   variant?: 'overlay' | 'inline';
+  /** Extra consequence shown while confirming, e.g. "Also subtracts $500" */
+  warning?: string;
 };
 
 type State = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'deleting' } | { kind: 'error'; message: string };
@@ -19,7 +21,7 @@ type State = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'deleting' } | { k
  * confirmation sits right next to the item being removed. Every click stops
  * propagation so a button on a photo never also opens the lightbox.
  */
-export default function AdminDeleteButton({ lang, what, onConfirm, variant = 'inline' }: Props) {
+export default function AdminDeleteButton({ lang, what, onConfirm, variant = 'inline', warning }: Props) {
   const [state, setState] = useState<State>({ kind: 'idle' });
   const ar = lang === 'ar';
   const stop = (e: React.SyntheticEvent) => { e.stopPropagation(); };
@@ -61,6 +63,7 @@ export default function AdminDeleteButton({ lang, what, onConfirm, variant = 'in
   return (
     <span className={`${cls} admin-del-open`} onClick={stop} onKeyDown={stop} role="group">
       <span className="admin-del-q">{state.kind === 'deleting' ? (ar ? 'جارٍ الحذف…' : 'Deleting…') : (ar ? 'حذف؟' : 'Delete?')}</span>
+      {warning && state.kind === 'confirm' && <span className="admin-del-warning">{warning}</span>}
       {state.kind === 'confirm' && (
         <>
           <button type="button" className="admin-del-yes" onClick={run}>{ar ? 'نعم' : 'Yes'}</button>

@@ -4,7 +4,7 @@
  * Per-admin preferences, stored in the browser's localStorage keyed by the
  * signed-in account's email. This keeps them entirely client-side — no repo
  * commit, no backend — which fits the platform's static-hosting model and the
- * same approach the demo-donations feature already uses.
+ * same approach used for other per-browser conveniences.
  *
  * Preferences are therefore per-browser: they follow the account on this
  * device. (If they ever need to roam across devices, the natural upgrade is to

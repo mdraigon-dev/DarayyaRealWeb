@@ -11,7 +11,7 @@ declare global {
 }
 
 type Bilingual = { ar: string; en: string };
-type NewComment = { author: Bilingual; body: Bilingual; date: string };
+type NewComment = { author: Bilingual; body: Bilingual; at: string };
 
 type Props = {
   projectId: string;
@@ -116,7 +116,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
           ar: lang === 'ar' ? trimmed : '',
           en: lang === 'en' ? trimmed : '',
         },
-        date: new Date().toISOString().slice(0, 10),
+        at: new Date().toISOString(), // exact moment; shown as "5 minutes ago" etc.
       };
 
       const commitMessage = lang === 'ar'

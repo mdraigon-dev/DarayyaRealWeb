@@ -7,6 +7,11 @@ import { defineCollection, z } from 'astro:content';
 // en_auto is set by scripts/auto-translate.mjs to mark MyMemory output;
 // the public site shows a small "auto-translated" badge for those fields.
 // ============================================================
+// When something happened: an ISO datetime ("2026-11-17T15:07:12.000Z") when
+// the exact moment is known, or a plain date ("2026-05-22") when only the day
+// is. Relative text like "3 days ago" is never stored — see src/data/time.ts.
+const isoAt = z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/, 'Use an ISO date, e.g. 2026-11-17');
+
 const bilingual = z.object({
   ar: z.string().min(1, 'العربية مطلوبة'),
   en: z.string().optional().default(''),
@@ -45,6 +50,9 @@ const projectCollection = defineCollection({
     // Money & timing
     budgetUSD: z.number().positive(),
     raisedUSD: z.number().min(0),
+    /** Optional funding deadline (YYYY-MM-DD); days left is computed live. */
+    deadline: isoAt.optional(),
+    // Legacy fields from the online-donation era — no longer read or shown.
     donors: z.number().int().min(0).default(0),
     daysLeft: z.number().int().min(0).default(0),
 
@@ -66,7 +74,9 @@ const projectCollection = defineCollection({
     // Field updates
     updates: z.array(
       z.object({
-        date: bilingual,
+        at: isoAt.optional(),
+        /** Legacy free-text date ("3 days ago") — superseded by `at` */
+        date: bilingual.optional(),
         author: bilingual,
         body: bilingual,
       })
@@ -79,7 +89,22 @@ const projectCollection = defineCollection({
         scene: z.enum(['road', 'water', 'sewer', 'light', 'internet', 'building', 'park']).optional(),
         status: z.enum(['healthy', 'warning', 'stalled', 'completed']),
         caption: bilingual,
-        date: bilingual,
+        at: isoAt.optional(),
+        /** Legacy free-text date — superseded by `at` */
+        date: bilingual.optional(),
+      })
+    ).default([]),
+
+    // Contributions recorded by admins (delivered via the Development
+    // Committee). Each entry is the audit trail behind a raisedUSD change.
+    fundLog: z.array(
+      z.object({
+        at: isoAt,
+        amountUSD: z.number().positive(),
+        /** Sub-item the amount went to, when the project has sub-items */
+        subId: z.string().optional(),
+        /** Display name of the admin who recorded it */
+        by: z.string().optional(),
       })
     ).default([]),
 
@@ -98,6 +123,8 @@ const projectCollection = defineCollection({
       z.object({
         author: bilingual,
         body: bilingual,
+        at: isoAt.optional(),
+        /** Legacy date string — superseded by `at` */
         date: z.string().optional(),
       })
     ).default([]),
@@ -149,6 +176,8 @@ const circularsCollection = defineCollection({
     ]),
     /** ISO date string (YYYY-MM-DD) — when the document was issued */
     date: z.string(),
+    /** When it was published on the site (for the activity log) */
+    at: isoAt.optional(),
     /** Public path to the binary file under /circulars/files/ */
     file: z.string(),
     /** Size in bytes, used for display only */
