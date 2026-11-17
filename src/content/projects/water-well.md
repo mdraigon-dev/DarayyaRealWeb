@@ -14,7 +14,7 @@
 "description":
   "ar": "حفر بئر ارتوازي بعمق ٢٢٠ متر لتأمين مياه نظيفة لثلاث مدارس وحديقة عامة."
   "en": "Drilling a 220-meter deep artesian well to provide clean water for three schools and a public park."
-"budgetUSD": 22000
+"budgetUSD": 8468000
 "raisedUSD": 22000
 "lat": 33.46589
 "lng": 36.22809
