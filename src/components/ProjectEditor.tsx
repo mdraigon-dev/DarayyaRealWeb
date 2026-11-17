@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { loc, type Lang } from '../i18n/strings';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit';
-import { loadPrefs, defaultPrefs, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
+import { loadPrefs, defaultPrefs, preferredAuthorName, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
+import { atForPickedDay, localToday } from '../data/time';
 import LocationPicker from './LocationPicker';
 
 // ────────────────────────────────────────────────────────────────────
@@ -29,11 +30,15 @@ type Engineer = {
 type Comment = {
   author: Bilingual;
   body: Bilingual;
+  at?: string;
+  /** legacy */
   date?: string;
 };
 
 type Update = {
-  date: Bilingual;
+  at?: string;
+  /** legacy free-text date */
+  date?: Bilingual;
   author: Bilingual;
   body: Bilingual;
 };
@@ -50,8 +55,8 @@ export type ProjectFormState = {
   description: Bilingual;
   budgetUSD: number;
   raisedUSD: number;
-  donors: number;
-  daysLeft: number;
+  /** Optional funding deadline, YYYY-MM-DD ('' = none) */
+  deadline: string;
   lat: number;
   lng: number;
   subs: Sub[];
@@ -86,7 +91,7 @@ type Props = {
 // ────────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: Array<{ value: ProjectFormState['status']; ar: string; en: string; emoji: string }> = [
-  { value: 'funding',   ar: 'مفتوح للتبرع', en: 'Open for funding', emoji: '🟡' },
+  { value: 'funding',   ar: 'مفتوح للتمويل', en: 'Open for funding', emoji: '🟡' },
   { value: 'active',    ar: 'قيد التنفيذ',   en: 'Active',           emoji: '🟢' },
   { value: 'completed', ar: 'مكتمل',         en: 'Completed',        emoji: '⚫' },
   { value: 'planning',  ar: 'قيد التخطيط',   en: 'Planning',         emoji: '⚪' },
@@ -123,6 +128,19 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
    * null — there's no existing file to race against. */
   const [editingSha, setEditingSha] = useState<string | null | undefined>(undefined);
   const [prefs, setPrefs] = useState<AdminPrefs>(defaultPrefs());
+
+  // The project file as it is in the repo right now. Saving starts from this
+  // and overlays only the fields this form edits, so everything else — photos,
+  // the fund log, fields added later — survives an edit. (Before, the form
+  // rebuilt the file from its own fields and silently dropped all photos.)
+  const liveRef = useRef<Record<string, unknown> | null>(null);
+
+  // Public author name for new entries: the admin's display name, never their email.
+  const authorName = () => {
+    if (auth.kind !== 'authenticated') return '';
+    const n = preferredAuthorName(auth.user, prefs);
+    return n.includes('@') ? '' : n;
+  };
 
   // Auth setup
   useEffect(() => {
@@ -172,6 +190,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           if (!cancelled) setEditingSha(undefined);
           return;
         }
+        liveRef.current = live;
         // Only pull the fields the inline forms can change out from under the
         // editor. Everything else stays as the user loaded it.
         setState((s) => ({
@@ -252,8 +271,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         }
       }
 
-      // Build the frontmatter object matching the existing project file shape
+      // Start from the live file and overlay the fields this form manages.
       const frontmatter: Record<string, unknown> = {
+        ...(liveRef.current || {}),
         id: state.id,
         order: state.order,
         featured: state.featured,
@@ -265,15 +285,21 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         description: state.description,
         budgetUSD: state.budgetUSD,
         raisedUSD: state.raisedUSD,
-        donors: state.donors,
-        daysLeft: state.daysLeft,
         lat: state.lat,
         lng: state.lng,
       };
-      if (state.subs.length > 0) frontmatter.subs = state.subs;
-      if (state.updates.length > 0) frontmatter.updates = state.updates;
-      if (state.engineers.length > 0) frontmatter.engineers = state.engineers;
-      if (state.comments.length > 0) frontmatter.comments = state.comments;
+      // Legacy fields from the online-donation era are dropped on save.
+      delete frontmatter.donors;
+      delete frontmatter.daysLeft;
+      if (state.deadline) frontmatter.deadline = state.deadline; else delete frontmatter.deadline;
+      // Lists this form manages: written when non-empty, removed when emptied.
+      const lists: Array<[string, unknown[]]> = [
+        ['subs', state.subs], ['updates', state.updates],
+        ['engineers', state.engineers], ['comments', state.comments],
+      ];
+      for (const [key, list] of lists) {
+        if (list.length > 0) frontmatter[key] = list; else delete frontmatter[key];
+      }
 
       const commitMessage = isNew
         ? (lang === 'ar' ? `إنشاء مشروع: ${state.title.ar}` : `Create project: ${state.title.ar}`)
@@ -639,24 +665,18 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
 
         <div className="editor-row">
           <div className="editor-field editor-field-half">
-            <label>{lang === 'ar' ? 'عدد المتبرعين' : 'Donor count'}</label>
+            <label>{lang === 'ar' ? 'الموعد النهائي للتمويل (اختياري)' : 'Funding deadline (optional)'}</label>
             <input
-              type="number"
-              className="editor-number-input"
-              value={state.donors}
-              onChange={(e) => update('donors', Math.max(0, parseInt(e.target.value, 10) || 0))}
-              min={0}
+              type="date"
+              className="editor-text-input"
+              value={state.deadline}
+              onChange={(e) => update('deadline', e.target.value)}
             />
-          </div>
-          <div className="editor-field editor-field-half">
-            <label>{lang === 'ar' ? 'الأيام المتبقية' : 'Days left'}</label>
-            <input
-              type="number"
-              className="editor-number-input"
-              value={state.daysLeft}
-              onChange={(e) => update('daysLeft', Math.max(0, parseInt(e.target.value, 10) || 0))}
-              min={0}
-            />
+            <p className="editor-field-hint">
+              {lang === 'ar'
+                ? 'إن حُدِّد، يعرض الموقع عدد الأيام المتبقية ويحدّثه تلقائياً كل يوم.'
+                : 'If set, the site shows the days remaining and keeps the count current.'}
+            </p>
           </div>
         </div>
       </div>
@@ -710,8 +730,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         </h3>
         <p className="editor-field-hint" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
           {lang === 'ar'
-            ? 'قسّم المشروع إلى بنود تنفيذية. كل بند له ميزانية مستقلة وشريط تقدم خاص. المتبرعون يمكنهم اختيار التبرع لبند محدد.'
-            : 'Split the project into executable line items. Each has its own budget and progress bar. Donors can choose to fund a specific item.'}
+            ? 'قسّم المشروع إلى بنود تنفيذية. كل بند له ميزانية مستقلة وشريط تقدم خاص. يمكن تسجيل المساهمات على بند محدد.'
+            : 'Split the project into executable line items. Each has its own budget and progress bar. Contributions can be recorded against a specific item.'}
         </p>
         {state.subs.length === 0 && (
           <p className="editor-empty-note">
@@ -939,8 +959,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         </h3>
         <p className="editor-field-hint" style={{ marginTop: 0, marginBottom: '0.85rem' }}>
           {lang === 'ar'
-            ? 'تظهر هذه التحديثات في الجدول الزمني على صفحة المشروع. استخدمها لإعلام المتبرعين بالتقدم.'
-            : 'These appear in the timeline on the project page. Use them to inform donors of progress.'}
+            ? 'تظهر هذه التحديثات في الجدول الزمني على صفحة المشروع. استخدمها لإطلاع الأهالي والمساهمين على التقدّم.'
+            : 'These appear in the timeline on the project page. Use them to keep residents and contributors informed.'}
         </p>
         {state.updates.length === 0 && (
           <p className="editor-empty-note">
@@ -969,17 +989,22 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                 ✕
               </button>
             </div>
-            <BilingualField
-              label={lang === 'ar' ? 'التاريخ (نص حر)' : 'Date (free text)'}
-              value={u.date}
-              onChange={(side, v) => {
-                const next = [...state.updates];
-                next[i] = { ...u, date: { ...u.date, [side]: v } };
-                update('updates', next);
-              }}
-              arPlaceholder={lang === 'ar' ? 'مثلاً: ١٥ نيسان ٢٠٢٦' : ''}
-              enPlaceholder="e.g. April 15, 2026"
-            />
+            <div className="editor-field">
+              <label>{lang === 'ar' ? 'التاريخ' : 'Date'}</label>
+              <input
+                type="date"
+                className="editor-text-input editor-date-input"
+                value={(u.at || '').slice(0, 10)}
+                max={localToday()}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const next = [...state.updates];
+                  const { date: _legacy, ...rest } = u;
+                  next[i] = { ...rest, at: atForPickedDay(e.target.value) };
+                  update('updates', next);
+                }}
+              />
+            </div>
             <BilingualField
               label={lang === 'ar' ? 'نص التحديث' : 'Update text'}
               value={u.body}
@@ -999,8 +1024,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           onClick={() => update('updates', [
             ...state.updates,
             {
-              date: { ar: lang === 'ar' ? 'اليوم' : '', en: lang === 'ar' ? '' : 'Today' },
-              author: { ar: (auth as any).user?.user_metadata?.full_name || (auth as any).user?.email || '', en: '' },
+              at: new Date().toISOString(),
+              author: { ar: authorName(), en: '' },
               body: { ar: '', en: '' },
             },
           ])}
@@ -1035,13 +1060,15 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                 }}
               />
               <input
-                type="text"
+                type="date"
                 className="editor-text-input editor-date-input"
-                value={c.date || ''}
-                placeholder="YYYY-MM-DD"
+                value={(c.at || c.date || '').slice(0, 10)}
+                max={localToday()}
                 onChange={(e) => {
+                  if (!e.target.value) return;
                   const newComments = [...state.comments];
-                  newComments[i] = { ...c, date: e.target.value };
+                  const { date: _legacy, ...rest } = c;
+                  newComments[i] = { ...rest, at: atForPickedDay(e.target.value) };
                   update('comments', newComments);
                 }}
               />
@@ -1073,9 +1100,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           onClick={() => update('comments', [
             ...state.comments,
             {
-              author: { ar: (auth as any).user.user_metadata?.full_name || (auth as any).user.email, en: '' },
+              author: { ar: authorName(), en: '' },
               body: { ar: '', en: '' },
-              date: new Date().toISOString().slice(0, 10),
+              at: new Date().toISOString(),
             },
           ])}
         >

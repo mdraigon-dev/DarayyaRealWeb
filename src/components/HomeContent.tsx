@@ -2,22 +2,19 @@ import Logo from './Logo';
 import DarayyaMap from './DarayyaMap';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
 import ActivityFeed from './ActivityFeed';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
-import { loadDonations } from '../data/demo-donations';
-import { applyDemoToProjects, displayStatus } from '../data/donation-math';
-import { buildActivityFeed } from '../data/activity-feed';
+import { displayStatus } from '../data/donation-math';
+import { buildActivityFeed, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
+import { daysUntil, useNow } from '../data/time';
 
 type Bilingual = { ar: string; en: string };
-type HomeProject = ProjectCardData & {
+type HomeProject = ProjectCardData & Omit<ActivityProject, 'title' | 'subs'> & {
   lat: number;
   lng: number;
   health: 'healthy' | 'warning' | 'stalled' | 'completed';
-  daysLeft: number;
-  // Optional — used to derive the activity feed at the bottom of the home page
-  updates?: Array<{ date: Bilingual; author: Bilingual; body: Bilingual }>;
-  comments?: Array<{ author: Bilingual; body: Bilingual; date?: string }>;
-  subs?: Array<{ id: string; budgetUSD: number; raisedUSD: number }>;
+  deadline?: string;
+  subs?: Array<{ id: string; budgetUSD: number; raisedUSD: number; title?: Bilingual }>;
 };
 
 type Props = {
@@ -25,28 +22,15 @@ type Props = {
   basePath: string; // e.g. "/darayya-platform/ar"
   baseUrl: string;  // e.g. "/darayya-platform/"
   projects: HomeProject[];
+  /** Published circulars/reports, for the activity log */
+  documents?: ActivityDocument[];
 };
 
-export default function HomeContent({ lang, basePath, projects: rawProjects }: Props) {
+export default function HomeContent({ lang, basePath, projects, documents = [] }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  // Hold the RAW demo donation array in state, not augmented projects.
-  // Augment-projects-on-every-render is cheap and avoids a state-flap bug
-  // where the previous architecture briefly showed raw values when Astro
-  // re-rendered the React island.
-  const [donations, setDonations] = useState<{ projectId: string; subId?: string; amountUSD: number }[]>([]);
-  useEffect(() => {
-    const refresh = () => setDonations(loadDonations().donations);
-    refresh();
-    document.addEventListener('visibilitychange', refresh);
-    return () => document.removeEventListener('visibilitychange', refresh);
-  }, []);
-
-  // Derive augmented projects fresh each render. Pure, deterministic,
-  // no race conditions. For ~20 projects × handful of donations this
-  // is microseconds of work.
-  const projects = applyDemoToProjects(rawProjects, donations);
-
+  // Totals come straight from the recorded project data (no browser-side
+  // demo donations any more — contributions are recorded by admins).
   const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
   const completed = projects.filter(p => p.status === 'completed').length;
@@ -60,9 +44,10 @@ export default function HomeContent({ lang, basePath, projects: rawProjects }: P
 
   const urgent = featured[0];
 
-  // Activity feed for the bottom section — up to 10 most recent items
-  // across all projects. Mirrors what the dashboard shows.
-  const activityEntries = buildActivityFeed(projects, lang, 10);
+  // The full public activity log (projects + documents), newest first.
+  // The section shows 10 at a time with "Show more".
+  const activityEntries = buildActivityFeed(projects, documents);
+  const now = useNow();
 
   const heroTagLines = t(lang, 'hero_h1_tag').split('\n');
 
@@ -124,8 +109,11 @@ export default function HomeContent({ lang, basePath, projects: rawProjects }: P
             <p>
               {loc(lang, urgent.location)} • {t(lang, 'urgent_meta', {
                 pct: fmtNum(lang, Math.round((urgent.raisedUSD / urgent.budgetUSD) * 100)),
-                days: fmtNum(lang, urgent.daysLeft),
               })}
+              {/* Days left only when a real deadline is set, counted live */}
+              {urgent.deadline && now && daysUntil(urgent.deadline, now) >= 0 && (
+                <> • {fmtNum(lang, daysUntil(urgent.deadline, now))} {t(lang, 'days_remaining')}</>
+              )}
             </p>
           </div>
           <a className="urgent-banner-btn" href={`${basePath}/projects/${urgent.id}/`}>
@@ -176,16 +164,15 @@ export default function HomeContent({ lang, basePath, projects: rawProjects }: P
       <section className="section home-activity-section">
         <div className="section-header">
           <h2 className="section-title">
-            {lang === 'ar' ? 'النشاط الأخير' : 'Recent Activity'}
+            {t(lang, 'activity_recent')}
           </h2>
+          <p className="section-desc">{t(lang, 'activity_log_desc')}</p>
         </div>
         <ActivityFeed
           entries={activityEntries}
           lang={lang}
           basePath={basePath}
-          emptyText={lang === 'ar'
-            ? 'لا توجد أنشطة بعد. عندما ينشر فريقنا تحديثات أو تعليقات على المشاريع، ستظهر هنا.'
-            : "No activity yet. When our team posts updates or comments on projects, they'll show up here."}
+          pageSize={10}
         />
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
           <a className="btn-secondary" href={`${basePath}/admin/`}>

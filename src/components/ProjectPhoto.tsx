@@ -10,7 +10,8 @@ type Props = {
   src?: string; // if an uploaded image exists, prefer it
   status: Status;
   caption: string;
-  date: string;
+  /** Text or a <TimeStamp> */
+  date: React.ReactNode;
   lang: Lang;
   /** Used to pick a stable Unsplash photo per project. Falls back to scene if absent. */
   projectId?: string;
@@ -129,7 +130,8 @@ function UnsplashOrFallback({
   sceneKey: SceneType;
   status: Status;
   caption: string;
-  date: string;
+  /** Text or a <TimeStamp> */
+  date: React.ReactNode;
   lang: Lang;
   onOpen?: () => void;
 }) {

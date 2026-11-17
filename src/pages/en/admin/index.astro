@@ -5,6 +5,7 @@ import AdminDashboard from '../../../components/AdminDashboard.tsx';
 import { t } from '../../../i18n/strings';
 
 const projects = await getCollection('projects');
+const documents = (await getCollection('circulars')).map(c => ({ ...c.data, source: c.id }));
 const projectData = projects.map(p => p.data).sort((a, b) => a.order - b.order);
 
 const lang = 'en' as const;
@@ -18,5 +19,5 @@ const basePath = `${baseUrl}${lang}`.replace(/\/$/, '');
   lang={lang}
   currentPage="admin"
 >
-  <AdminDashboard lang={lang} basePath={basePath} projects={projectData} client:load />
+  <AdminDashboard lang={lang} basePath={basePath} projects={projectData} documents={documents} client:load />
 </BaseLayout>

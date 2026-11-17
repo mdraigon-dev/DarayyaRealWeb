@@ -12,7 +12,6 @@ export type ProjectCardData = {
   description: BilingualMaybeAuto;
   budgetUSD: number;
   raisedUSD: number;
-  donors: number;
 };
 
 type Props = {

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { stringify as stringifyYaml } from 'yaml';
 import { t, type Lang } from '../i18n/strings';
 import { commitFile, commitBinaryFile } from '../data/git-gateway';
+import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 
 type Props = {
   lang: Lang;
@@ -149,10 +150,14 @@ export default function CircularUploader({ lang, onClose }: Props) {
 
       // STEP 2: Commit the metadata .md
       setSave({ kind: 'uploading', step: lang === 'ar' ? 'حفظ بيانات الوثيقة…' : 'Saving metadata…' });
+      // Shown publicly on the document card, so use the admin's chosen
+      // display name and never fall back to their email address.
       const uploadedBy = (() => {
         try {
           const u = (window as any).netlifyIdentity?.currentUser?.();
-          return u?.user_metadata?.full_name || u?.email || '';
+          if (!u) return '';
+          const name = preferredAuthorName(u, loadPrefs(u.email));
+          return name.includes('@') ? '' : name;
         } catch { return ''; }
       })();
 
@@ -165,6 +170,7 @@ export default function CircularUploader({ lang, onClose }: Props) {
         title: { ar: titleAr.trim(), en: titleEn.trim() },
         category,
         date,
+        at: new Date().toISOString(), // when it was published, for the activity log
         file: publicFilePath,
         fileSize: file.size,
         fileType: file.type || 'application/octet-stream',

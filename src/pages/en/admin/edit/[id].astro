@@ -33,8 +33,10 @@ const initial = {
     title: fixBilingual(s.title),
     length: fixBilingual(s.length),
   })),
+  // Real dates (`at`) replace the old free-text dates.
+  deadline: project.deadline ?? '',
   updates: fixList(project.updates, (u: any) => ({
-    date: fixBilingual(u.date),
+    at: u.at,
     author: fixBilingual(u.author),
     body: fixBilingual(u.body),
   })),
@@ -47,7 +49,7 @@ const initial = {
   comments: fixList(project.comments, (c: any) => ({
     author: fixBilingual(c.author),
     body: fixBilingual(c.body),
-    date: c.date,
+    at: c.at ?? c.date,
   })),
 };
 ---

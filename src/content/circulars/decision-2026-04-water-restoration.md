@@ -4,7 +4,7 @@ title:
   ar: "قرار البدء بمشروع إعادة تأهيل شبكة المياه — المنطقة الجنوبية"
   en: "Decision to Commence the Water Network Restoration — Southern Zone"
 description:
-  ar: "قرار المجلس البلدي رقم ٢٠٢٦/٤٢ بشأن البدء الرسمي في تنفيذ المرحلة الأولى من مشروع إعادة تأهيل شبكة المياه في المنطقة الجنوبية بناءً على التمويل المؤمَّن من الجالية."
+  ar: "قرار مجلس المدينة رقم ٢٠٢٦/٤٢ بشأن البدء الرسمي في تنفيذ المرحلة الأولى من مشروع إعادة تأهيل شبكة المياه في المنطقة الجنوبية بناءً على التمويل المؤمَّن من الجالية."
   en: "Council Decision №2026/42 authorizing the formal commencement of Phase 1 of the southern-zone water network restoration, following confirmation of diaspora-secured funding."
 category: "decision"
 date: "2026-04-18"

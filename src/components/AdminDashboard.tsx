@@ -1,703 +1,391 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
-import { adminData } from '../data/admin-sample';
-import { loadDonations, type DemoDonation } from '../data/demo-donations';
-import { applyDemoToProjects, displayStatus } from '../data/donation-math';
-import { buildActivityFeed } from '../data/activity-feed';
-import { classifyUser, type AuthUser } from '../data/permissions';
+import { displayStatus } from '../data/donation-math';
+import { buildActivityFeed, lastActivityAt, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
+import { classifyUser } from '../data/permissions';
+import { useIdentity } from '../data/use-identity';
+import { timeKey, daysUntil, useNow } from '../data/time';
+import ActivityFeed from './ActivityFeed';
+import TimeStamp from './TimeStamp';
 
-declare global {
-  interface Window {
-    netlifyIdentity: any;
-  }
-}
-
-type Bilingual = { ar: string; en: string };
-type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
-type Comment = { author: Bilingual; body: Bilingual; date?: string };
-type Sub = { id: string; budgetUSD: number; raisedUSD: number; title?: Bilingual };
-type Project = {
-  id: string;
+type Bilingual = { ar: string; en?: string };
+type Project = ActivityProject & {
+  title: Bilingual;
   category: string;
   status: 'funding' | 'active' | 'completed' | 'planning';
-  title: Bilingual;
-  statusLabel?: never;
+  health: 'healthy' | 'warning' | 'stalled' | 'completed';
   budgetUSD: number;
   raisedUSD: number;
-  donors: number;
-  daysLeft: number;
-  updates?: Update[];
-  comments?: Comment[];
-  subs?: Sub[];
+  deadline?: string;
 };
 
 type Props = {
-  lang: Lang;          // URL-based default
+  lang: Lang;
   basePath: string;
   projects: Project[];
+  documents?: ActivityDocument[];
 };
 
-export default function AdminDashboard({ lang: urlLang, basePath, projects: rawProjects }: Props) {
-  // Dashboard language follows the URL (/ar/admin/ vs /en/admin/).
-  const lang: Lang = urlLang;
+type Reason = { level: 'serious' | 'warning' | 'info'; text: string };
 
-  const [currency] = useState<'USD' | 'SYP'>('USD');
+const DAY = 86400000;
+const STALE_DAYS = 30;
 
-  // Authentication state — used to gate the Project Management section.
-  // The public top half of the dashboard (hero stats, chart, recent
-  // donations, top donors, activity log) stays visible to everyone;
-  // only the admin-tool table at the bottom is gated.
-  const [authUser, setAuthUser] = useState<AuthUser | null | undefined>(undefined);
-  useEffect(() => {
-    let cancelled = false;
-    let tries = 0;
-    const init = () => {
-      if (cancelled) return;
-      const ni = window.netlifyIdentity;
-      if (!ni) {
-        tries++;
-        if (tries < 40) setTimeout(init, 100);
-        else setAuthUser(null);
-        return;
-      }
-      try { ni.init(); } catch {}
-      setAuthUser(ni.currentUser() || null);
-      ni.on('login', (u: any) => setAuthUser(u));
-      ni.on('logout', () => setAuthUser(null));
-    };
-    init();
-    return () => { cancelled = true; };
-  }, []);
+/**
+ * Council dashboard. Everything here is computed from recorded data — project
+ * budgets and raised amounts, contributions recorded by admins, and dated
+ * activity. Nothing is sampled or simulated.
+ */
+export default function AdminDashboard({ lang, basePath, projects, documents = [] }: Props) {
+  const currency = 'USD' as const;
+  const identity = useIdentity();
+  const isAdmin = identity.kind === 'authenticated' && classifyUser(identity.user, []) === 'admin';
+  const now = useNow(); // null until the page runs in the browser
+  const base = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}`.replace(/\/{2,}/g, '/');
+  const projectHref = (id: string) => (isAdmin ? `${base}/admin/edit/${id}/` : `${basePath}/projects/${id}/`);
 
-  // Anyone classified as 'admin' OR 'engineer-of-project' may see and
-  // use the Project Management section. (We pass [] for engineers since
-  // this dashboard is project-list-level, not single-project. Engineers
-  // who are signed in but aren't admin can't see the table here — they
-  // operate via the inline forms on their own project pages.)
-  const dashboardRole = classifyUser(authUser, []);
-  const canSeePM = dashboardRole === 'admin';
-  const { donations: sampleDonations, alerts, activities: sampleActivities, topDonors, weekData: sampleWeekData } = adminData(lang);
+  // ── Headline figures ──────────────────────────────────────────────
+  const totalBudget = projects.reduce((s, p) => s + p.budgetUSD, 0);
+  const totalRaised = projects.reduce((s, p) => s + Math.min(p.raisedUSD, p.budgetUSD), 0);
+  const gap = Math.max(0, totalBudget - totalRaised);
+  const pctFunded = totalBudget > 0 ? Math.round((totalRaised / totalBudget) * 100) : 0;
+  const underFunded = projects.filter((p) => p.raisedUSD < p.budgetUSD).length;
+  const byStatus = projects.reduce<Record<string, number>>((acc, p) => {
+    const s = displayStatus(p); acc[s] = (acc[s] || 0) + 1; return acc;
+  }, {});
 
-  // Load demo donations on mount. The dashboard reads them in three ways:
-  //  - augmented project list (per-project raised reflects demos)
-  //  - real 7-day chart data
-  //  - real today's donations
-  const [demoDonations, setDemoDonations] = useState<DemoDonation[]>([]);
-  useEffect(() => {
-    setDemoDonations(loadDonations().donations);
-    const onVis = () => setDemoDonations(loadDonations().donations);
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, []);
+  const contributions = projects.flatMap((p) => p.fundLog || []);
+  const recordedTotal = contributions.reduce((s, f) => s + f.amountUSD, 0);
+  const recent30 = now
+    ? contributions.filter((f) => now.getTime() - timeKey(f.at) <= 30 * DAY).reduce((s, f) => s + f.amountUSD, 0)
+    : null;
 
-  // Augmented projects — each project's raisedUSD and donors reflect
-  // demo donations applied via waterfall (for projects with subs)
-  const projects = applyDemoToProjects(rawProjects, demoDonations);
+  // ── Funding by sector: one meter per sector, largest remaining need first ──
+  const sectors = useMemo(() => {
+    const m = new Map<string, { budget: number; raised: number; count: number }>();
+    for (const p of projects) {
+      const r = m.get(p.category) || { budget: 0, raised: 0, count: 0 };
+      r.budget += p.budgetUSD; r.raised += Math.min(p.raisedUSD, p.budgetUSD); r.count += 1;
+      m.set(p.category, r);
+    }
+    return [...m.entries()]
+      .map(([category, r]) => ({ category, ...r, gap: r.budget - r.raised, pct: Math.round((r.raised / Math.max(1, r.budget)) * 100) }))
+      .sort((a, b) => b.gap - a.gap);
+  }, [projects]);
 
-  // Derive REAL activity feed from project data: every update and every comment
-  // across all projects, most recent first. Falls back to sample activities
-  // when there are no real ones (so the dashboard isn't empty on day 1).
-  // Shape and derivation match the home-page feed via buildActivityFeed.
-  type ActivityEntry = { color: 'green' | 'gold' | 'blue'; text: string; time: string };
-  const realActivitiesTop = buildActivityFeed(projects, lang, 8);
-  const activities: ActivityEntry[] = realActivitiesTop.length > 0
-    ? realActivitiesTop.map(a => ({ color: a.color, text: a.text, time: a.time }))
-    : sampleActivities;
+  // ── Needs attention: concrete, checkable reasons per project ─────────
+  // Staleness and deadlines depend on today's date, so they appear once the
+  // page is running in the browser (now !== null).
+  const attention = useMemo(() => {
+    return projects
+      .map((p) => {
+        const reasons: Reason[] = [];
+        const pct = Math.round((p.raisedUSD / Math.max(1, p.budgetUSD)) * 100);
+        if (p.health === 'stalled') reasons.push({ level: 'serious', text: t(lang, 'dash_reason_stalled') });
+        if (now && p.deadline && daysUntil(p.deadline, now) < 0 && p.raisedUSD < p.budgetUSD) {
+          reasons.push({ level: 'serious', text: t(lang, 'dash_reason_deadline') });
+        }
+        if (p.health === 'warning') reasons.push({ level: 'warning', text: t(lang, 'dash_reason_warning') });
+        if (p.status === 'funding' && p.raisedUSD >= p.budgetUSD) {
+          reasons.push({ level: 'warning', text: t(lang, 'dash_reason_funded_open') });
+        }
+        if (p.status === 'completed' && p.raisedUSD < p.budgetUSD) {
+          reasons.push({ level: 'warning', text: t(lang, 'dash_reason_completed_unfunded', { pct: fmtNum(lang, pct) }) });
+        }
+        if (now && p.status !== 'completed') {
+          const last = lastActivityAt(p);
+          if (!last) reasons.push({ level: 'info', text: t(lang, 'dash_reason_never') });
+          else {
+            const days = Math.floor((now.getTime() - timeKey(last)) / DAY);
+            if (days > STALE_DAYS) reasons.push({ level: 'info', text: t(lang, 'dash_reason_stale', { days: fmtNum(lang, days) }) });
+          }
+        }
+        const rank = reasons.reduce((s, r) => s + (r.level === 'serious' ? 100 : r.level === 'warning' ? 10 : 1), 0);
+        return { p, reasons, rank, pct };
+      })
+      .filter((x) => x.reasons.length > 0)
+      .sort((a, b) => b.rank - a.rank);
+  }, [projects, now, lang]);
+  const [showAllAttention, setShowAllAttention] = useState(false);
+  const attentionShown = showAllAttention ? attention : attention.slice(0, 6);
 
-  // ──────────────────────────────────────────────────────────────────
-  // Demo donations from localStorage → Recent Donations + Top Donors
-  // ──────────────────────────────────────────────────────────────────
-  // demoDonations is already loaded above (used to augment projects).
-  // Reuse the same state here for the recent/top donors widgets.
+  const activity = useMemo(() => buildActivityFeed(projects, documents), [projects, documents]);
 
-  // Build a quick project-id → title lookup so we can show "donated to <name>"
-  const projectById = new Map<string, Project>();
-  projects.forEach(p => projectById.set(p.id, p));
-
-  // Recent demo donations — sorted by timestamp DESC, mapped to display shape
-  type RecentDonation = { name: string; location: string; target: string; time: string; amountUSD: number; color: string; isDemo: boolean };
-  const demoRecent: RecentDonation[] = [...demoDonations]
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 8)
-    .map((d) => {
-      const project = projectById.get(d.projectId);
-      const projectName = project ? loc(lang, project.title) : d.projectId;
-      const name = d.name?.trim() || (lang === 'ar' ? 'متبرع مجهول' : 'Anonymous donor');
-      const ageMs = Date.now() - d.timestamp;
-      const time = formatRelativeTime(ageMs, lang);
-      // Pick a deterministic color from name hash
-      const colors = ['green', 'gold', 'blue', 'red'];
-      const colorIdx = Math.abs(hashStr(name)) % colors.length;
-      return {
-        name,
-        location: lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode',
-        target: lang === 'ar' ? `لمشروع: ${projectName}` : `to: ${projectName}`,
-        time,
-        amountUSD: d.amountUSD,
-        color: colors[colorIdx],
-        isDemo: true,
-      };
-    });
-  const recentDonationsDisplay = demoRecent.length > 0
-    ? demoRecent
-    : sampleDonations.slice(0, 8).map(d => ({ ...d, isDemo: false } as RecentDonation));
-
-  // Top donors — group demo donations by donor name, sum amounts
-  const demoDonorTotals = new Map<string, number>();
-  demoDonations.forEach(d => {
-    const name = d.name?.trim() || (lang === 'ar' ? 'متبرع مجهول' : 'Anonymous donor');
-    demoDonorTotals.set(name, (demoDonorTotals.get(name) || 0) + d.amountUSD);
-  });
-  type TopDonor = { name: string; amountUSD: number; isDemo: boolean };
-  const demoTopDonors: TopDonor[] = [...demoDonorTotals.entries()]
-    .map(([name, amountUSD]) => ({ name, amountUSD, isDemo: true }))
-    .sort((a, b) => b.amountUSD - a.amountUSD)
-    .slice(0, 5);
-  const topDonorsDisplay = demoTopDonors.length > 0
-    ? demoTopDonors
-    : topDonors.map(d => ({ ...d, isDemo: false } as TopDonor));
-
-  // Search & filter state for the project table — makes the dashboard feel
-  // like a real working tool for non-technical staff
+  // ── Project table (admins) ─────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'funding' | 'active' | 'completed' | 'stalled'>('all');
-  const [sortBy, setSortBy] = useState<'default' | 'pct' | 'donors' | 'amount'>('default');
-
-  const totalRaised = projects.reduce((s, p) => s + p.raisedUSD, 0);
-  const totalDonors = projects.reduce((s, p) => s + p.donors, 0);
-  // "Open" means still accepting donations — a 'funding' project at 100%
-  // is effectively active (see displayStatus), so don't count it as open.
-  const openCount = projects.filter(p => displayStatus(p) === 'funding').length;
-  const isShowingDemoDonations = demoDonations.length > 0;
-
-  // ──────────────────────────────────────────────────────────────────
-  // Last-7-days chart: derived from real demo-donation timestamps,
-  // with TODAY highlighted. Days are computed in the user's local time.
-  // Sample chart shown when no demo donations exist.
-  // ──────────────────────────────────────────────────────────────────
-  type DayBucket = { label: string; amount: number; isToday: boolean };
-  const realWeekData: DayBucket[] = (() => {
-    const now = new Date();
-    // Buckets keyed by YYYY-MM-DD local date string
-    const buckets: { dateKey: string; date: Date; amount: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      d.setHours(0, 0, 0, 0);
-      const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-      buckets.push({ dateKey, date: d, amount: 0 });
-    }
-    // Sum each demo donation into its day bucket
-    for (const don of demoDonations) {
-      const dd = new Date(don.timestamp);
-      dd.setHours(0, 0, 0, 0);
-      const key = `${dd.getFullYear()}-${dd.getMonth() + 1}-${dd.getDate()}`;
-      const bucket = buckets.find(b => b.dateKey === key);
-      if (bucket) bucket.amount += don.amountUSD;
-    }
-    // Pretty labels — short weekday name in the active language
-    const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-    const weekdayFmt = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' });
-    return buckets.map(b => ({
-      label: weekdayFmt.format(b.date),
-      amount: b.amount,
-      isToday: b.dateKey === todayKey,
-    }));
-  })();
-
-  // Use real data when we have any donations; otherwise fall back to sample
-  // so the chart isn't blank on day one. Sample data is shaped like
-  // {short, amount, today} so we map that into our DayBucket shape.
-  const weekData: DayBucket[] = isShowingDemoDonations
-    ? realWeekData
-    : sampleWeekData.map(d => ({
-        label: d.short,
-        amount: d.amount,
-        isToday: d.today,
-      }));
-  const weekTotal = weekData.reduce((s, d) => s + d.amount, 0);
-  const maxBar = Math.max(1, ...weekData.map(d => d.amount));
-
-  // "Today's donations" headline: sum of today's bucket (real if we have
-  // any demo donations, else sample's last day)
-  const todayBucket = weekData.find(d => d.isToday);
-  const todayDonations = todayBucket ? todayBucket.amount : 0;
-
-  // "Needs attention" — projects that are at risk and should be acted on
-  // (under-funded with little time left, stalled, or with low donor count)
-  const needsAttention = projects
-    .map(p => {
-      const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
-      const reasons: string[] = [];
-      if (p.status === 'funding' && pct < 20 && p.daysLeft < 30 && p.daysLeft > 0) {
-        reasons.push(lang === 'ar' ? 'تمويل منخفض ووقت قليل' : 'Low funding, little time');
-      }
-      if (p.status === 'funding' && pct < 10) {
-        reasons.push(lang === 'ar' ? 'لم يبدأ التمويل بعد' : 'Funding not yet started');
-      }
-      // Cast for status comparison — runtime check is what matters
-      if ((p as any).health === 'stalled') {
-        reasons.push(lang === 'ar' ? 'متعثّر' : 'Stalled');
-      }
-      return reasons.length > 0 ? { project: p, reasons, pct } : null;
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null)
-    .slice(0, 3);
-
-  // Apply search, filter, and sort to the project list before rendering the table
+  const [sortBy, setSortBy] = useState<'default' | 'pct' | 'amount' | 'stale'>('default');
   const filteredProjects = projects
-    .filter(p => {
-      if (statusFilter !== 'all') {
-        // Stalled is health, not status — separate logic
-        if (statusFilter === 'stalled') return (p as any).health === 'stalled';
-        if (p.status !== statusFilter) return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          p.title.ar.toLowerCase().includes(q) ||
-          (p.title.en || '').toLowerCase().includes(q) ||
-          p.id.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
-        );
-      }
-      return true;
+    .filter((p) => {
+      if (statusFilter === 'stalled') { if (p.health !== 'stalled') return false; }
+      else if (statusFilter !== 'all' && displayStatus(p) !== statusFilter) return false;
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      return [p.title.ar, p.title.en || '', p.id, p.category].some((s) => s.toLowerCase().includes(q));
     })
     .sort((a, b) => {
-      if (sortBy === 'pct') {
-        const pa = a.raisedUSD / a.budgetUSD;
-        const pb = b.raisedUSD / b.budgetUSD;
-        return pb - pa;
-      }
-      if (sortBy === 'donors') return b.donors - a.donors;
+      if (sortBy === 'pct') return b.raisedUSD / b.budgetUSD - a.raisedUSD / a.budgetUSD;
       if (sortBy === 'amount') return b.raisedUSD - a.raisedUSD;
+      if (sortBy === 'stale') return timeKey(lastActivityAt(a)) - timeKey(lastActivityAt(b));
       return 0;
     });
 
-  const initials = (name: string) => {
-    if (name.includes('مجهول') || name.toLowerCase().includes('anonymous')) return '?';
-    const parts = name.trim().split(/\s+/);
-    return parts[0].charAt(0) + (parts[1] ? parts[1].charAt(0) : '');
-  };
-
   return (
     <section className="section">
-      {/* Demo data warning */}
-      <div className="admin-demo-banner">
-        {t(lang, 'admin_demo_note')}
-      </div>
-
-      {/* Needs Attention — projects requiring action.
-          Helps staff start their day by seeing what's at risk. */}
-      {needsAttention.length > 0 && (
-        <div className="needs-attention">
-          <div className="needs-attention-header">
-            <span className="needs-attention-icon">⚠</span>
-            <h3>{lang === 'ar' ? 'مشاريع تحتاج اهتمامك' : 'Projects needing your attention'}</h3>
-          </div>
-          <div className="needs-attention-list">
-            {needsAttention.map(({ project: p, reasons, pct }) => {
-              const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/${p.id}/`;
-              return (
-                <a key={p.id} href={editUrl} className="needs-attention-item">
-                  <div className="needs-attention-name">{loc(lang, p.title)}</div>
-                  <div className="needs-attention-meta">
-                    {reasons.join(' · ')} · {fmtNum(lang, pct)}% {lang === 'ar' ? 'ممول' : 'funded'}
-                  </div>
-                  <div className="needs-attention-action">✎ {t(lang, 'admin_btn_edit')}</div>
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="admin-hero">
         <h2>{t(lang, 'admin_welcome')}</h2>
         <p>{t(lang, 'admin_role')}</p>
-        <div className="admin-stats">
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">{t(lang, 'admin_stat_today')}</div>
-            <div className="admin-stat-val">{fmtMoney(lang, currency, todayDonations)}</div>
+      </div>
+
+      {/* KPI row */}
+      <div className="dash-tiles">
+        <div className="dash-tile">
+          <div className="dash-tile-label">{t(lang, 'dash_tile_funded')}</div>
+          <div className="dash-tile-value">{fmtMoney(lang, currency, totalRaised)}</div>
+          <div className="dash-tile-sub">{t(lang, 'dash_tile_funded_sub', { budget: fmtMoney(lang, currency, totalBudget), pct: fmtNum(lang, pctFunded) })}</div>
+          <div className="dash-meter" role="img" aria-label={`${pctFunded}%`}>
+            <div className="dash-meter-fill" style={{ width: `${pctFunded}%` }} />
           </div>
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">{t(lang, 'admin_stat_total')}</div>
-            <div className="admin-stat-val">{fmtMoney(lang, currency, totalRaised)}</div>
+        </div>
+        <div className="dash-tile">
+          <div className="dash-tile-label">{t(lang, 'dash_tile_gap')}</div>
+          <div className="dash-tile-value">{fmtMoney(lang, currency, gap)}</div>
+          <div className="dash-tile-sub">{t(lang, 'dash_tile_gap_sub', { n: fmtNum(lang, underFunded) })}</div>
+        </div>
+        <div className="dash-tile">
+          <div className="dash-tile-label">{t(lang, 'dash_tile_projects')}</div>
+          <div className="dash-tile-value">{fmtNum(lang, projects.length)}</div>
+          <div className="dash-tile-sub">{t(lang, 'dash_tile_projects_sub', {
+            open: fmtNum(lang, byStatus.funding || 0),
+            active: fmtNum(lang, byStatus.active || 0),
+            done: fmtNum(lang, byStatus.completed || 0),
+          })}</div>
+        </div>
+        <div className="dash-tile">
+          <div className="dash-tile-label">{t(lang, 'dash_tile_recorded')}</div>
+          <div className="dash-tile-value">{fmtMoney(lang, currency, recordedTotal)}</div>
+          <div className="dash-tile-sub">
+            {contributions.length === 0
+              ? t(lang, 'dash_tile_recorded_none')
+              : t(lang, 'dash_tile_recorded_sub', {
+                  n: fmtNum(lang, contributions.length),
+                  recent: recent30 === null ? '…' : fmtMoney(lang, currency, recent30),
+                })}
           </div>
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">{t(lang, 'admin_stat_donors')}</div>
-            <div className="admin-stat-val">{fmtNum(lang, totalDonors)}</div>
-          </div>
-          <div className="admin-stat-card">
-            <div className="admin-stat-label">{t(lang, 'admin_stat_open')}</div>
-            <div className="admin-stat-val">{fmtNum(lang, openCount)}</div>
-          </div>
+        </div>
+        <div className="dash-tile">
+          <div className="dash-tile-label">{t(lang, 'dash_tile_attention')}</div>
+          <div className="dash-tile-value">{now ? fmtNum(lang, attention.length) : '…'}</div>
+          <div className="dash-tile-sub">{t(lang, 'dash_tile_attention_sub')}</div>
         </div>
       </div>
 
-      {/* Row 1: recent donations + (chart + alerts) */}
-      <div className="admin-grid">
+      <div className="admin-grid dash-grid">
+        {/* Funding by sector — meter list */}
         <div className="admin-card">
           <div className="admin-card-header">
             <div className="admin-card-title">
               <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-              {t(lang, 'admin_recent_donations')}
-              {isShowingDemoDonations ? (
-                <span className="admin-card-badge admin-card-badge-demo">
-                  ★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}
-                </span>
-              ) : (
-                <span className="admin-card-badge admin-card-badge-sample">
-                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
-                </span>
-              )}
+              {t(lang, 'dash_sectors_title')}
             </div>
-            <span className="admin-card-link">{t(lang, 'admin_view_all')}</span>
           </div>
-          <div className="admin-card-body">
-            {recentDonationsDisplay.length === 0 && (
-              <p className="admin-card-empty">
-                {lang === 'ar' ? 'لا توجد تبرعات بعد.' : 'No donations yet.'}
-              </p>
-            )}
-            {recentDonationsDisplay.slice(0, 8).map((d, i) => (
-              <div className="feed-item" key={i}>
-                <div className={`feed-avatar ${d.color}`}>{initials(d.name)}</div>
-                <div className="feed-content">
-                  <div className="feed-name">
-                    {d.name}
-                    <span style={{ color: 'var(--sy-muted)', fontWeight: 400, fontSize: '12px' }}> — {d.location}</span>
-                  </div>
-                  <div className="feed-target">{d.target}</div>
-                  <div className="feed-time">{d.time}</div>
-                </div>
-                <div className="feed-amount">{fmtMoney(lang, currency, d.amountUSD)}</div>
-              </div>
-            ))}
+          <div className="admin-card-body padded">
+            <p className="dash-card-desc">{t(lang, 'dash_sectors_desc')}</p>
+            <ul className="dash-meter-list">
+              {sectors.map((s) => {
+                const label = t(lang, `cat_${s.category}` as any);
+                const summary = `${label}: ${fmtMoney(lang, currency, s.raised)} / ${fmtMoney(lang, currency, s.budget)} (${s.pct}%)`;
+                return (
+                  <li key={s.category} className="dash-meter-row" title={summary} tabIndex={0} aria-label={summary}>
+                    <div className="dash-meter-name">
+                      {label} <span className="dash-meter-count">· {fmtNum(lang, s.count)}</span>
+                    </div>
+                    <div className="dash-meter" aria-hidden="true">
+                      <div className="dash-meter-fill" style={{ width: `${s.pct}%` }} />
+                    </div>
+                    <div className="dash-meter-figures">
+                      <strong>{fmtNum(lang, s.pct)}%</strong>
+                      <span>{t(lang, 'dash_sector_needed', { gap: fmtMoney(lang, currency, s.gap) })}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div className="admin-card">
-            <div className="admin-card-header">
-              <div className="admin-card-title">
-                <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-                {t(lang, 'admin_week_chart')}
-                {isShowingDemoDonations ? (
-                  <span className="admin-card-badge admin-card-badge-live">
-                    ● {lang === 'ar' ? 'مباشر' : 'Live'}
-                  </span>
-                ) : (
-                  <span className="admin-card-badge admin-card-badge-sample">
-                    {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="chart-week">
-              <div className="chart-bars">
-                {weekData.map((d, i) => (
-                  <div key={i}
-                       className={`chart-bar ${d.isToday ? 'today' : ''}`}
-                       style={{ height: `${(d.amount / maxBar) * 100}%` }}>
-                    <span className="chart-bar-tooltip">{fmtMoney(lang, currency, d.amount)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="chart-labels">
-                {weekData.map((d, i) => (
-                  <span key={i} className={`chart-label ${d.isToday ? 'today' : ''}`}>{d.label}</span>
-                ))}
-              </div>
-              <div className="chart-summary">
-                <span>{t(lang, 'admin_week_total')} <strong>{fmtMoney(lang, currency, weekTotal)}</strong></span>
-                {isShowingDemoDonations && todayDonations > 0 && (
-                  <span style={{ color: 'var(--sy-gold)', fontWeight: 700 }}>
-                    {lang === 'ar' ? 'اليوم: ' : 'Today: '}{fmtMoney(lang, currency, todayDonations)}
-                  </span>
-                )}
-              </div>
+        {/* Needs attention */}
+        <div className="admin-card">
+          <div className="admin-card-header">
+            <div className="admin-card-title">
+              <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+              {t(lang, 'dash_attention_title')}
             </div>
           </div>
+          <div className="admin-card-body padded">
+            {now && attention.length === 0 && <p className="admin-card-empty">{t(lang, 'dash_attention_none')}</p>}
+            <ul className="dash-attention">
+              {attentionShown.map(({ p, reasons }) => (
+                <li key={p.id} className="dash-attention-item">
+                  <a className="dash-attention-name" href={projectHref(p.id)}>{loc(lang, p.title)}</a>
+                  <ul className="dash-reasons">
+                    {reasons.map((r, i) => (
+                      <li key={i} className={`dash-reason dash-reason-${r.level}`}>
+                        <span className="dash-reason-icon" aria-hidden="true">
+                          {r.level === 'serious' ? '⛔' : r.level === 'warning' ? '⚠' : '⏱'}
+                        </span>
+                        {r.text}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+            {attention.length > 6 && !showAllAttention && (
+              <button type="button" className="dash-link-btn" onClick={() => setShowAllAttention(true)}>
+                {t(lang, 'dash_show_all', { n: fmtNum(lang, attention.length) })}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
-          <div className="admin-card">
-            <div className="admin-card-header">
-              <div className="admin-card-title">
-                <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-                {t(lang, 'admin_alerts')}
-              </div>
-              <span className="admin-card-link">
-                {t(lang, 'admin_alerts_new', { n: fmtNum(lang, alerts.length) })}
-              </span>
+      {/* Activity log — public; delete is admin-only inside the feed */}
+      <div className="admin-card dash-activity">
+        <div className="admin-card-header">
+          <div className="admin-card-title">
+            <span style={{ color: 'var(--sy-gold)' }}>◆</span>
+            {t(lang, 'activity_log_title')}
+          </div>
+        </div>
+        <div className="admin-card-body padded">
+          <p className="dash-card-desc">{t(lang, 'activity_log_desc')}</p>
+          <ActivityFeed entries={activity} lang={lang} basePath={basePath} pageSize={25} showFilters />
+        </div>
+      </div>
+
+      {/* Project management — admin-only */}
+      {isAdmin && (
+        <>
+          <div className="section-header" style={{ marginTop: '2.5rem' }}>
+            <h2 className="section-title" style={{ fontSize: '1.6rem' }}>{t(lang, 'admin_manage')}</h2>
+            <p className="section-desc" style={{ fontSize: '1rem' }}>{t(lang, 'admin_manage_desc_v2')}</p>
+          </div>
+
+          <div className="admin-actions-bar">
+            <a className="btn-primary admin-new-project-btn" href={`${base}/admin/new/`}>
+              + {t(lang, 'admin_new_project')}
+            </a>
+            <a className="btn-secondary" href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects`}>
+              {t(lang, 'admin_open_cms')}
+            </a>
+            <span className="admin-actions-hint">{t(lang, 'admin_actions_hint')}</span>
+          </div>
+
+          <div className="admin-toolbar">
+            <div className="admin-search">
+              <span className="admin-search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder={lang === 'ar' ? 'ابحث عن مشروع…' : 'Search projects…'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="admin-search-input"
+                aria-label={lang === 'ar' ? 'البحث عن مشروع' : 'Search projects'}
+              />
+              {searchQuery && (
+                <button className="admin-search-clear" onClick={() => setSearchQuery('')}
+                  aria-label={lang === 'ar' ? 'مسح البحث' : 'Clear search'}>✕</button>
+              )}
             </div>
-            <div className="admin-card-body">
-              {alerts.map((a, i) => (
-                <div className="alert-item" key={i}>
-                  <div className={`alert-icon ${a.type}`}>{a.icon}</div>
-                  <div className="alert-body">
-                    <div className="alert-title">{a.title}</div>
-                    <div className="alert-meta">{a.meta}</div>
-                  </div>
-                </div>
+            <div className="admin-filter-chips">
+              {([
+                { v: 'all',       ar: 'الكل',          en: 'All' },
+                { v: 'funding',   ar: 'مفتوح للتمويل', en: 'Open for funding' },
+                { v: 'active',    ar: 'قيد التنفيذ',   en: 'In progress' },
+                { v: 'completed', ar: 'مكتمل',         en: 'Completed' },
+                { v: 'stalled',   ar: 'متعثّر',        en: 'Stalled' },
+              ] as const).map((o) => (
+                <button key={o.v} className={`admin-filter-chip ${statusFilter === o.v ? 'active' : ''}`}
+                  onClick={() => setStatusFilter(o.v)}>
+                  {lang === 'ar' ? o.ar : o.en}
+                </button>
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 2: activity log + top donors */}
-      <div className="admin-grid">
-        <div className="admin-card">
-          <div className="admin-card-header">
-            <div className="admin-card-title">
-              <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-              {t(lang, 'admin_activity')}
-              {realActivitiesTop.length > 0 ? (
-                <span className="admin-card-badge admin-card-badge-live">
-                  ● {lang === 'ar' ? 'مباشر' : 'Live'}
-                </span>
-              ) : (
-                <span className="admin-card-badge admin-card-badge-sample">
-                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
-                </span>
-              )}
+            <div className="admin-sort">
+              <label className="admin-sort-label">{lang === 'ar' ? 'الترتيب:' : 'Sort:'}</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="admin-sort-select"
+                aria-label={lang === 'ar' ? 'ترتيب المشاريع' : 'Sort projects'}>
+                <option value="default">{lang === 'ar' ? 'افتراضي' : 'Default'}</option>
+                <option value="pct">{lang === 'ar' ? 'الأكثر تمويلاً %' : 'Most funded %'}</option>
+                <option value="amount">{lang === 'ar' ? 'الأكثر تحصيلاً $' : 'Most raised $'}</option>
+                <option value="stale">{t(lang, 'dash_sort_stale')}</option>
+              </select>
             </div>
-            <span className="admin-card-link">{t(lang, 'admin_full_log')}</span>
+            <div className="admin-results-count">
+              {lang === 'ar'
+                ? `${fmtNum(lang, filteredProjects.length)} من ${fmtNum(lang, projects.length)}`
+                : `${fmtNum(lang, filteredProjects.length)} of ${fmtNum(lang, projects.length)}`}
+            </div>
           </div>
-          <div className="admin-card-body">
-            {activities.length === 0 && (
-              <p className="admin-card-empty">
-                {lang === 'ar' ? 'لا يوجد نشاط بعد.' : 'No activity yet.'}
-              </p>
-            )}
-            {activities.map((a, i) => (
-              <div className="activity-item" key={i}>
-                <div className={`activity-dot ${a.color}`}></div>
-                <div className="activity-body">
-                  <div className="activity-text" dangerouslySetInnerHTML={{ __html: a.text }} />
-                  <div className="activity-time">{a.time}</div>
+
+          <div className="admin-table">
+            <div className="admin-table-head">
+              <div>{t(lang, 'admin_col_project')}</div>
+              <div>{t(lang, 'admin_col_budget')}</div>
+              <div>{t(lang, 'admin_col_raised')}</div>
+              <div>{t(lang, 'dash_col_last_update')}</div>
+              <div>{t(lang, 'admin_col_status')}</div>
+              <div></div>
+            </div>
+            {filteredProjects.length === 0 ? (
+              <div className="admin-table-empty">
+                {lang === 'ar' ? 'لا توجد مشاريع تطابق البحث' : 'No projects match your search'}
+              </div>
+            ) : filteredProjects.map((p) => {
+              const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
+              const effStatus = displayStatus(p);
+              return (
+                <div className="admin-table-row" key={p.id}>
+                  <div>
+                    <div className="admin-table-name">{loc(lang, p.title)}</div>
+                    <div className="admin-table-cat">{t(lang, `cat_${p.category}` as any)}</div>
+                  </div>
+                  <div>{fmtMoney(lang, currency, p.budgetUSD)}</div>
+                  <div>
+                    <div>{fmtMoney(lang, currency, p.raisedUSD)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--sy-gold)', fontWeight: 700 }}>{fmtNum(lang, pct)}%</div>
+                  </div>
+                  <div className="admin-table-updated">
+                    <TimeStamp at={lastActivityAt(p)} lang={lang} mode="relative" fallback="—" />
+                  </div>
+                  <div><span className={`status-chip status-chip-${effStatus}`}>{t(lang, `status_${effStatus}` as any)}</span></div>
+                  <div className="admin-table-actions">
+                    <a className="admin-edit" href={`${base}/admin/edit/${p.id}/`} title={t(lang, 'admin_btn_edit_hint')}>
+                      ✎ {t(lang, 'admin_btn_edit')}
+                    </a>
+                    <a className="admin-view" href={`${basePath}/projects/${p.id}/`} title={t(lang, 'admin_btn_view_hint')}>
+                      {t(lang, 'admin_btn_view')}
+                    </a>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
 
-        <div className="admin-card">
-          <div className="admin-card-header">
-            <div className="admin-card-title">
-              <span style={{ color: 'var(--sy-gold)' }}>◆</span>
-              {t(lang, 'admin_top_donors')}
-              {isShowingDemoDonations ? (
-                <span className="admin-card-badge admin-card-badge-demo">
-                  ★ {lang === 'ar' ? 'وضع تجريبي' : 'Demo Mode'}
-                </span>
-              ) : (
-                <span className="admin-card-badge admin-card-badge-sample">
-                  {lang === 'ar' ? 'بيانات عيّنة' : 'Sample data'}
-                </span>
-              )}
-            </div>
+          <div className="admin-help-card">
+            <h4>{t(lang, 'admin_help_title')}</h4>
+            <ul>
+              <li>{t(lang, 'admin_help_funding')}</li>
+              <li>{t(lang, 'admin_help_status')}</li>
+              <li>{t(lang, 'admin_help_photos')}</li>
+              <li>{t(lang, 'admin_help_engineers')}</li>
+              <li>{t(lang, 'admin_help_comments')}</li>
+              <li>{t(lang, 'admin_help_new')}</li>
+            </ul>
           </div>
-          <div className="admin-card-body">
-            {topDonorsDisplay.length === 0 && (
-              <p className="admin-card-empty">
-                {lang === 'ar' ? 'لم يقم أحد بالتبرع بعد.' : 'No donors yet.'}
-              </p>
-            )}
-            {topDonorsDisplay.map((d, i) => (
-              <div className="leader-item" key={i}>
-                <div className={`leader-rank ${i === 0 ? 'gold' : ''}`}>{fmtNum(lang, i + 1)}</div>
-                <div className="leader-name">{d.name}</div>
-                <div className="leader-amount">{fmtMoney(lang, currency, d.amountUSD)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Project management — admin-only, hidden until authenticated.
-          Public visitors don't need the edit/view actions, search/filter
-          toolbar, or "+ New project" link. When not logged in, we simply
-          render nothing here — the Login button in the nav is enough for
-          admins who need access. */}
-      {canSeePM ? (
-        <>
-      <div className="section-header" style={{ marginTop: '0.5rem' }}>
-        <h2 className="section-title" style={{ fontSize: '1.6rem' }}>{t(lang, 'admin_manage')}</h2>
-        <p className="section-desc" style={{ fontSize: '1rem' }}>
-          {t(lang, 'admin_manage_desc_v2')}
-        </p>
-      </div>
-
-      {/* Primary action: create a new project using the custom editor. */}
-      <div className="admin-actions-bar">
-        <a
-          className="btn-primary admin-new-project-btn"
-          href={`${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/new/`}
-        >
-          + {t(lang, 'admin_new_project')}
-        </a>
-        <a
-          className="btn-secondary"
-          href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects`}
-        >
-          {t(lang, 'admin_open_cms')}
-        </a>
-        <span className="admin-actions-hint">{t(lang, 'admin_actions_hint')}</span>
-      </div>
-
-      {/* Search + filter + sort toolbar */}
-      <div className="admin-toolbar">
-        <div className="admin-search">
-          <span className="admin-search-icon">🔍</span>
-          <input
-            type="text"
-            placeholder={lang === 'ar' ? 'ابحث عن مشروع…' : 'Search projects…'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="admin-search-input"
-            aria-label={lang === 'ar' ? 'البحث عن مشروع' : 'Search projects'}
-          />
-          {searchQuery && (
-            <button
-              className="admin-search-clear"
-              onClick={() => setSearchQuery('')}
-              aria-label={lang === 'ar' ? 'مسح البحث' : 'Clear search'}
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        <div className="admin-filter-chips">
-          {([
-            { v: 'all',       label_ar: 'الكل',        label_en: 'All' },
-            { v: 'funding',   label_ar: 'مفتوح للتبرع', label_en: 'Funding' },
-            { v: 'active',    label_ar: 'قيد التنفيذ',  label_en: 'Active' },
-            { v: 'completed', label_ar: 'مكتمل',        label_en: 'Done' },
-            { v: 'stalled',   label_ar: 'متعثّر',       label_en: 'Stalled' },
-          ] as const).map(o => (
-            <button
-              key={o.v}
-              className={`admin-filter-chip ${statusFilter === o.v ? 'active' : ''}`}
-              onClick={() => setStatusFilter(o.v)}
-            >
-              {lang === 'ar' ? o.label_ar : o.label_en}
-            </button>
-          ))}
-        </div>
-
-        <div className="admin-sort">
-          <label className="admin-sort-label">
-            {lang === 'ar' ? 'الترتيب:' : 'Sort:'}
-          </label>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="admin-sort-select"
-            aria-label={lang === 'ar' ? 'ترتيب المشاريع' : 'Sort projects'}
-          >
-            <option value="default">{lang === 'ar' ? 'افتراضي' : 'Default'}</option>
-            <option value="pct">{lang === 'ar' ? 'الأكثر تمويلاً %' : 'Most funded %'}</option>
-            <option value="donors">{lang === 'ar' ? 'الأكثر متبرعين' : 'Most donors'}</option>
-            <option value="amount">{lang === 'ar' ? 'الأكثر تحصيلاً $' : 'Most raised $'}</option>
-          </select>
-        </div>
-
-        <div className="admin-results-count">
-          {lang === 'ar'
-            ? `${fmtNum(lang, filteredProjects.length)} من ${fmtNum(lang, projects.length)}`
-            : `${fmtNum(lang, filteredProjects.length)} of ${fmtNum(lang, projects.length)}`}
-        </div>
-      </div>
-
-      <div className="admin-table">
-        <div className="admin-table-head">
-          <div>{t(lang, 'admin_col_project')}</div>
-          <div>{t(lang, 'admin_col_budget')}</div>
-          <div>{t(lang, 'admin_col_raised')}</div>
-          <div>{t(lang, 'admin_col_donors')}</div>
-          <div>{t(lang, 'admin_col_status')}</div>
-          <div></div>
-        </div>
-        {filteredProjects.length === 0 ? (
-          <div className="admin-table-empty">
-            {lang === 'ar' ? 'لا توجد مشاريع تطابق البحث' : 'No projects match your search'}
-          </div>
-        ) : filteredProjects.map(p => {
-          const pct = Math.round((p.raisedUSD / p.budgetUSD) * 100);
-          const effStatus = displayStatus(p);
-          const statusLabel = t(lang, `status_${effStatus}` as any);
-          const categoryLabel = t(lang, `cat_${p.category}` as any);
-          const editUrl = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}/admin/edit/${p.id}/`;
-          const publicUrl = `${basePath}/projects/${p.id}/`;
-          return (
-            <div className="admin-table-row" key={p.id}>
-              <div>
-                <div className="admin-table-name">{loc(lang, p.title)}</div>
-                <div className="admin-table-cat">{categoryLabel}</div>
-              </div>
-              <div>{fmtMoney(lang, currency, p.budgetUSD)}</div>
-              <div>
-                <div>{fmtMoney(lang, currency, p.raisedUSD)}</div>
-                <div style={{ fontSize: '12px', color: 'var(--sy-gold)', fontWeight: 700 }}>{fmtNum(lang, pct)}%</div>
-              </div>
-              <div>{fmtNum(lang, p.donors)}</div>
-              <div>
-                <span className={`status-chip status-chip-${effStatus}`}>{statusLabel}</span>
-              </div>
-              <div className="admin-table-actions">
-                <a className="admin-edit" href={editUrl} title={t(lang, 'admin_btn_edit_hint')}>
-                  ✎ {t(lang, 'admin_btn_edit')}
-                </a>
-                <a className="admin-view" href={publicUrl} title={t(lang, 'admin_btn_view_hint')}>
-                  {t(lang, 'admin_btn_view')}
-                </a>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Help footer — what staff can edit in the CMS */}
-      <div className="admin-help-card">
-        <h4>{t(lang, 'admin_help_title')}</h4>
-        <ul>
-          <li>{t(lang, 'admin_help_funding')}</li>
-          <li>{t(lang, 'admin_help_status')}</li>
-          <li>{t(lang, 'admin_help_photos')}</li>
-          <li>{t(lang, 'admin_help_engineers')}</li>
-          <li>{t(lang, 'admin_help_comments')}</li>
-          <li>{t(lang, 'admin_help_new')}</li>
-        </ul>
-      </div>
         </>
-      ) : null}
+      )}
     </section>
   );
-}
-
-/**
- * Convert a date-ish string to a sortable number. Higher = more recent.
- * (moved to src/data/activity-feed.ts since the home page also uses it.
- * Helpers kept here are the ones unique to the dashboard rendering.)
- */
-
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) - h) + s.charCodeAt(i);
-    h |= 0; // 32-bit
-  }
-  return h;
-}
-
-function formatRelativeTime(ms: number, lang: Lang): string {
-  if (ms < 60000) return lang === 'ar' ? 'منذ ثوانٍ' : 'just now';
-  const min = Math.floor(ms / 60000);
-  if (min < 60) return lang === 'ar' ? `منذ ${min} دقيقة` : `${min} min ago`;
-  const hr = Math.floor(ms / 3600000);
-  if (hr < 24) return lang === 'ar' ? `منذ ${hr} ساعة` : `${hr} hr ago`;
-  const day = Math.floor(ms / 86400000);
-  return lang === 'ar' ? `منذ ${day} يوم` : `${day} day ago`;
 }

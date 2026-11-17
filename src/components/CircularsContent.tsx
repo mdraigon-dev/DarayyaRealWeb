@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { t, loc, fmtNum, type Lang } from '../i18n/strings';
 import { classifyUser, type AuthUser } from '../data/permissions';
 import CircularUploader from './CircularUploader';
+import AdminDeleteButton from './AdminDeleteButton';
+import { deleteDocument } from '../data/documents';
+import { formatAbsolute } from '../data/time';
 
 declare global {
   interface Window {
@@ -21,6 +24,10 @@ export type Circular = {
   fileType: string;
   uploadedBy: string;
   order: number;
+  /** When it was published on the site */
+  at?: string;
+  /** Metadata file name — needed to delete it */
+  source?: string;
 };
 
 type Props = {
@@ -43,7 +50,7 @@ const CATEGORIES: Array<{ key: Circular['category'] | 'all'; iconText: string }>
  * Format a byte count into a human-readable size string ("1.4 MB", "523 KB").
  * Used in the file metadata strip under each circular.
  */
-function formatFileSize(bytes: number, lang: Lang): string {
+export function formatFileSize(bytes: number, lang: Lang): string {
   if (!bytes || bytes <= 0) return '';
   const KB = 1024;
   const MB = KB * 1024;
@@ -57,16 +64,7 @@ function formatFileSize(bytes: number, lang: Lang): string {
  * Falls back to the raw string on parse failure.
  */
 function formatDate(iso: string, lang: Lang): string {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
+  return iso ? formatAbsolute(iso, lang) : '';
 }
 
 /**
@@ -110,13 +108,29 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
 
   const isAdmin = classifyUser(authUser, []) === 'admin';
 
+  // Documents deleted this session are hidden immediately; the rebuild
+  // removes them for everyone.
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState(false);
+  const removeDoc = async (c: Circular) => {
+    await deleteDocument({
+      source: c.source || `${c.id}.md`,
+      file: c.file,
+      message: `Delete document ${c.id} by ${authUser?.email || 'admin'}`,
+    });
+    setDeletedIds((d) => new Set(d).add(c.id));
+    setToast(true);
+    setTimeout(() => setToast(false), 5000);
+  };
+  const liveCirculars = useMemo(() => rawCirculars.filter((c) => !deletedIds.has(c.id)), [rawCirculars, deletedIds]);
+
   // Sort: pinned (order > 0) first, then newest by date.
   const sorted = useMemo(() => {
-    return [...rawCirculars].sort((a, b) => {
+    return [...liveCirculars].sort((a, b) => {
       if (a.order !== b.order) return b.order - a.order;
       return (b.date || '').localeCompare(a.date || '');
     });
-  }, [rawCirculars]);
+  }, [liveCirculars]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -132,12 +146,12 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
 
   // Per-category counts for the filter chips
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: rawCirculars.length };
-    for (const c of rawCirculars) {
+    const counts: Record<string, number> = { all: liveCirculars.length };
+    for (const c of liveCirculars) {
       counts[c.category] = (counts[c.category] || 0) + 1;
     }
     return counts;
-  }, [rawCirculars]);
+  }, [liveCirculars]);
 
   return (
     <section className="section circulars-section">
@@ -214,9 +228,18 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
       ) : (
         <div className="circulars-grid">
           {filtered.map(c => (
-            <CircularCard key={c.id} circular={c} lang={lang} basePath={basePath} />
+            <CircularCard
+              key={c.id}
+              circular={c}
+              lang={lang}
+              basePath={basePath}
+              onDelete={isAdmin ? () => removeDoc(c) : undefined}
+            />
           ))}
         </div>
+      )}
+      {toast && (
+        <div className="admin-toast" role="status">✓ {t(lang, 'activity_deleted_toast')}</div>
       )}
     </section>
   );
@@ -230,18 +253,30 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
  * tab (browser-native rendering). For other file types we show only
  * Download.
  */
-function CircularCard({ circular, lang, basePath: _basePath }: { circular: Circular; lang: Lang; basePath: string }) {
+function CircularCard({ circular, lang, basePath: _basePath, onDelete }: {
+  circular: Circular; lang: Lang; basePath: string;
+  /** Present only for admins */
+  onDelete?: () => Promise<void>;
+}) {
   const category = circular.category;
   const fileUrl = circular.file;
   const previewable = isPreviewable(circular.fileType);
 
   return (
-    <article className={`circular-card circular-card-${category}`}>
+    <article id={`doc-${circular.id}`} className={`circular-card circular-card-${category}`}>
       <div className="circular-card-head">
         <span className={`circ-category circ-category-${category}`}>
           {t(lang, `circ_cat_${category}` as any)}
         </span>
         <span className="circular-card-date">{formatDate(circular.date, lang)}</span>
+        {onDelete && (
+          <AdminDeleteButton
+            lang={lang}
+            what={lang === 'ar' ? 'الوثيقة' : 'document'}
+            warning={t(lang, 'activity_del_doc_warning')}
+            onConfirm={onDelete}
+          />
+        )}
       </div>
       <h3 className="circular-card-title">{loc(lang, circular.title)}</h3>
       {loc(lang, circular.description) && (

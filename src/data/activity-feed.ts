@@ -1,125 +1,174 @@
 /**
- * Shared activity feed used by both the council dashboard and the
- * home page footer. Derives a chronologically-sorted list of all
- * field updates and comments across all projects.
+ * activity-feed.ts
  *
- * The dashboard shows everything; the home page shows the most recent
- * N entries as a "what's happening" widget below the map.
+ * One chronological log of everything happening across the platform, shared
+ * by the home page and the council dashboard:
+ *   - field updates (with how many photos were posted alongside them)
+ *   - notes
+ *   - photos that weren't posted as part of an update
+ *   - contributions recorded by admins (fundLog)
+ *   - documents and reports published under Circulars
+ *
+ * Entries carry raw data, not pre-translated text: ordering comes from the
+ * real `at` timestamps, so the Arabic and English pages always agree, and
+ * "3 days ago" is computed when the entry is shown (see TimeStamp).
+ *
+ * Each entry also carries `ref` — exactly what an admin delete needs to remove
+ * the underlying record.
  */
+import { timeKey } from './time';
+import type { FundEntry } from './project-file-edit';
 
-import { loc, type Lang } from '../i18n/strings';
-
-// Bilingual matches what loc() actually accepts: ar is the only required
-// side, en can be undefined or empty (loc falls back to ar in that case).
 type Bilingual = { ar: string; en?: string };
-type Update = { date: Bilingual; author: Bilingual; body: Bilingual };
-type Comment = { author: Bilingual; body: Bilingual; date?: string };
-type ProjectShape = {
+
+export type ActivityProject = {
   id: string;
   title: Bilingual;
-  updates?: Update[];
-  comments?: Comment[];
+  subs?: Array<{ id: string; title?: Bilingual }>;
+  updates?: Array<{ at?: string; date?: Bilingual; author: Bilingual; body: Bilingual }>;
+  comments?: Array<{ at?: string; date?: string; author: Bilingual; body: Bilingual }>;
+  photos?: Array<{ at?: string; date?: Bilingual; caption: Bilingual; src?: string; scene?: string; status: string }>;
+  fundLog?: FundEntry[];
 };
+
+export type ActivityDocument = {
+  id: string;
+  title: Bilingual;
+  category: string;
+  date: string;
+  at?: string;
+  file: string;
+  source?: string;
+};
+
+export type ActivityKind = 'update' | 'note' | 'photo' | 'funds' | 'document';
+
+export type ActivityRef =
+  | { kind: 'item'; projectId: string; field: 'updates' | 'comments' | 'photos'; item: unknown }
+  | { kind: 'fund'; projectId: string; entry: FundEntry }
+  | { kind: 'document'; source: string; file: string };
 
 export type ActivityEntry = {
-  color: 'green' | 'gold' | 'blue';
-  text: string;       // HTML-safe (entities already escaped)
-  time: string;
+  key: string;
+  kind: ActivityKind;
+  /** ISO timestamp or date; undefined only for legacy items with no date */
+  at?: string;
+  /** Legacy free-text date, shown only when there is no `at` */
+  legacyDate?: Bilingual;
   sortKey: number;
-  projectId: string;  // for "go to project" linking
+  projectId?: string;
+  projectTitle?: Bilingual;
+  author?: Bilingual;
+  body?: Bilingual;
+  /** Photos posted together with an update */
+  photoCount?: number;
+  amountUSD?: number;
+  subTitle?: Bilingual;
+  by?: string;
+  docTitle?: Bilingual;
+  docCategory?: string;
+  docId?: string;
+  ref: ActivityRef;
 };
 
-/**
- * Build the list, newest first. Pass the maximum number of entries
- * you want; defaults to 100 (effectively all of them for the dashboard).
- */
-export function buildActivityFeed(projects: ProjectShape[], lang: Lang, limit = 100): ActivityEntry[] {
+/** A photo was posted with an update when both carry the same exact moment. */
+const sameMoment = (a?: string, b?: string) => !!a && !!b && a.includes('T') && a === b;
+
+export function buildActivityFeed(projects: ActivityProject[], documents: ActivityDocument[] = []): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
 
-  projects.forEach(p => {
-    const projectName = loc(lang, p.title);
+  for (const p of projects) {
+    const base = { projectId: p.id, projectTitle: p.title };
+    const photos = p.photos || [];
+    const updates = p.updates || [];
 
-    (p.updates || []).forEach(u => {
-      const author = loc(lang, u.author);
-      const body = loc(lang, u.body);
-      const date = loc(lang, u.date);
-      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
+    updates.forEach((u, i) => {
       entries.push({
-        color: 'green',
-        text: lang === 'ar'
-          ? `تم رفع تحديث ميداني على مشروع <strong>${esc(projectName)}</strong> من قبل ${esc(author)}: ${esc(bodyShort)}`
-          : `Field update on <strong>${esc(projectName)}</strong> by ${esc(author)}: ${esc(bodyShort)}`,
-        time: date,
-        sortKey: parseTimeKey(date),
-        projectId: p.id,
+        ...base,
+        key: `${p.id}:u:${i}:${u.at || ''}`,
+        kind: 'update',
+        at: u.at,
+        legacyDate: u.at ? undefined : u.date,
+        sortKey: timeKey(u.at),
+        author: u.author,
+        body: u.body,
+        photoCount: photos.filter((ph) => sameMoment(ph.at, u.at)).length || undefined,
+        ref: { kind: 'item', projectId: p.id, field: 'updates', item: u },
       });
     });
 
-    (p.comments || []).forEach(c => {
-      const author = loc(lang, c.author);
-      const body = loc(lang, c.body);
-      const bodyShort = body.length > 100 ? body.slice(0, 100) + '…' : body;
-      const time = c.date || (lang === 'ar' ? 'مؤخراً' : 'recently');
+    (p.comments || []).forEach((c, i) => {
+      const at = c.at || c.date;
       entries.push({
-        color: 'blue',
-        text: lang === 'ar'
-          ? `تعليق جديد على <strong>${esc(projectName)}</strong> من ${esc(author)}: ${esc(bodyShort)}`
-          : `New comment on <strong>${esc(projectName)}</strong> by ${esc(author)}: ${esc(bodyShort)}`,
-        time,
-        sortKey: parseTimeKey(c.date || ''),
-        projectId: p.id,
+        ...base,
+        key: `${p.id}:c:${i}:${at || ''}`,
+        kind: 'note',
+        at,
+        sortKey: timeKey(at),
+        author: c.author,
+        body: c.body,
+        ref: { kind: 'item', projectId: p.id, field: 'comments', item: c },
       });
     });
-  });
 
-  entries.sort((a, b) => b.sortKey - a.sortKey);
-  return entries.slice(0, limit);
+    // Photos posted with an update are already counted on that update.
+    photos.forEach((ph, i) => {
+      if (updates.some((u) => sameMoment(ph.at, u.at))) return;
+      entries.push({
+        ...base,
+        key: `${p.id}:p:${i}:${ph.at || ''}`,
+        kind: 'photo',
+        at: ph.at,
+        legacyDate: ph.at ? undefined : ph.date,
+        sortKey: timeKey(ph.at),
+        body: ph.caption,
+        ref: { kind: 'item', projectId: p.id, field: 'photos', item: ph },
+      });
+    });
+
+    (p.fundLog || []).forEach((f, i) => {
+      const sub = f.subId ? (p.subs || []).find((s) => s.id === f.subId) : undefined;
+      entries.push({
+        ...base,
+        key: `${p.id}:f:${i}:${f.at}`,
+        kind: 'funds',
+        at: f.at,
+        sortKey: timeKey(f.at),
+        amountUSD: f.amountUSD,
+        subTitle: sub?.title,
+        by: f.by,
+        ref: { kind: 'fund', projectId: p.id, entry: f },
+      });
+    });
+  }
+
+  for (const d of documents) {
+    const at = d.at || d.date;
+    entries.push({
+      key: `doc:${d.id}`,
+      kind: 'document',
+      at,
+      sortKey: timeKey(at),
+      docTitle: d.title,
+      docCategory: d.category,
+      docId: d.id,
+      ref: { kind: 'document', source: d.source || `${d.id}.md`, file: d.file },
+    });
+  }
+
+  // Newest first; ties keep a stable, language-independent order.
+  entries.sort((a, b) => b.sortKey - a.sortKey || a.key.localeCompare(b.key));
+  return entries;
 }
 
-/**
- * parseTimeKey turns mixed-format date strings into a sortable
- * timestamp. Supports ISO dates (2026-05-26), relative English/Arabic
- * phrases ("3 days ago" / "منذ ٣ أيام"), and a few common words.
- */
-export function parseTimeKey(s: string): number {
-  if (!s) return 0;
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) {
-    const t = Date.parse(s);
-    if (!isNaN(t)) return t;
-  }
-  const now = Date.now();
-  const lower = s.toLowerCase();
-  const match = s.match(/(\d+|[٠١٢٣٤٥٦٧٨٩]+)/);
-  const num = match ? toArabicDigitInt(match[1]) : 0;
-
-  if (lower.includes('minute') || s.includes('دقيق') || s.includes('دقائق')) {
-    return now - num * 60 * 1000;
-  }
-  if (lower.includes('hour') || s.includes('ساعة') || s.includes('ساعات')) {
-    return now - num * 60 * 60 * 1000;
-  }
-  if (lower.includes('day') || s.includes('يوم') || s.includes('أيام')) {
-    return now - num * 24 * 60 * 60 * 1000;
-  }
-  if (lower.includes('week') || s.includes('أسبوع')) {
-    return now - num * 7 * 24 * 60 * 60 * 1000;
-  }
-  if (lower.includes('today') || s.includes('اليوم')) return now;
-  if (lower.includes('yesterday') || s.includes('أمس')) return now - 24 * 60 * 60 * 1000;
-  return 0;
-}
-
-function toArabicDigitInt(s: string): number {
-  const ascii = s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
-  const n = parseInt(ascii, 10);
-  return isNaN(n) ? 0 : n;
-}
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+/** The most recent dated thing on a project: update, note, photo or recorded contribution. */
+export function lastActivityAt(p: ActivityProject): string | undefined {
+  let best: string | undefined;
+  let bestKey = 0;
+  const consider = (at?: string) => { const k = timeKey(at); if (k > bestKey) { bestKey = k; best = at; } };
+  (p.updates || []).forEach((u) => consider(u.at));
+  (p.comments || []).forEach((c) => consider(c.at || c.date));
+  (p.photos || []).forEach((ph) => consider(ph.at));
+  (p.fundLog || []).forEach((f) => consider(f.at));
+  return best;
 }

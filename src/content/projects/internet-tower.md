@@ -16,8 +16,6 @@ description:
   en: "A communications tower serving 120 homes in the Western District at speeds up to 50 Mbps, in partnership with the Syrian Telecom Company."
 budgetUSD: 32000
 raisedUSD: 3800
-donors: 18
-daysLeft: 60
 lat: 33.4565
 lng: 36.24
 subs:

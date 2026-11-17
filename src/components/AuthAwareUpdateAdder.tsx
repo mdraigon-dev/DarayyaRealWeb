@@ -9,6 +9,7 @@ import {
   MAX_IMAGES_PER_UPDATE,
 } from '../data/image-upload';
 import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { atForPickedDay, localToday } from '../data/time';
 
 declare global {
   interface Window {
@@ -18,8 +19,8 @@ declare global {
 
 type Bilingual = { ar: string; en: string };
 type Health = 'healthy' | 'warning' | 'stalled' | 'completed';
-type NewUpdate = { date: Bilingual; author: Bilingual; body: Bilingual };
-type NewPhoto = { src: string; status: Health; caption: Bilingual; date: Bilingual };
+type NewUpdate = { at: string; author: Bilingual; body: Bilingual };
+type NewPhoto = { src: string; status: Health; caption: Bilingual; at: string };
 /** A photo plus a local preview URL, so the page can show it before rebuild. */
 export type PendingPhoto = NewPhoto & { previewUrl: string };
 
@@ -53,7 +54,7 @@ type SaveState =
  * AuthAwareNoteAdder but writes to `updates[]` instead of `comments[]`.
  *
  * Field updates differ from comments:
- *   - They have a date (free text, bilingual): "منذ ٣ أيام" / "3 days ago"
+ *   - They carry a real date (`at`); "3 days ago" is computed when shown
  *   - They appear in the project timeline AND the dashboard activity log
  *   - They're for substantive progress reports, not casual remarks
  *
@@ -66,7 +67,9 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
   const [expanded, setExpanded] = useState(false);
   const [body, setBody] = useState('');
   const [authorOverride, setAuthorOverride] = useState('');
-  const [dateOverride, setDateOverride] = useState('');
+  // The day the update describes. Defaults to today (recorded with the exact
+  // time); an earlier day can be picked for work reported after the fact.
+  const [day, setDay] = useState(() => localToday());
   const [images, setImages] = useState<PickedImage[]>([]);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
@@ -139,7 +142,6 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
   if (!canPost(role)) return null;
 
   const defaultAuthor = preferredAuthorName(auth.user, prefs);
-  const todayLabel = lang === 'ar' ? 'اليوم' : 'today';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,17 +154,21 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
       return;
     }
     const effectiveAuthor = (authorOverride.trim() || defaultAuthor);
-    const effectiveDate = (dateOverride.trim() || todayLabel);
+    if (day > localToday()) {
+      setSave({
+        kind: 'error',
+        message: lang === 'ar' ? 'لا يمكن أن يكون التاريخ في المستقبل.' : "The date can't be in the future.",
+      });
+      return;
+    }
+    const at = atForPickedDay(day);
     setSave({ kind: 'saving' });
 
     try {
       // Body/date go in the language the user typed; the other side is left
       // empty for the build-time auto-translator to fill.
       const newUpdate: NewUpdate = {
-        date: {
-          ar: lang === 'ar' ? effectiveDate : '',
-          en: lang === 'en' ? effectiveDate : '',
-        },
+        at,
         author: { ar: effectiveAuthor, en: effectiveAuthor },
         body: {
           ar: lang === 'ar' ? trimmed : '',
@@ -185,7 +191,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
           src,
           status: projectHealth,
           caption: { ar: lang === 'ar' ? trimmed : '', en: lang === 'en' ? trimmed : '' },
-          date: { ar: lang === 'ar' ? effectiveDate : '', en: lang === 'en' ? effectiveDate : '' },
+          at,
         };
         photoOps.push({ field: 'photos', item: photo, position: 'end' });
         pendingPhotos.push({ ...photo, previewUrl: im.url });
@@ -206,7 +212,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
       setSave({ kind: 'idle' });
       setBody('');
       setAuthorOverride('');
-      setDateOverride('');
+      setDay(localToday());
       setImages([]); // preview URLs now owned by the parent for optimistic display
       setFlash(true);
       setTimeout(() => setFlash(false), 4000);
@@ -279,12 +285,11 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
                 {lang === 'ar' ? 'التاريخ' : 'Date'}
               </label>
               <input
-                type="text"
+                type="date"
                 className="auth-update-form-date"
-                value={dateOverride}
-                onChange={(e) => setDateOverride(e.target.value)}
-                placeholder={todayLabel}
-                maxLength={40}
+                value={day}
+                max={localToday()}
+                onChange={(e) => setDay(e.target.value || localToday())}
                 disabled={save.kind === 'saving'}
               />
             </div>
@@ -359,7 +364,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
                 setExpanded(false);
                 setBody('');
                 setAuthorOverride('');
-                setDateOverride('');
+                setDay(localToday());
                 setSave({ kind: 'idle' });
               }}
               disabled={save.kind === 'saving'}

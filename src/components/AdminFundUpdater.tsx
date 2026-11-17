@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { addProjectFunds } from '../data/project-file-edit';
 import { classifyUser, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 
 declare global {
   interface Window {
@@ -128,7 +129,11 @@ export default function AdminFundUpdater({
       const who = auth.user.email;
       const message = `Update funds: +$${amt} to ${targetLabel} (${projectId}) by ${who}`;
 
-      await addProjectFunds({ projectId, subId, amountUSD: amt, message });
+      // Recorded under the admin's chosen display name (never their email),
+      // since fund records appear in the public activity log.
+      const name = preferredAuthorName(auth.user, loadPrefs(auth.user.email));
+      const by = name.includes('@') ? undefined : name;
+      await addProjectFunds({ projectId, subId, amountUSD: amt, message, by });
 
       onUpdated({ subId, amount: amt });
       setSave({ kind: 'idle' });

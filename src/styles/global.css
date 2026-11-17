@@ -5956,3 +5956,124 @@ input[type="number"] {
 }
 .fund-admin-max:disabled { opacity: 0.5; cursor: not-allowed; }
 .fund-admin-remaining { font-size: 12px; color: var(--sy-muted); font-weight: 500; }
+
+/* ====================================================================
+   COUNCIL DASHBOARD — KPI tiles, sector meters, needs-attention
+   Numbers use the body sans with proportional figures (not the display face).
+   ==================================================================== */
+.admin-hero { margin-bottom: 1.25rem; }
+.dash-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+.dash-tile {
+  background: var(--sy-paper-pure, #fff);
+  border: 1px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  padding: 1rem 1.1rem;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.dash-tile-label { font-size: 13px; color: var(--sy-ink-soft); font-weight: 600; }
+.dash-tile-value {
+  font-family: var(--font-body);
+  font-size: 1.7rem; font-weight: 700; line-height: 1.15;
+  color: var(--sy-green-dk);
+}
+.dash-tile-sub { font-size: 12.5px; color: var(--sy-muted); line-height: 1.45; }
+.dash-tile .dash-meter { margin-top: 0.4rem; }
+
+/* Meter: fill = accent; unfilled track = a lighter step of the same green */
+.dash-meter {
+  height: 8px; border-radius: 999px;
+  background: var(--sy-green-pale);
+  overflow: hidden;
+}
+.dash-meter-fill {
+  height: 100%; border-radius: 999px;
+  background: var(--sy-green);
+  min-width: 2px;
+}
+.dash-card-desc { margin: 0 0 1rem; font-size: 13px; color: var(--sy-muted); }
+.dash-meter-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.85rem; }
+.dash-meter-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 30%) 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.dash-meter-row:hover, .dash-meter-row:focus-visible { background: var(--sy-green-wash); outline: none; }
+.dash-meter-name { font-size: 14px; font-weight: 600; color: var(--sy-ink); }
+.dash-meter-count { color: var(--sy-muted); font-weight: 500; }
+.dash-meter-figures { display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; color: var(--sy-muted); min-width: 92px; }
+.dash-meter-figures strong { font-size: 14px; color: var(--sy-ink); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .dash-meter-row { grid-template-columns: 1fr auto; }
+  .dash-meter-row .dash-meter { grid-column: 1 / -1; grid-row: 2; }
+}
+
+.dash-attention { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.dash-attention-item { padding-bottom: 0.75rem; border-bottom: 1px solid var(--sy-rule-soft); }
+.dash-attention-item:last-child { border-bottom: none; padding-bottom: 0; }
+.dash-attention-name { font-weight: 700; color: var(--sy-green-dk); text-decoration: none; }
+.dash-attention-name:hover { text-decoration: underline; }
+.dash-reasons { list-style: none; margin: 0.35rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.dash-reason {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  border: 1px solid transparent;
+}
+.dash-reason-serious { background: rgba(206, 17, 38, 0.08); color: #9E0D1D; border-color: rgba(206, 17, 38, 0.3); }
+.dash-reason-warning { background: rgba(201, 161, 74, 0.14); color: #7A5A12; border-color: rgba(201, 161, 74, 0.45); }
+.dash-reason-info { background: var(--sy-green-wash); color: var(--sy-ink-soft); border-color: var(--sy-rule-soft); }
+.dash-link-btn {
+  margin-top: 0.75rem; background: none; border: none; padding: 0;
+  color: var(--sy-green); font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.dash-link-btn:hover { text-decoration: underline; }
+.dash-activity { margin-top: 1.5rem; }
+.admin-table-updated { font-size: 13px; color: var(--sy-ink-soft); }
+
+/* ====================================================================
+   ACTIVITY LOG (home + dashboard)
+   ==================================================================== */
+.activity-log { position: relative; }
+.activity-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+.activity-filter {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.8rem; border-radius: 999px;
+  border: 1px solid var(--sy-rule-soft); background: var(--sy-paper-pure, #fff);
+  font-size: 13px; font-weight: 600; color: var(--sy-ink-soft); cursor: pointer;
+}
+.activity-filter.active { background: var(--sy-green); border-color: var(--sy-green); color: #fff; }
+.activity-filter:disabled { opacity: 0.45; cursor: default; }
+.activity-filter-count { font-weight: 500; opacity: 0.8; }
+ol.activity-feed { list-style: none; margin: 0; padding: 0; }
+.activity-feed .activity-item { align-items: flex-start; }
+.activity-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
+.activity-kind {
+  font-size: 11.5px; font-weight: 700; text-transform: none;
+  color: var(--sy-muted); letter-spacing: 0.02em;
+}
+.activity-target { font-weight: 700; color: var(--sy-green-dk); text-decoration: none; }
+.activity-target:hover { text-decoration: underline; }
+.activity-amount { font-weight: 700; color: var(--sy-ink); }
+.activity-feed .activity-text { margin-top: 2px; color: var(--sy-ink-soft); }
+.activity-meta {
+  display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem;
+  margin-top: 4px; font-size: 12px; color: var(--sy-muted);
+}
+.activity-meta .activity-time { margin-top: 0; }
+.activity-dot-update { background: var(--sy-green); }
+.activity-dot-note { background: #4A90C9; }
+.activity-dot-photo { background: var(--sy-green-lt); }
+.activity-dot-funds { background: var(--sy-gold); }
+.activity-dot-document { background: var(--sy-ink-soft); }
+.activity-more { text-align: center; margin-top: 1rem; }
+.activity-feed .admin-del { margin-inline-start: auto; flex-shrink: 0; }
+.admin-del-warning { font-size: 12px; color: var(--sy-ink-soft); max-width: 260px; }
+time.timestamp { color: inherit; }

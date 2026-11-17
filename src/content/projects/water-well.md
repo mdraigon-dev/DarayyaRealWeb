@@ -16,8 +16,6 @@ description:
   en: "Drilling a 220-meter deep artesian well to provide clean water for three schools and a public park."
 budgetUSD: 22000
 raisedUSD: 4001200
-donors: 14
-daysLeft: 75
 lat: 33.4585
 lng: 36.247
 subs:
@@ -49,39 +47,31 @@ subs:
     budgetUSD: 2500
     raisedUSD: 0
 updates:
-  - date:
-      ar: "اليوم"
-      en: ""
-    author:
+  - author:
       ar: "m.draigon@gmail.com"
       en: "m.draigon@gmail.com"
     body:
       ar: "طريق"
       en: ""
-  - date:
-      ar: "منذ ٤ أيام"
-      en: "4 days ago"
-    author:
-      ar: "المجلس المحلي"
+    at: "2026-11-16T21:16:20.000Z"
+  - author:
+      ar: "مجلس المدينة"
       en: "City Council"
     body:
       ar: "فُتح باب التبرعات. ندعو خاصة من درس في هذه المدارس للمساهمة."
       en: "Donations are now open. We especially invite alumni of these schools to contribute."
+    at: "2026-05-21"
 photos:
   - scene: "water"
     status: "warning"
     caption:
       ar: "التمويل بطيء — نحتاج دعمكم"
       en: "Funding is slow — we need your support"
-    date:
-      ar: "منذ ٤ أيام"
-      en: "4 days ago"
+    at: "2026-05-21"
   - src: "/uploads/projects/water-well/1794863775684-pand1w.jpg"
     status: "warning"
     caption:
       ar: "طريق"
       en: ""
-    date:
-      ar: "اليوم"
-      en: ""
+    at: "2026-11-16T21:16:20.000Z"
 ---
