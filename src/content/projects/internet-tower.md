@@ -39,4 +39,12 @@ subs:
     raisedUSD: 1000
 updates: []
 photos: []
+comments:
+  - author:
+      ar: "m.draigon@gmail.com"
+      en: "m.draigon@gmail.com"
+    body:
+      ar: ""
+      en: "the water is shut off today for phone repair"
+    at: "2026-11-17T16:01:32.566Z"
 ---
