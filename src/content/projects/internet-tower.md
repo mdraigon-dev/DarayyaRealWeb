@@ -38,6 +38,13 @@ subs:
     budgetUSD: 10000
     raisedUSD: 1000
 updates:
+  - at: "2026-11-17T16:05:29.150Z"
+    author:
+      ar: "m.draigon@gmail.com"
+      en: "m.draigon@gmail.com"
+    body:
+      ar: "سوف تنقطع مياه الشرب اليوم لاصلاح كابل الهاتف"
+      en: ""
   - at: "2026-11-17T16:02:59.517Z"
     author:
       ar: "m.draigon@gmail.com"
