@@ -6077,3 +6077,31 @@ ol.activity-feed { list-style: none; margin: 0; padding: 0; }
 .activity-feed .admin-del { margin-inline-start: auto; flex-shrink: 0; }
 .admin-del-warning { font-size: 12px; color: var(--sy-ink-soft); max-width: 260px; }
 time.timestamp { color: inherit; }
+
+/* Editor: project totals derived from line items */
+.editor-totals {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+.editor-totals-label {
+  font-size: 12px;
+  color: var(--sy-muted);
+  margin-bottom: 0.15rem;
+}
+.editor-totals-val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--sy-ink, inherit);
+  font-variant-numeric: tabular-nums;
+}
+.editor-notice {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--sy-gold);
+  border-inline-start-width: 4px;
+  border-radius: var(--r-md);
+  background: var(--sy-paper);
+  font-size: 13px;
+  line-height: 1.6;
+}
