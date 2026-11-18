@@ -15,7 +15,7 @@ description:
   ar: "ترميم المركز الصحي الذي يخدم ٤٠٠٠ شخص، يشمل إعادة بناء قاعة العمليات الصغرى وتجهيز ٦ غرف فحص."
   en: "Restoring the health center that serves 4,000 people, including rebuilding the minor operations room and equipping 6 examination rooms."
 budgetUSD: 58000
-raisedUSD: 20500
+raisedUSD: 25500
 lat: 33.457
 lng: 36.251
 subs:
@@ -36,7 +36,7 @@ subs:
       ar: "٦ غرف"
       en: "6 rooms"
     budgetUSD: 18000
-    raisedUSD: 3000
+    raisedUSD: 8000
   - id: "cl3"
     title:
       ar: "قاعة العمليات الصغرى"
@@ -65,4 +65,7 @@ fundLog:
   - at: "2026-11-18T23:25:46.989Z"
     amountUSD: 10800
     subId: "cl3"
+  - at: "2026-11-18T23:30:31.379Z"
+    amountUSD: 5000
+    subId: "cl2"
 ---
