@@ -15,7 +15,7 @@ description:
   ar: "إنارة الطريق المؤدي إلى المقبرة الجديدة بطول ٦٠٠ متر، لتسهيل الوصول للزوار ليلاً وفي الجنازات."
   en: "Lighting the 600m road to the new cemetery to ease nighttime access for visitors and during funerals."
 budgetUSD: 9500
-raisedUSD: 1100
+raisedUSD: 5600
 lat: 33.447
 lng: 36.26
 subs:
@@ -27,7 +27,7 @@ subs:
       ar: "١٢ عمود"
       en: "12 poles"
     budgetUSD: 9500
-    raisedUSD: 1100
+    raisedUSD: 5600
 updates:
   - at: "2026-05-22"
     author:

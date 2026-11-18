@@ -26,7 +26,7 @@ type Props = {
   documents?: ActivityDocument[];
 };
 
-export default function HomeContent({ lang, basePath, baseUrl, projects, documents = [] }: Props) {
+export default function HomeContent({ lang, basePath, projects, documents = [] }: Props) {
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
   // Totals come straight from the recorded project data (no browser-side
