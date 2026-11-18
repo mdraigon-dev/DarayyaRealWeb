@@ -15,7 +15,7 @@ description:
   ar: "إعادة رصف الشارع التجاري الرئيسي في وسط داريّا، مع تحسين الأرصفة وإشارات المرور."
   en: "Repaving the main commercial street in central Darayya, including sidewalk improvements and traffic signals."
 budgetUSD: 48000
-raisedUSD: 11400
+raisedUSD: 12200
 lat: 33.452
 lng: 36.251
 subs:
@@ -27,7 +27,7 @@ subs:
       ar: "٨٠٠ م"
       en: "800 m"
     budgetUSD: 32000
-    raisedUSD: 5500
+    raisedUSD: 9500
   - id: "rt2"
     title:
       ar: "إعادة بناء الأرصفة"
@@ -75,4 +75,8 @@ comments:
       ar: ""
       en: "Water is shut off today to fix the phone wires"
     at: "2026-11-17T15:51:49.062Z"
+fundLog:
+  - at: "2026-11-18T22:50:57.902Z"
+    amountUSD: 4000
+    subId: "rt1"
 ---
