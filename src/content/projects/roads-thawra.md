@@ -15,7 +15,7 @@ description:
   ar: "إعادة رصف الشارع التجاري الرئيسي في وسط داريّا، مع تحسين الأرصفة وإشارات المرور."
   en: "Repaving the main commercial street in central Darayya, including sidewalk improvements and traffic signals."
 budgetUSD: 48000
-raisedUSD: 8200
+raisedUSD: 11400
 lat: 33.452
 lng: 36.251
 subs:
@@ -67,4 +67,12 @@ photos:
       ar: "الشارع لا يزال بحالة سيئة جداً"
       en: "Street remains in poor condition"
     at: "2026-05-15"
+comments:
+  - author:
+      ar: "m.draigon@gmail.com"
+      en: "m.draigon@gmail.com"
+    body:
+      ar: ""
+      en: "Water is shut off today to fix the phone wires"
+    at: "2026-11-17T15:51:49.062Z"
 ---
