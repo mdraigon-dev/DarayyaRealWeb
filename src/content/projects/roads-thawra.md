@@ -47,6 +47,13 @@ subs:
     budgetUSD: 5000
     raisedUSD: 500
 updates:
+  - at: "2026-11-18T22:52:59.432Z"
+    author:
+      ar: "مجلس المدينة"
+      en: "City Council"
+    body:
+      ar: "تم تعثر تزفيت الشارع بسبب سحب الآليات إلى قطنا. موعد عودة الآليات بداية العام الجديد"
+      en: ""
   - at: "2026-05-20"
     author:
       ar: "مجلس المدينة"
@@ -67,6 +74,12 @@ photos:
       ar: "الشارع لا يزال بحالة سيئة جداً"
       en: "Street remains in poor condition"
     at: "2026-05-15"
+  - src: "/uploads/projects/roads-thawra/1795042379432-yugfrt.jpg"
+    status: "stalled"
+    caption:
+      ar: "تم تعثر تزفيت الشارع بسبب سحب الآليات إلى قطنا. موعد عودة الآليات بداية العام الجديد"
+      en: ""
+    at: "2026-11-18T22:52:59.432Z"
 comments:
   - author:
       ar: "m.draigon@gmail.com"
