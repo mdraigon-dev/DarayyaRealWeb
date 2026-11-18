@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
+import { t, loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
 import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit';
 import { loadPrefs, defaultPrefs, preferredAuthorName, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
 import { atForPickedDay, localToday } from '../data/time';
@@ -121,6 +121,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   const [state, setState] = useState<ProjectFormState>(initial);
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  // The total as written in the project file, kept only to spot a total that
+  // disagrees with the line items (see the notice in the Funding card).
+  const [recordedBudget, setRecordedBudget] = useState<number>(initial.budgetUSD);
 
   /* SHA of the file when this editor session started, used to detect
    * concurrent edits. Fetched after auth completes (we need the user's
@@ -193,10 +196,33 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         liveRef.current = live;
         // Only pull the fields the inline forms can change out from under the
         // editor. Everything else stays as the user loaded it.
+        // Money too: contributions recorded on the project page since the
+        // last build exist only in the repo, and saving stale figures from
+        // the build would quietly undo them.
+        const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+        if (typeof live.budgetUSD === 'number') setRecordedBudget(live.budgetUSD);
         setState((s) => ({
           ...s,
           comments: Array.isArray(live.comments) ? (live.comments as typeof s.comments) : s.comments,
           updates: Array.isArray(live.updates) ? (live.updates as typeof s.updates) : s.updates,
+          budgetUSD: num(live.budgetUSD, s.budgetUSD),
+          raisedUSD: num(live.raisedUSD, s.raisedUSD),
+          subs: Array.isArray(live.subs)
+            ? (live.subs as Array<Record<string, unknown>>).map((x, i) => {
+                const prev = s.subs.find((p) => p.id === x.id) || s.subs[i];
+                const bl = (v: unknown) => (v && typeof v === 'object'
+                  ? { ar: String((v as any).ar ?? ''), en: String((v as any).en ?? '') }
+                  : { ar: '', en: '' });
+                return {
+                  ...prev,
+                  id: String(x.id ?? prev?.id ?? `item-${i + 1}`),
+                  title: bl(x.title),
+                  length: bl(x.length),
+                  budgetUSD: num(x.budgetUSD, prev?.budgetUSD ?? 0),
+                  raisedUSD: num(x.raisedUSD, prev?.raisedUSD ?? 0),
+                };
+              })
+            : s.subs,
         }));
         if (!cancelled) setEditingSha('loaded');
       } catch {
@@ -208,13 +234,24 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     return () => { cancelled = true; };
   }, [auth.kind, isNew, initial.id]);
 
+  // With line items, the project's totals ARE the sum of its items: that's
+  // what the project page, the fund recorder and its caps all use. The form
+  // shows them read-only and writes them on save, so the list, the map and
+  // the project page can never disagree again.
+  const hasSubs = state.subs.length > 0;
+  const subsBudget = state.subs.reduce((a, x) => a + (x.budgetUSD || 0), 0);
+  const subsRaised = state.subs.reduce((a, x) => a + (x.raisedUSD || 0), 0);
+  const totalBudget = hasSubs ? subsBudget : state.budgetUSD;
+  const totalRaised = hasSubs ? subsRaised : state.raisedUSD;
+  const totalsMismatch = hasSubs && !isNew && recordedBudget !== subsBudget;
+
   // Computed values for the budget slider
   const budgetMax = useMemo(() => {
     return Math.max(state.budgetUSD * 1.5, 1000);
   }, [state.budgetUSD]);
 
-  const pct = state.budgetUSD > 0
-    ? Math.min(100, Math.round((state.raisedUSD / state.budgetUSD) * 100))
+  const pct = totalBudget > 0
+    ? Math.min(100, Math.round((totalRaised / totalBudget) * 100))
     : 0;
 
   // ──────────────────────────────────────────────────────────────────
@@ -262,7 +299,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           });
           return;
         }
-        if (state.budgetUSD <= 0) {
+        if (totalBudget <= 0) {
           setSave({
             kind: 'error',
             message: lang === 'ar' ? 'الميزانية يجب أن تكون أكبر من صفر.' : 'Budget must be greater than zero.',
@@ -283,8 +320,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         title: state.title,
         location: state.location,
         description: state.description,
-        budgetUSD: state.budgetUSD,
-        raisedUSD: state.raisedUSD,
+        budgetUSD: totalBudget,
+        raisedUSD: totalRaised,
         lat: state.lat,
         lng: state.lng,
       };
@@ -614,49 +651,81 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           {lang === 'ar' ? 'التمويل' : 'Funding'}
         </h3>
 
-        <div className="editor-field">
-          <label>{lang === 'ar' ? 'الميزانية المطلوبة (دولار)' : 'Budget (USD)'}</label>
-          <div className="editor-slider-row">
-            <input
-              type="number"
-              className="editor-number-input"
-              value={state.budgetUSD}
-              onChange={(e) => update('budgetUSD', Math.max(0, parseInt(e.target.value, 10) || 0))}
-              min={0}
-            />
-            <input
-              type="range"
-              className="editor-slider"
-              min={0}
-              max={budgetMax}
-              step={500}
-              value={state.budgetUSD}
-              onChange={(e) => update('budgetUSD', parseInt(e.target.value, 10))}
-            />
+        {hasSubs ? (
+          <div className="editor-field">
+            <div className="editor-totals">
+              <div>
+                <div className="editor-totals-label">{lang === 'ar' ? 'الميزانية الإجمالية' : 'Total budget'}</div>
+                <div className="editor-totals-val"><bdi>{fmtMoney(lang, 'USD', totalBudget)}</bdi></div>
+              </div>
+              <div>
+                <div className="editor-totals-label">{lang === 'ar' ? 'المحصّل حتى الآن' : 'Raised so far'}</div>
+                <div className="editor-totals-val"><bdi>{fmtMoney(lang, 'USD', totalRaised)}</bdi></div>
+              </div>
+            </div>
+            <p className="editor-field-hint">
+              {lang === 'ar'
+                ? `مجموع ${fmtNum(lang, state.subs.length)} من البنود الفرعية أدناه. لتغيير الميزانية الإجمالية عدّل ميزانية البنود أو أضف بنداً.`
+                : `Sum of the ${state.subs.length} line items below. To change the total, change an item's budget or add an item.`}
+            </p>
+            {totalsMismatch && (
+              <div className="editor-notice" role="note">
+                {lang === 'ar'
+                  ? <>الميزانية الإجمالية المحفوظة سابقاً (<strong><bdi>{fmtMoney(lang, 'USD', recordedBudget)}</bdi></strong>) لا تساوي مجموع البنود (<strong><bdi>{fmtMoney(lang, 'USD', subsBudget)}</bdi></strong>). صفحة المشروع وكل المجاميع تعتمد على البنود، لذا عدّل ميزانيات البنود لتصل إلى المبلغ المطلوب ثم احفظ.</>
+                  : <>The total saved earlier (<strong><bdi>{fmtMoney(lang, 'USD', recordedBudget)}</bdi></strong>) doesn't match the line items (<strong><bdi>{fmtMoney(lang, 'USD', subsBudget)}</bdi></strong>). The project page and every total use the line items, so adjust the item budgets to reach the amount you want, then save.</>}
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <>
+        <div className="editor-field">
+              <label>{lang === 'ar' ? 'الميزانية المطلوبة (دولار)' : 'Budget (USD)'}</label>
+              <div className="editor-slider-row">
+                <input
+                  type="number"
+                  className="editor-number-input"
+                  value={state.budgetUSD}
+                  onChange={(e) => update('budgetUSD', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  min={0}
+                />
+                <input
+                  type="range"
+                  className="editor-slider"
+                  min={0}
+                  max={budgetMax}
+                  step={500}
+                  value={state.budgetUSD}
+                  onChange={(e) => update('budgetUSD', parseInt(e.target.value, 10))}
+                />
+              </div>
+            </div>
+
+            <div className="editor-field">
+              <label>{lang === 'ar' ? 'المبلغ المحصّل (دولار)' : 'Raised (USD)'}</label>
+              <div className="editor-slider-row">
+                <input
+                  type="number"
+                  className="editor-number-input"
+                  value={state.raisedUSD}
+                  onChange={(e) => update('raisedUSD', Math.min(state.budgetUSD, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                  min={0}
+                  max={state.budgetUSD}
+                />
+                <input
+                  type="range"
+                  className="editor-slider"
+                  min={0}
+                  max={Math.max(state.budgetUSD, 1)}
+                  step={100}
+                  value={Math.min(state.raisedUSD, state.budgetUSD)}
+                  onChange={(e) => update('raisedUSD', parseInt(e.target.value, 10))}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="editor-field">
-          <label>{lang === 'ar' ? 'المبلغ المحصّل (دولار)' : 'Raised (USD)'}</label>
-          <div className="editor-slider-row">
-            <input
-              type="number"
-              className="editor-number-input"
-              value={state.raisedUSD}
-              onChange={(e) => update('raisedUSD', Math.min(state.budgetUSD, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-              min={0}
-              max={state.budgetUSD}
-            />
-            <input
-              type="range"
-              className="editor-slider"
-              min={0}
-              max={Math.max(state.budgetUSD, 1)}
-              step={100}
-              value={Math.min(state.raisedUSD, state.budgetUSD)}
-              onChange={(e) => update('raisedUSD', parseInt(e.target.value, 10))}
-            />
-          </div>
           {/* Live progress preview */}
           <div className="editor-progress">
             <div className="editor-progress-track">

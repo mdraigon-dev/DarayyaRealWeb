@@ -83,7 +83,7 @@ const projectCollection = defineCollection({
         id: z.string(),
         title: bilingual,
         length: bilingualLabel,
-        budgetUSD: z.number().positive(),
+        budgetUSD: z.number().min(0),
         raisedUSD: z.number().min(0),
       })
     ).default([]),
@@ -145,6 +145,17 @@ const projectCollection = defineCollection({
         date: z.string().optional(),
       })
     ).default([]),
+  }).transform((p) => {
+    // One rule for every page: when a project has line items, its totals are
+    // the sum of those items. The fund recorder already works this way, and a
+    // total edited on its own (e.g. in /admin/ CMS) used to show on the list
+    // and map but not on the project page.
+    if (p.subs.length === 0) return p;
+    return {
+      ...p,
+      budgetUSD: p.subs.reduce((a, s) => a + s.budgetUSD, 0),
+      raisedUSD: p.subs.reduce((a, s) => a + s.raisedUSD, 0),
+    };
   }),
 });
 
