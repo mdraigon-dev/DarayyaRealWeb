@@ -15,7 +15,7 @@ type AuthUser = {
 
 type Props = {
   lang: Lang;
-  currentPage: 'home' | 'projects' | 'transparency' | 'circulars' | 'admin';
+  currentPage: 'home' | 'projects' | 'transparency' | 'circulars' | 'admin' | 'contribute';
   /** Current pathname passed in by Astro so the lang toggle can preserve it
    *  even before JS hydrates. Without this, the SSR-rendered toggle URL
    *  falls back to the locale homepage, which means the toggle "only works
@@ -174,7 +174,11 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
           </div>
         )}
 
-        <a className="btn-donate-nav" href={link('/projects/')}>
+        <a
+          className="btn-donate-nav"
+          href={link('/contribute/')}
+          aria-current={currentPage === 'contribute' ? 'page' : undefined}
+        >
           {t(lang, 'nav_donate')}
         </a>
       </div>

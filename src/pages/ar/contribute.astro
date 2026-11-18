@@ -1,0 +1,20 @@
+---
+import { getEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ContributeContent from '../../components/ContributeContent.tsx';
+import { t } from '../../i18n/strings';
+
+const entry = await getEntry('contribute', 'page');
+const page = entry?.data ?? { methods: [] };
+
+const lang = 'ar' as const;
+---
+
+<BaseLayout
+  title={`${t(lang, 'contrib_title')} — ${t(lang, 'brand_title')}`}
+  description={t(lang, 'contrib_desc')}
+  lang={lang}
+  currentPage="contribute"
+>
+  <ContributeContent lang={lang} page={page} client:load />
+</BaseLayout>
