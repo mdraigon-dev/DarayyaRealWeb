@@ -15,6 +15,6 @@ const target = `${base}ar/`;
     <a href={target}>العربية</a> |
     <a href={`${base}en/`}>English</a>
   </p>
-  <script set:html={`window.location.replace('${target}');`} />
+  <script is:inline set:html={`window.location.replace('${target}');`} />
 </body>
 </html>
