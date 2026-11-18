@@ -232,7 +232,39 @@ const siteCollection = defineCollection({
   }),
 });
 
+// ============================================================
+// HOW TO CONTRIBUTE — one editable page (src/content/contribute/page.json)
+// ============================================================
+// Everything is optional and loosely typed on purpose: this file is edited
+// from the site, and a stray value must never be able to fail the build.
+// The page skips any entry it can't show.
+const contributeCollection = defineCollection({
+  type: 'data',
+  schema: z.object({
+    intro: bilingualLabel.optional(),
+    methods: z.array(
+      z.object({
+        id: z.string(),
+        /** phone | whatsapp | email | link | address | text | qr */
+        type: z.string(),
+        label: bilingualLabel.optional(),
+        /** phone number, email address or URL */
+        value: z.string().optional(),
+        /** address or free text */
+        text: bilingualLabel.optional(),
+        /** QR / image path under /uploads/contribute/ */
+        image: z.string().optional(),
+        /** short extra line, e.g. opening hours */
+        note: bilingualLabel.optional(),
+      }).passthrough()
+    ).default([]),
+    updatedAt: z.string().optional(),
+    updatedBy: z.string().optional(),
+  }),
+});
+
 export const collections = {
+  contribute: contributeCollection,
   projects: projectCollection,
   updates: updatesCollection,
   site: siteCollection,

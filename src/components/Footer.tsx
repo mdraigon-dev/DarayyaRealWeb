@@ -24,13 +24,14 @@ export default function Footer({ lang }: Props) {
           <a href={link('/')}>{t(lang, 'nav_home')}</a>
           <a href={link('/projects/')}>{t(lang, 'nav_projects')}</a>
           <a href={link('/transparency/')}>{t(lang, 'nav_transparency')}</a>
+          <a href={link('/contribute/')}>{t(lang, 'nav_donate')}</a>
           <a href={link('/admin/')}>{t(lang, 'nav_admin')}</a>
         </div>
         <div className="footer-col">
           <h4>{t(lang, 'footer_contact')}</h4>
           <span>{t(lang, 'footer_council')}</span>
-          <span>info@darayya-council.sy</span>
-          <span>+963 11 445 6789</span>
+          <span dir="ltr">info@darayya-council.sy</span>
+          <span dir="ltr">+963 11 445 6789</span>
           <a href={`mailto:info@darayya-council.sy?subject=${encodeURIComponent(t(lang, 'footer_feedback'))}`}>
             {t(lang, 'footer_feedback')}
           </a>

@@ -566,6 +566,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 {t(lang, 'contribute_msg_after')}
               </p>
               <p className="contribute-note">{t(lang, 'contribute_note')}</p>
+              <a className="contribute-page-link" href={`${basePath}/contribute/`}>{t(lang, 'contrib_page_link')}</a>
             </div>
 
             {fundFlash && (
