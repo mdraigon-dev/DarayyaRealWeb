@@ -16,6 +16,7 @@ import TimeStamp from './TimeStamp';
 import { formatAbsolute, daysUntil, useNow } from '../data/time';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
+import { commitName } from '../data/admin-prefs';
 
 type Bilingual = { ar: string; en: string };
 type Sub = {
@@ -99,7 +100,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   const hide = (field: string, i: number) => setHidden((h) => ({ ...h, [`${field}:${i}`]: true }));
 
   const deleteItem = async (field: 'comments' | 'updates' | 'photos', item: unknown, after: () => void) => {
-    const who = identity.kind === 'authenticated' ? identity.user.email : 'admin';
+    const who = commitName(identity.kind === 'authenticated' ? identity.user : null);
     const label = field === 'comments' ? 'note' : field === 'updates' ? 'field update' : 'photo';
     await removeProjectItem({
       projectId: project.id,

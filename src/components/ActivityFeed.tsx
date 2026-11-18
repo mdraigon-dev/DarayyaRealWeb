@@ -6,6 +6,7 @@ import { classifyUser } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import TimeStamp from './TimeStamp';
 import AdminDeleteButton from './AdminDeleteButton';
+import { commitName } from '../data/admin-prefs';
 
 type Props = {
   entries: ActivityEntry[];
@@ -45,7 +46,7 @@ export default function ActivityFeed({ entries, lang, basePath, pageSize = 10, s
   const visible = filtered.slice(0, shown);
 
   const remove = async (e: ActivityEntry) => {
-    const who = identity.kind === 'authenticated' ? identity.user.email : 'admin';
+    const who = commitName(identity.kind === 'authenticated' ? identity.user : null);
     await deleteActivity(e.ref, who);
     setHidden((h) => new Set(h).add(e.key));
     setToast(true);

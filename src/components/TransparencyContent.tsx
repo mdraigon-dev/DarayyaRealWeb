@@ -8,6 +8,7 @@ import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
 import { formatFileSize, type Circular } from './CircularsContent';
 import AdminDeleteButton from './AdminDeleteButton';
+import { commitName } from '../data/admin-prefs';
 
 type Bilingual = { ar: string; en?: string };
 type Project = ActivityProject & {
@@ -56,7 +57,7 @@ export default function TransparencyContent({ projects, documents = [], lang, ba
     await deleteDocument({
       source: d.source || `${d.id}.md`,
       file: d.file,
-      message: `Delete report ${d.id} by ${identity.kind === 'authenticated' ? identity.user.email : 'admin'}`,
+      message: `Delete report ${d.id} by ${commitName(identity.kind === 'authenticated' ? identity.user : null)}`,
     });
     setDeletedIds((s) => new Set(s).add(d.id));
     setToast(true);
