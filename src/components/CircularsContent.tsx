@@ -5,6 +5,7 @@ import CircularUploader from './CircularUploader';
 import AdminDeleteButton from './AdminDeleteButton';
 import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
+import { commitName } from '../data/admin-prefs';
 
 declare global {
   interface Window {
@@ -116,7 +117,7 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
     await deleteDocument({
       source: c.source || `${c.id}.md`,
       file: c.file,
-      message: `Delete document ${c.id} by ${authUser?.email || 'admin'}`,
+      message: `Delete document ${c.id} by ${commitName(authUser)}`,
     });
     setDeletedIds((d) => new Set(d).add(c.id));
     setToast(true);

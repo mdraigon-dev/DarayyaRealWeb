@@ -75,6 +75,18 @@ export function preferredAuthorName(
 }
 
 /**
+ * Who to name in a commit message. The repo is public, so this is the
+ * person's display name, never their email address.
+ */
+export function commitName(user: { email: string; user_metadata?: { full_name?: string } } | null | undefined): string {
+  if (!user) return 'admin';
+  let prefs: AdminPrefs | null = null;
+  try { prefs = loadPrefs(user.email); } catch { /* storage blocked */ }
+  const n = preferredAuthorName(user, prefs).trim();
+  return n && !n.includes('@') ? n : 'admin';
+}
+
+/**
  * The author shown publicly on a note or update. Same as preferredAuthorName
  * but never an email address — those end up in the repo and on public pages.
  * Falls back to "City Council" when the account has no display name.

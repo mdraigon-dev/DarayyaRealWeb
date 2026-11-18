@@ -3,6 +3,7 @@ import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { addProjectFunds } from '../data/project-file-edit';
 import { classifyUser, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
+import { commitName } from '../data/admin-prefs';
 
 declare global {
   interface Window {
@@ -126,7 +127,7 @@ export default function AdminFundUpdater({
       const targetLabel = subId
         ? loc(lang, subs.find((s) => s.id === subId)!.title)
         : 'project';
-      const who = auth.user.email;
+      const who = commitName(auth.user);
       const message = `Update funds: +$${amt} to ${targetLabel} (${projectId}) by ${who}`;
 
       // Recorded under the admin's chosen display name (never their email),
