@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { t, fmtNum, fmtMoney, loc, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
 import { lastActivityAt, type ActivityProject } from '../data/activity-feed';
-import { classifyUser } from '../data/permissions';
+import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
@@ -37,7 +37,7 @@ type Props = {
 export default function TransparencyContent({ projects, documents = [], lang, basePath }: Props) {
   const currency = 'USD' as const;
   const identity = useIdentity();
-  const isAdmin = identity.kind === 'authenticated' && classifyUser(identity.user, []) === 'admin';
+  const isAdmin = identity.kind === 'authenticated' && can(identity.user, 'delete-documents');
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState(false);
 

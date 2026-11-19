@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { t, loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
 import type { ActivityEntry, ActivityKind } from '../data/activity-feed';
 import { deleteActivity } from '../data/activity-delete';
-import { classifyUser } from '../data/permissions';
+import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import TimeStamp from './TimeStamp';
 import AdminDeleteButton from './AdminDeleteButton';
@@ -30,7 +30,7 @@ const excerpt = (s: string, n = 180) => (s.length > n ? `${s.slice(0, n).trimEnd
  */
 export default function ActivityFeed({ entries, lang, basePath, pageSize = 10, showFilters = false, emptyText }: Props) {
   const identity = useIdentity();
-  const isAdmin = identity.kind === 'authenticated' && classifyUser(identity.user, []) === 'admin';
+  const isAdmin = identity.kind === 'authenticated' && can(identity.user, 'delete-activity');
   const [filter, setFilter] = useState<ActivityKind | 'all'>('all');
   const [shown, setShown] = useState(pageSize);
   const [hidden, setHidden] = useState<Set<string>>(new Set());

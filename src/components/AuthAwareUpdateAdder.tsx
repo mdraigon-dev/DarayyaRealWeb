@@ -3,12 +3,13 @@ import { type Lang } from '../i18n/strings';
 import { appendProjectItems } from '../data/project-file-edit';
 import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import {
-  uploadProjectPhoto,
+  prepareProjectPhoto,
   isAllowedImage,
   MAX_IMAGE_BYTES,
   MAX_IMAGES_PER_UPDATE,
 } from '../data/image-upload';
-import { classifyUser, canPost, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { saveErrorMessage, type Change } from '../data/repo';
+import { canPostOn, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { atForPickedDay, localToday } from '../data/time';
 
 declare global {
@@ -137,9 +138,8 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
 
   if (auth.kind !== 'authenticated') return null;
 
-  // Permission check: only admins and engineers-of-this-project can post
-  const role = classifyUser(auth.user, engineers);
-  if (!canPost(role)) return null;
+  // Project managers, admins, and engineers assigned to this project.
+  if (!canPostOn(auth.user, engineers)) return null;
 
   const defaultAuthor = preferredAuthorName(auth.user, prefs);
 
@@ -181,13 +181,15 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
         ? `تحديث ميداني على ${projectId} بواسطة ${effectiveAuthor}`
         : `Field update on ${projectId} by ${effectiveAuthor}`;
 
-      // 1) Upload each image as its own binary commit, collecting the served
-      //    paths. Photos carry the update's text as caption and the project's
-      //    current health as their status badge.
+      // Photos carry the update's text as caption and the project's current
+      // health as their status badge. The images, the update and the gallery
+      // entries are saved together as ONE commit (one deploy).
       const pendingPhotos: PendingPhoto[] = [];
       const photoOps: Array<{ field: 'photos'; item: NewPhoto; position: 'end' }> = [];
+      const imageChanges: Change[] = [];
       for (const im of images) {
-        const { src } = await uploadProjectPhoto(projectId, im.file, `${commitMessage} (photo)`);
+        const { src, change } = await prepareProjectPhoto(projectId, im.file);
+        imageChanges.push(change);
         const photo: NewPhoto = {
           src,
           status: projectHealth,
@@ -198,8 +200,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
         pendingPhotos.push({ ...photo, previewUrl: im.url });
       }
 
-      // 2) Commit the update (+ any photo entries) to the project file in one go.
-      //    Prepend the update so newest appears first in the timeline.
+      // Prepend the update so newest appears first in the timeline.
       await appendProjectItems({
         projectId,
         ops: [
@@ -207,6 +208,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
           ...photoOps,
         ],
         message: commitMessage,
+        extra: imageChanges,
       });
 
       onAdded?.({ update: newUpdate, photos: pendingPhotos });
@@ -226,7 +228,7 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
             ? (lang === 'ar' ? 'نوع صورة غير مدعوم.' : 'Unsupported image type.')
             : err?.message === 'IMAGE_SIZE'
               ? (lang === 'ar' ? 'حجم الصورة يتجاوز ٨ ميغابايت.' : 'Image exceeds 8 MB.')
-              : (err?.message || 'Save failed');
+              : saveErrorMessage(err, lang);
       setSave({ kind: 'error', message });
     }
   };

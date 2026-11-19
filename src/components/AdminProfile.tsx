@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
+import { can, rolesText, type AuthUser } from '../data/permissions';
 import {
   loadPrefs,
   savePrefs,
@@ -23,7 +24,7 @@ type Props = {
 type AuthState =
   | { kind: 'loading' }
   | { kind: 'anonymous' }
-  | { kind: 'authenticated'; user: { email: string; user_metadata?: { full_name?: string } } };
+  | { kind: 'authenticated'; user: AuthUser };
 
 const emptyPreset = (): EngineerPreset => ({
   name: { ar: '', en: '' },
@@ -133,16 +134,22 @@ export default function AdminProfile({ lang, basePath }: Props) {
       <div className="profile-header">
         <div>
           <h1 className="profile-title">
-            {lang === 'ar' ? 'تفضيلات المسؤول' : 'Admin preferences'}
+            {lang === 'ar' ? 'تفضيلاتي' : 'My preferences'}
           </h1>
           <p className="profile-signed-in">
             {lang === 'ar' ? 'مسجّل دخوله كـ ' : 'Signed in as '}
             <strong>{email}</strong>
           </p>
+          <p className="profile-signed-in">
+            {lang === 'ar' ? 'صلاحياتك: ' : 'Your roles: '}
+            <strong>{rolesText(auth.user, lang) || (lang === 'ar' ? 'لا توجد' : 'none')}</strong>
+          </p>
         </div>
-        <a className="profile-back" href={`${basePath}/admin/`}>
-          {lang === 'ar' ? '→ لوحة المجلس' : '← Council dashboard'}
-        </a>
+        {can(auth.user, 'view-dashboard') && (
+          <a className="profile-back" href={`${basePath}/admin/`}>
+            {lang === 'ar' ? '→ لوحة المجلس' : '← Council dashboard'}
+          </a>
+        )}
       </div>
 
       <p className="profile-storage-note">

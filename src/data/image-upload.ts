@@ -12,7 +12,7 @@
  * so they never collide with the metadata commit that references them.
  */
 
-import { commitBinaryFile } from './git-gateway';
+import type { Change } from './repo';
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB per image
 export const MAX_IMAGES_PER_UPDATE = 6;
@@ -33,38 +33,52 @@ function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const idx = result.indexOf(',');
-      resolve(idx >= 0 ? result.slice(idx + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
-    reader.readAsDataURL(file);
-  });
-}
 
 /**
  * Upload one image for a project. Returns the public `src` path to store on
  * the photo entry. Throws 'IMAGE_TYPE' / 'IMAGE_SIZE' on validation failure.
  */
-export async function uploadProjectPhoto(
+/**
+ * Downscale large photos before upload (phone photos are often 5–12 MB).
+ * Anything over 2,400 px or 2.5 MB is re-encoded as JPEG; small images and
+ * GIFs are left alone.
+ */
+export async function shrinkImage(file: File, maxDim = 2400, maxBytes = 2.5 * 1024 * 1024): Promise<File> {
+  if (file.type === 'image/gif') return file;
+  let bmp: ImageBitmap;
+  try { bmp = await createImageBitmap(file); } catch { return file; }
+  const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  if (scale === 1 && file.size <= maxBytes) { bmp.close?.(); return file; }
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.();
+  const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+  if (!blob || blob.size >= file.size) return file;
+  return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+}
+
+/**
+ * Prepare a site photo for a project: validates and downscales it, and
+ * returns its public path plus the file change to include in the commit that
+ * adds the photo to the project (one commit for the whole field update).
+ */
+export async function prepareProjectPhoto(
   projectId: string,
   file: File,
-  commitMessage: string,
-): Promise<{ src: string }> {
+): Promise<{ src: string; change: Change }> {
   if (!isAllowedImage(file)) throw new Error('IMAGE_TYPE');
   if (file.size > MAX_IMAGE_BYTES) throw new Error('IMAGE_SIZE');
-
-  const ext = IMAGE_EXT[file.type];
+  const ready = await shrinkImage(file);
+  const ext = IMAGE_EXT[ready.type];
   const id = `${Date.now()}-${randomSuffix()}`;
-  const repoPath = `public/uploads/projects/${projectId}/${id}.${ext}`;
-  const publicSrc = `/uploads/projects/${projectId}/${id}.${ext}`;
-
-  const base64 = await fileToBase64(file);
-  await commitBinaryFile(repoPath, base64, commitMessage);
-
-  return { src: publicSrc };
+  return {
+    src: `/uploads/projects/${projectId}/${id}.${ext}`,
+    change: { path: `public/uploads/projects/${projectId}/${id}.${ext}`, file: ready, expectSha: null },
+  };
 }

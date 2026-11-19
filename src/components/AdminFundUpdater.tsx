@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { addProjectFunds } from '../data/project-file-edit';
-import { classifyUser, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { can, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 import { commitName } from '../data/admin-prefs';
+import { saveErrorMessage } from '../data/repo';
 
 declare global {
   interface Window {
@@ -90,7 +91,7 @@ export default function AdminFundUpdater({
   if (auth.kind !== 'authenticated') return null;
   // Funds are admin-only (money is sensitive) — engineers-of-project can post
   // notes/updates but not move the funding number.
-  if (classifyUser(auth.user, engineers) !== 'admin') return null;
+  if (!can(auth.user, 'record-funds')) return null;
 
   const currentRaised = hasSubs
     ? subs.reduce((a, s) => a + s.raisedUSD, 0)
@@ -142,7 +143,7 @@ export default function AdminFundUpdater({
       setFlash(true);
       setTimeout(() => setFlash(false), 4000);
     } catch (err: any) {
-      const raw = err?.message || 'Save failed';
+      const raw = err?.code === 'EXCEEDS_BUDGET' ? 'EXCEEDS_BUDGET' : (err?.message || 'Save failed');
       const message =
         raw === 'NOT_FOUND'
           ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
@@ -154,6 +155,8 @@ export default function AdminFundUpdater({
             ? (lang === 'ar'
                 ? 'تعذّر الحفظ بسبب تعارض مستمر. حدّث الصفحة وحاول مجدداً.'
                 : "Couldn't save due to a persistent conflict. Refresh and try again.")
+          : err?.name === 'PermissionError' || err?.name === 'SaveError'
+            ? saveErrorMessage(err, lang)
             : raw;
       setSave({ kind: 'error', message });
     }

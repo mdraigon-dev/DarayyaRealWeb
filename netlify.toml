@@ -27,6 +27,13 @@
   NODE_VERSION = "20"
 
 # =====================================================================
+# Functions — the save service (netlify/functions/repo.ts)
+# =====================================================================
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# =====================================================================
 # Redirects
 # =====================================================================
 
@@ -42,11 +49,7 @@
   to = "/ar/"
   status = 302
 
-# SPA-style fallback for Decap CMS routes
-[[redirects]]
-  from = "/admin/*"
-  to = "/admin/index.html"
-  status = 200
+# Decap CMS (/admin/*) is routed in public/_redirects, admins only.
 
 # =====================================================================
 # Note: Netlify auto-commits the translation results would require an

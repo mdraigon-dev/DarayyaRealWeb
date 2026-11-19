@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { t, loc, fmtNum, type Lang } from '../i18n/strings';
-import { classifyUser, type AuthUser } from '../data/permissions';
+import { can, type AuthUser } from '../data/permissions';
 import CircularUploader from './CircularUploader';
 import AdminDeleteButton from './AdminDeleteButton';
 import { deleteDocument } from '../data/documents';
@@ -107,7 +107,8 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
     return () => { cancelled = true; };
   }, []);
 
-  const isAdmin = classifyUser(authUser, []) === 'admin';
+  const canUpload = can(authUser, 'upload-documents');
+  const canDelete = can(authUser, 'delete-documents');
 
   // Documents deleted this session are hidden immediately; the rebuild
   // removes them for everyone.
@@ -164,7 +165,7 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
         </div>
 
         {/* Admin-only Upload button. Hidden until Identity hydrates. */}
-        {isAdmin && !showUploader && (
+        {canUpload && !showUploader && (
           <button
             type="button"
             className="btn-primary circulars-upload-btn"
@@ -176,7 +177,7 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
       </div>
 
       {/* Upload form (admin only, toggled by the button above) */}
-      {isAdmin && showUploader && (
+      {canUpload && showUploader && (
         <CircularUploader
           lang={lang}
           onClose={() => setShowUploader(false)}
@@ -234,7 +235,7 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
               circular={c}
               lang={lang}
               basePath={basePath}
-              onDelete={isAdmin ? () => removeDoc(c) : undefined}
+              onDelete={canDelete ? () => removeDoc(c) : undefined}
             />
           ))}
         </div>

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
 import { appendProjectItem } from '../data/project-file-edit';
 import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
-import { classifyUser, canPost, roleLabel, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { can, canPostOn, rolesText, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { saveErrorMessage } from '../data/repo';
 
 declare global {
   interface Window {
@@ -36,7 +37,7 @@ type SaveState =
  * AuthAwareNoteAdder
  *
  * Inline "Add quick note" form. Visible only to:
- *   - admins (Identity user_metadata.roles includes 'admin')
+ *   - project managers and admins (roles in Identity app_metadata)
  *   - engineers listed on THIS project (email match against engineers[].email)
  *
  * Other logged-in users and anonymous visitors see nothing. The form
@@ -84,15 +85,14 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
 
   if (auth.kind !== 'authenticated') return null;
 
-  // Permission gate: only admins and engineers-of-this-project may post.
-  const role = classifyUser(auth.user, engineers);
-  if (!canPost(role)) return null;
+  // Project managers, admins, and engineers assigned to this project.
+  if (!canPostOn(auth.user, engineers)) return null;
 
-  const isAdmin = role === 'admin';
+  const isAdmin = can(auth.user, 'edit-projects');
   const lang_seg = lang === 'ar' ? 'ar' : 'en';
   const editUrl = `/${lang_seg}/admin/edit/${projectId}/`;
   const defaultAuthor = preferredAuthorName(auth.user, prefs);
-  const myRoleLabel = roleLabel(role, lang);
+  const myRoleLabel = rolesText(auth.user, lang);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +145,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
         ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
         : err?.message === 'INVALID_FORMAT'
           ? (lang === 'ar' ? 'تنسيق ملف غير صالح' : 'Invalid file format')
-          : (err?.message || 'Save failed');
+          : saveErrorMessage(err, lang);
       setSave({ kind: 'error', message });
     }
   };
@@ -173,8 +173,8 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
           >
             ✎ {lang === 'ar' ? 'إضافة ملاحظة سريعة' : 'Add quick note'}
           </button>
-          {/* Full editor access is for admins only — engineers can post via
-              the inline forms but not modify budgets, status, team members, etc. */}
+          {/* Full editor: project managers and admins. Engineers post through
+              the inline forms but can't change budgets, status or the team. */}
           {isAdmin && (
             <a className="auth-note-btn-secondary" href={editUrl}>
               {lang === 'ar' ? 'تعديل كامل ←' : 'Full edit →'}

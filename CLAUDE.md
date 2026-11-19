@@ -45,12 +45,13 @@ The user should use the Decap CMS UI at `/admin/`. If they ask you to add one pr
 - **Currency is always stored as USD** in the data. Display conversion happens at render time via `fmtMoney(lang, currency, usdAmount)`.
 - **Map and other Leaflet code only runs client-side** because Leaflet needs `window`. All map components use `client:load`.
 - **The logo is an SVG symbol** embedded once in `BaseLayout.astro`, referenced via `<use href="#darayya-logo">`. This is why `_logo_symbol.html.txt` exists — it gets inlined at build time.
-- **The Council Dashboard at `/ar/admin/` is auth-gated.** It uses Netlify Identity (loaded via `<script>` in the page) and `<AuthGate>` component. The dashboard uses `client:only="react"` (not `client:load`) so its HTML and data are NEVER server-rendered — they only appear in the page after the user is authenticated client-side. This is important: if you change it to `client:load`, sample donation data leaks into static HTML.
+- **The Council Dashboard at `/ar/admin/` is staff-only.** Netlify blocks it for anyone without the `admin` or `team-manager` role (`public/_redirects`), and `AdminDashboard` renders nothing but a sign-in notice until the signed-in user has the `view-dashboard` capability.
+- **Roles and saving.** Every save from the site goes through the save service (`netlify/functions/repo.ts`), which checks the person's Identity roles (`app_metadata.roles`) with the rules in `netlify/lib/rules.ts`. UI buttons follow `src/data/roles.ts`. Never read roles from `user_metadata` (users can edit it) and don't add new direct Git Gateway calls. See `docs/ROLES.md`.
 
 ## Things to NOT do without asking the user
 
 - Don't add payment processing — they said "no payments for v1".
-- Don't add backend services — this must stay deployable to GitHub Pages.
+- Don't add backend services beyond the save service (`netlify/functions/repo.ts`), which the user asked for. The site is hosted on Netlify.
 - Don't remove the AR or EN locale — bilingual is core to the product.
 - Don't change the Syrian green/gold color tokens without confirming.
 

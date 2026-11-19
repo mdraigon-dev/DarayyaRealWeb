@@ -144,6 +144,15 @@ export const STRINGS = {
     contribute_msg_after: 'في مدينة داريّا، وسيتمّ إيصال مساهمتكم إلى مجلس المدينة.',
     contribute_note: 'يُدار التمويل حصراً عبر لجنة التنمية ومجلس المدينة في داريّا.',
 
+    // Staff-only pages
+    access_loading: 'جارٍ التحقق من الصلاحيات…',
+    access_title_signin: 'هذه الصفحة لفريق العمل',
+    access_text_signin: 'سجّل الدخول بحساب فريق العمل لفتح هذه الصفحة.',
+    access_title_denied: 'لا يمكنك فتح هذه الصفحة',
+    access_text_denied: 'صلاحيات حسابك لا تشمل هذه الصفحة. إذا كنت تحتاجها فتواصل مع مسؤول النظام. إذا تغيّرت صلاحياتك مؤخراً فسجّل الخروج ثم الدخول مجدداً.',
+    access_needs: 'الصلاحيات التي تفتح هذه الصفحة',
+    access_signin_btn: 'تسجيل الدخول',
+    access_home: 'العودة إلى الرئيسية',
     // "How to contribute" page
     contrib_eyebrow: 'المساهمة',
     contrib_title: 'طريقة المساهمة',
@@ -472,6 +481,15 @@ export const STRINGS = {
     contribute_msg_after: 'in Darayya, and your contribution will be delivered to the City Council.',
     contribute_note: 'Funding is handled exclusively through the Development Committee and the City Council in Darayya.',
 
+    // Staff-only pages
+    access_loading: 'Checking access…',
+    access_title_signin: 'This page is for staff',
+    access_text_signin: 'Sign in with your staff account to open this page.',
+    access_title_denied: "You can't open this page",
+    access_text_denied: "Your account's roles don't include this page. If you need it, contact an administrator. If your roles changed recently, sign out and sign in again.",
+    access_needs: 'Roles that can open this page',
+    access_signin_btn: 'Sign in',
+    access_home: 'Back to the home page',
     // "How to contribute" page
     contrib_eyebrow: 'Contributing',
     contrib_title: 'How to contribute',

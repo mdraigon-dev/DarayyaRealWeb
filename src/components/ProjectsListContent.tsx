@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import ProjectCard, { type ProjectCardData } from './ProjectCard';
 import { t, fmtNum, type Lang } from '../i18n/strings';
+import { useIdentity } from '../data/use-identity';
+import { can } from '../data/permissions';
 
 type Props = {
   lang: Lang;
@@ -17,6 +19,8 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
   const projects = rawProjects;
+  const identity = useIdentity();
+  const canCreate = identity.kind === 'authenticated' && can(identity.user, 'edit-projects');
 
   const filtered = useMemo(() => projects.filter(p =>
     (catKey === 'all' || p.category === catKey) &&
@@ -29,6 +33,11 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
         <div className="section-eyebrow">{t(lang, 'projects_eyebrow')}</div>
         <h2 className="section-title">{t(lang, 'projects_title')}</h2>
         <p className="section-desc">{t(lang, 'projects_desc')}</p>
+        {canCreate && (
+          <a className="btn-primary admin-new-project-btn projects-new-btn" href={`${basePath}/admin/new/`}>
+            + {t(lang, 'admin_new_project')}
+          </a>
+        )}
       </div>
 
       <div className="filters">

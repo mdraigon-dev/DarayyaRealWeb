@@ -1,0 +1,19 @@
+---
+// Netlify serves this page (status 401) in place of a staff page when the
+// visitor's sign-in cookie doesn't carry a role that may open it. See
+// public/_redirects. The URL stays the one they asked for.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SignInGate } from '../../components/AccessNotice.tsx';
+import { t } from '../../i18n/strings';
+
+const lang = 'en' as const;
+---
+
+<BaseLayout
+  title={`${t(lang, 'access_title_signin')} — ${t(lang, 'brand_title')}`}
+  description={t(lang, 'access_text_signin')}
+  lang={lang}
+  currentPage="admin"
+>
+  <SignInGate lang={lang} client:only="react" />
+</BaseLayout>
