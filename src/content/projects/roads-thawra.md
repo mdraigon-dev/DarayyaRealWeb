@@ -62,12 +62,6 @@ updates:
       ar: "تم الانتهاء من المسح الطبوغرافي للشارع. بدء التنفيذ بانتظار وصول التبرعات إلى ٤٠٪."
       en: "Topographic survey of the street completed. Execution begins once donations reach 40%."
 photos:
-  - scene: "road"
-    status: "stalled"
-    caption:
-      ar: "الشارع لا يزال بحالة سيئة جداً"
-      en: "Street remains in poor condition"
-    at: "2026-05-15"
   - src: "/uploads/projects/roads-thawra/1795042379432-yugfrt.jpg"
     status: "stalled"
     caption:
