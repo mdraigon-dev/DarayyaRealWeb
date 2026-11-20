@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Logo from './Logo';
 import { t, type Lang } from '../i18n/strings';
 import { can, rolesText, type AuthUser } from '../data/permissions';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -33,13 +34,12 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         tries++;
         if (tries < 40) setTimeout(init, 100);
         else setAuthUser(null);
         return;
       }
-      try { ni.init(); } catch {}
       setAuthUser(ni.currentUser() || null);
       ni.on('login', (u: any) => {
         setAuthUser(u);

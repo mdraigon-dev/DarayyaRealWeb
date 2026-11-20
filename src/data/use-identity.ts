@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AuthUser } from './permissions';
+import { identityStarted } from './identity-ready';
 
 export type IdentityState =
   | { kind: 'loading' }
@@ -21,12 +22,11 @@ export function useIdentity(): IdentityState {
     const init = () => {
       if (cancelled) return;
       const ni = (window as any).netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         if (++tries < 40) setTimeout(init, 100);
         else setState({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setState(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => { if (!cancelled) setState({ kind: 'authenticated', user: u }); });
