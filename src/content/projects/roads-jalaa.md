@@ -15,7 +15,7 @@ description:
   ar: "مشروع تعبيد متكامل للشارع الرئيسي من تقاطع الجامع الكبير حتى ساحة الشهداء، بطول إجمالي ١٫٢ كم."
   en: "A comprehensive paving project for the main street from the Grand Mosque intersection to Martyrs Square, total length 1.2 km."
 budgetUSD: 65000
-raisedUSD: 18500
+raisedUSD: 39000
 lat: 33.4555
 lng: 36.248
 subs:
@@ -45,7 +45,7 @@ subs:
       ar: "٤٥٠ م"
       en: "450 m"
     budgetUSD: 24000
-    raisedUSD: 3500
+    raisedUSD: 24000
 updates:
   - at: "2026-05-22"
     author:
@@ -74,4 +74,8 @@ photos:
       ar: "انتظار وصول الإسفلت من المورّد"
       en: "Awaiting asphalt delivery from the supplier"
     at: "2026-05-24"
+fundLog:
+  - at: "2026-11-18T23:56:51.378Z"
+    amountUSD: 20500
+    subId: "s3"
 ---

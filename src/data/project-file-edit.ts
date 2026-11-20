@@ -54,7 +54,7 @@ const backoff = (i: number) => Math.min(6000, 500 * 2 ** i);
 const projectPath = (id: string) => `src/content/projects/${id}.md`;
 
 function splitFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
-  const m = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) throw new Error('INVALID_FORMAT');
   return { frontmatter: parseYaml(m[1]) as Record<string, unknown>, body: m[2] };
 }
@@ -198,7 +198,15 @@ export async function commitProjectFile(opts: {
   const content = `---\n${stringifyYaml(opts.frontmatter, YAML_OPTS_EDITOR)}---\n`;
 
   if (opts.mode === 'create') {
+    // Fast pre-check: if a file with this ID already exists, refuse before
+    // committing anything. (Passing `undefined` here would make commitFile
+    // fetch the existing SHA and silently overwrite the other project.)
+    const existing = await getFileSha(path).catch(() => null);
+    if (existing) throw new Error('ID_EXISTS');
     try {
+      // Explicit null = "the file must not exist yet". If it was created in
+      // the window between the check and the write, the save service refuses
+      // with a 409 rather than overwriting — which we surface as ID_EXISTS too.
       const newSha = await commitFile(path, content, opts.message, 'main', null);
       recordCommit(path, content, newSha);
       return newSha;

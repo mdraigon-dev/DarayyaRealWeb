@@ -3,5 +3,32 @@
     "ar": "تواصل مع لجنة التنمية عبر إحدى الطرق أدناه لترتيب مساهمتك. يُسجَّل كل مبلغ على المشروع الذي خُصِّص له، ويظهر في صفحة المشروع وفي تقارير الشفافية.",
     "en": "Contact the Development Committee using one of the methods below to arrange your contribution. Every amount is recorded against the project it was given for, and shows on that project's page and in the transparency reports."
   },
-  "methods": []
+  "methods": [
+    {
+      "id": "mmwms2z99x51",
+      "type": "phone",
+      "label": {
+        "ar": "ابو انس زعيتر",
+        "en": ""
+      },
+      "value": "0997343118",
+      "note": {
+        "ar": "من التاسعة حتى الرابعة عصرا",
+        "en": ""
+      }
+    },
+    {
+      "id": "mmwms3zt388q",
+      "type": "address",
+      "label": {
+        "ar": "مكتب وزير المركز الثقافي",
+        "en": ""
+      },
+      "text": {
+        "ar": "حد السوكة ع اليمين",
+        "en": ""
+      }
+    }
+  ],
+  "updatedAt": "2026-11-18T23:55:45.602Z"
 }

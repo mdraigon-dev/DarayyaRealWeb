@@ -28,7 +28,7 @@ type Props = {
   documents?: ActivityDocument[];
 };
 
-export default function HomeContent({ lang, basePath, baseUrl, projects, documents = [] }: Props) {
+export default function HomeContent({ lang, basePath, projects, documents = [] }: Props) {
   const identity = useIdentity();
   const canSeeDashboard = identity.kind === 'authenticated' && can(identity.user, 'view-dashboard');
   const [currency] = useState<'USD' | 'SYP'>('USD');
