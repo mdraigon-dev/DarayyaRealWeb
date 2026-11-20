@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
 import { can, type AuthUser, type ProjectEngineer } from '../data/permissions';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -36,13 +37,12 @@ export default function AdminEditProjectButton({ projectId, lang, engineers, bas
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         tries++;
         if (tries < 40) setTimeout(init, 100);
         else setAuth(null);
         return;
       }
-      try { ni.init(); } catch {}
       setAuth(ni.currentUser() || null);
       ni.on('login', (u: any) => setAuth(u));
       ni.on('logout', () => setAuth(null));

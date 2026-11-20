@@ -7,6 +7,7 @@ import LocationPicker from './LocationPicker';
 import AccessNotice from './AccessNotice';
 import { can, type AuthUser } from '../data/permissions';
 import { saveErrorMessage, GitConflictError } from '../data/repo';
+import { identityStarted } from '../data/identity-ready';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -156,12 +157,11 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     const init = () => {
       if (cancelled) return;
       const ni = (window as any).netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         if (++tries < max) setTimeout(init, 100);
         else setAuth({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));

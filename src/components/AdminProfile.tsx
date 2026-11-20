@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
 import { can, rolesText, type AuthUser } from '../data/permissions';
+import { identityStarted } from '../data/identity-ready';
 import {
   loadPrefs,
   savePrefs,
@@ -45,12 +46,11 @@ export default function AdminProfile({ lang, basePath }: Props) {
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         if (++tries < 40) setTimeout(init, 100);
         else setAuth({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));

@@ -11,6 +11,7 @@ import {
 import { saveErrorMessage, type Change } from '../data/repo';
 import { canPostOn, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { atForPickedDay, localToday } from '../data/time';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -120,13 +121,12 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         tries++;
         if (tries < maxTries) { setTimeout(init, 100); return; }
         setAuth({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));

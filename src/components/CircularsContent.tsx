@@ -6,6 +6,7 @@ import AdminDeleteButton from './AdminDeleteButton';
 import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
 import { commitName } from '../data/admin-prefs';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -92,13 +93,12 @@ export default function CircularsContent({ lang, basePath, circulars: rawCircula
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         tries++;
         if (tries < 40) setTimeout(init, 100);
         else setAuthUser(null);
         return;
       }
-      try { ni.init(); } catch {}
       setAuthUser(ni.currentUser() || null);
       ni.on('login', (u: any) => setAuthUser(u));
       ni.on('logout', () => setAuthUser(null));

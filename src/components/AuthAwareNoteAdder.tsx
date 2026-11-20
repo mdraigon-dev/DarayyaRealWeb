@@ -4,6 +4,7 @@ import { appendProjectItem } from '../data/project-file-edit';
 import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
 import { can, canPostOn, rolesText, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { saveErrorMessage } from '../data/repo';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -64,7 +65,7 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         tries++;
         if (tries < maxTries) {
           setTimeout(init, 100);
@@ -73,7 +74,6 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
         setAuth({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));

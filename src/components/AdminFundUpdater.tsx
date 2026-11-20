@@ -5,6 +5,7 @@ import { can, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 import { commitName } from '../data/admin-prefs';
 import { saveErrorMessage } from '../data/repo';
+import { identityStarted } from '../data/identity-ready';
 
 declare global {
   interface Window {
@@ -68,12 +69,11 @@ export default function AdminFundUpdater({
     const init = () => {
       if (cancelled) return;
       const ni = window.netlifyIdentity;
-      if (!ni) {
+      if (!ni || !identityStarted()) {
         if (++tries < 40) setTimeout(init, 100);
         else setAuth({ kind: 'anonymous' });
         return;
       }
-      try { ni.init(); } catch {}
       const user = ni.currentUser();
       setAuth(user ? { kind: 'authenticated', user } : { kind: 'anonymous' });
       ni.on('login', (u: any) => setAuth({ kind: 'authenticated', user: u }));
