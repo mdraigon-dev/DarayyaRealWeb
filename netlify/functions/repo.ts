@@ -45,7 +45,7 @@ export const handler = async (event: any, context: any) => {
     const store = getStore('upload-chunks');
     chunks = {
       set: async (k, v) => { await store.set(k, v); },
-      get: async (k) => (await store.get(k)) ?? null,
+      get: async (k) => (await store.get(k, { type: 'text' })) ?? null,
       delete: async (k) => { await store.delete(k); },
     };
   } catch {
