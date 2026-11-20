@@ -2478,6 +2478,49 @@ html[dir="rtl"] .needs-attention {
 }
 .footer-col span { cursor: default; }
 .footer-col a:hover { color: var(--sy-gold-lt); }
+.footer-col a[dir="ltr"] { text-align: start; unicode-bidi: plaintext; }
+.footer-feedback-btn {
+  display: block;
+  padding: 0.3rem 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  color: var(--sy-gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: start;
+}
+.footer-feedback-btn:hover { color: var(--sy-gold-lt); }
+
+/* Footer feedback popup — reuses the donate modal shell */
+.feedback-modal { color: var(--sy-ink); text-align: start; }
+.feedback-modal .feedback-modal-close { top: 0.85rem; }
+.feedback-intro { margin: -0.5rem 0 1.25rem; color: var(--sy-ink-soft); font-size: 14px; line-height: 1.7; }
+.feedback-field { display: block; margin-bottom: 1rem; }
+.feedback-field .donate-modal-label { text-transform: none; letter-spacing: 0; }
+.feedback-required { color: var(--sy-red); }
+.feedback-field input,
+.feedback-field textarea {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1.5px solid var(--sy-rule-soft);
+  border-radius: var(--r-md);
+  background: var(--sy-paper-pure);
+  font: inherit;
+  font-size: 15px;
+  color: var(--sy-ink);
+  box-sizing: border-box;
+}
+.feedback-field input[dir="ltr"] { text-align: left; }
+.feedback-field textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
+.feedback-field input:focus,
+.feedback-field textarea:focus { outline: none; border-color: var(--sy-green); box-shadow: 0 0 0 3px rgba(0, 88, 44, 0.12); }
+.feedback-honeypot { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.feedback-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; flex-wrap: wrap; }
+.feedback-actions button:disabled { opacity: 0.6; cursor: wait; transform: none; }
+.feedback-modal .donate-modal-validation-error a { color: inherit; text-decoration: underline; }
 
 .footer-bottom {
   max-width: 1280px; margin: 0 auto;
