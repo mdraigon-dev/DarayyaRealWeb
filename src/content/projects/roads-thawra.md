@@ -83,10 +83,10 @@
 "engineers":
   - "name":
       "ar": "عماد تقالة"
-      "en": ""
+      "en": "Imad Taqalah"
     "role":
       "ar": "مهندس مساحة"
-      "en": ""
-    "email": ""
+      "en": "SURVEY ENGINEER"
     "phone": ""
+    "email": "m.dalain@hotmail.com"
 ---
