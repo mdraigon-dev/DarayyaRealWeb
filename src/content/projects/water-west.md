@@ -15,7 +15,7 @@ description:
   ar: "استبدال الخط الرئيسي للمياه القديم الذي يخدم ١٨٠ عائلة بعد تضرره الكامل."
   en: "Replacing the old main water line that serves 180 families after total damage."
 budgetUSD: 35000
-raisedUSD: 6800
+raisedUSD: 26600
 lat: 33.454
 lng: 36.239
 subs:
@@ -27,7 +27,7 @@ subs:
       ar: "٦٠٠ م"
       en: "600 m"
     budgetUSD: 25000
-    raisedUSD: 5200
+    raisedUSD: 25000
   - id: "ww2"
     title:
       ar: "محطة الضخ الفرعية"
@@ -58,4 +58,8 @@ photos:
       ar: "العائلات تحضر المياه من بعيد"
       en: "Families fetch water from far places"
     at: "2026-05-20"
+fundLog:
+  - at: "2026-11-20T22:00:02.864Z"
+    amountUSD: 19800
+    subId: "ww1"
 ---
