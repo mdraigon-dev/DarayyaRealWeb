@@ -13,7 +13,7 @@
  * pinned to a stale SHA and failed with 409 "File changed since you opened it".
  *
  * Three things fix it together:
- *   1. Reads are now uncached (see git-gateway getFileSha/getFileContent).
+ *   1. Reads go through the save service (see repo.ts), which reads the exact latest commit.
  *   2. A single module-level cache is shared across ALL form islands on the
  *      page, seeded from the SHA that each commit's PUT response returns. So a
  *      note followed by an update reuses the note commit's SHA — no re-read,
@@ -25,7 +25,7 @@
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { getFileContent, getFileSha, commitFile, deleteFile, GitConflictError } from './git-gateway';
+import { getFileContent, getFileSha, commitFile, commitChanges, prepareChanges, GitConflictError, type Change } from './repo';
 
 export type ProjectFileCache = { content: string; sha: string };
 
@@ -128,9 +128,12 @@ export async function appendProjectItems(opts: {
   projectId: string;
   ops: Array<{ field: 'comments' | 'updates' | 'photos'; item: unknown; position: 'start' | 'end' }>;
   message: string;
+  /** Other files saved in the same commit, e.g. the photos' image files. */
+  extra?: Change[];
 }): Promise<void> {
   const path = projectPath(opts.projectId);
   let lastErr: unknown;
+  const extra = await prepareChanges(opts.extra || []); // upload images once, before any retry
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const base = await loadBase(path);
@@ -143,8 +146,8 @@ export async function appendProjectItems(opts: {
     const newContent = `---\n${stringifyYaml(frontmatter, YAML_OPTS_APPEND)}---\n${body}`;
 
     try {
-      const newSha = await commitFile(path, newContent, opts.message, 'main', base.sha);
-      recordCommit(path, newContent, newSha);
+      const shas = await commitChanges(opts.message, [...extra, { path, text: newContent, expectSha: base.sha }]);
+      recordCommit(path, newContent, shas[path] ?? null);
       return;
     } catch (err) {
       if (!(err instanceof GitConflictError)) throw err;
@@ -201,9 +204,9 @@ export async function commitProjectFile(opts: {
     const existing = await getFileSha(path).catch(() => null);
     if (existing) throw new Error('ID_EXISTS');
     try {
-      // Explicit null = commit with NO sha. If the file was created in the
-      // window between the check and the write, GitHub rejects with 409/422
-      // rather than overwriting — which we surface as ID_EXISTS too.
+      // Explicit null = "the file must not exist yet". If it was created in
+      // the window between the check and the write, the save service refuses
+      // with a 409 rather than overwriting — which we surface as ID_EXISTS too.
       const newSha = await commitFile(path, content, opts.message, 'main', null);
       recordCommit(path, content, newSha);
       return newSha;
@@ -403,9 +406,7 @@ export function itemMatches(fileItem: unknown, shown: unknown): boolean {
  * admin already deleted it.
  *
  * For a photo whose image was uploaded through the site (/uploads/projects/…),
- * the image file is deleted too, after the entry is gone — so the page never
- * points at a missing file. That second step is best-effort: if it fails, the
- * photo is already off the site and only an orphaned file remains.
+ * the image file is deleted in the same commit.
  */
 export async function removeProjectItem(opts: {
   projectId: string;
@@ -438,9 +439,16 @@ export async function removeProjectItem(opts: {
     frontmatter[opts.field] = list.filter((_, i) => i !== idx);
     const newContent = `---\n${stringifyYaml(frontmatter, YAML_OPTS_APPEND)}---\n${body}`;
 
+    // A photo uploaded through the site takes its image file with it, in the
+    // same commit, so the page never points at a missing file.
+    const src = opts.field === 'photos' ? (removed as { src?: unknown }).src : undefined;
+    const imageDelete: Change[] = typeof src === 'string' && /^\/uploads\/projects\/[\w-]+\/[\w.-]+$/.test(src)
+      ? [{ path: `public${src}`, delete: true }]
+      : [];
+
     try {
-      const newSha = await commitFile(path, newContent, opts.message, 'main', base.sha);
-      recordCommit(path, newContent, newSha);
+      const shas = await commitChanges(opts.message, [{ path, text: newContent, expectSha: base.sha }, ...imageDelete]);
+      recordCommit(path, newContent, shas[path] ?? null);
       lastErr = undefined;
       break;
     } catch (err) {
@@ -452,15 +460,4 @@ export async function removeProjectItem(opts: {
   }
   if (lastErr) throw lastErr;
   if (removed === undefined) throw new Error('ITEM_NOT_FOUND');
-
-  if (opts.field === 'photos') {
-    const src = (removed as { src?: unknown }).src;
-    if (typeof src === 'string' && src.startsWith('/uploads/projects/')) {
-      try {
-        await deleteFile(`public${src}`, `${opts.message} (image file)`);
-      } catch {
-        // Entry is already removed; an orphaned file is harmless.
-      }
-    }
-  }
 }

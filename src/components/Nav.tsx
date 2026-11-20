@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Logo from './Logo';
 import { t, type Lang } from '../i18n/strings';
+import { can, rolesText, type AuthUser } from '../data/permissions';
 
 declare global {
   interface Window {
@@ -8,10 +9,6 @@ declare global {
   }
 }
 
-type AuthUser = {
-  email: string;
-  user_metadata?: { full_name?: string };
-};
 
 type Props = {
   lang: Lang;
@@ -98,7 +95,8 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
     { id: 'projects',     label: t(lang, 'nav_projects'),     href: link('/projects/') },
     { id: 'transparency', label: t(lang, 'nav_transparency'), href: link('/transparency/') },
     { id: 'circulars',    label: t(lang, 'nav_circulars'),    href: link('/circulars/') },
-    { id: 'admin',        label: t(lang, 'nav_admin'),        href: link('/admin/') },
+    // Dashboard: only for team managers and administrators (hidden for everyone else).
+    ...(can(authUser, 'view-dashboard') ? [{ id: 'admin' as const, label: t(lang, 'nav_admin'), href: link('/admin/') }] : []),
   ];
 
   return (
@@ -149,7 +147,7 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
           </button>
         )}
         {authUser && (
-          <div className="nav-auth-chip" title={authUser.email}>
+          <div className="nav-auth-chip" title={[authUser.email, rolesText(authUser, lang)].filter(Boolean).join(' — ')}>
             <a
               className="nav-auth-chip-link"
               href={link('/admin/profile/')}

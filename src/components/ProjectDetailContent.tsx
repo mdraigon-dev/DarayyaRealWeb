@@ -10,7 +10,7 @@ import AdminDeleteButton from './AdminDeleteButton';
 import PhotoLightbox, { type LightboxItem } from './PhotoLightbox';
 import { pickPhoto, unsplashUrl, type SceneType } from '../data/unsplash-photos';
 import { removeProjectItem } from '../data/project-file-edit';
-import { classifyUser } from '../data/permissions';
+import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import TimeStamp from './TimeStamp';
 import { formatAbsolute, daysUntil, useNow } from '../data/time';
@@ -93,8 +93,8 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // items added this session are simply dropped from the extra* lists.
   const identity = useIdentity();
   const now = useNow();
-  const isAdmin = identity.kind === 'authenticated'
-    && classifyUser(identity.user, project.engineers || []) === 'admin';
+  // Delete buttons for notes, updates and photos: project managers and admins.
+  const isAdmin = identity.kind === 'authenticated' && can(identity.user, 'moderate-projects');
   const [hidden, setHidden] = useState<Record<string, true>>({});
   const [deleteFlash, setDeleteFlash] = useState(false);
   const hide = (field: string, i: number) => setHidden((h) => ({ ...h, [`${field}:${i}`]: true }));

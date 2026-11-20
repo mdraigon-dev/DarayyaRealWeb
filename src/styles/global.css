@@ -6334,3 +6334,30 @@ time.timestamp { color: inherit; }
   .contrib-bi { grid-template-columns: 1fr; }
   .contrib-grid { grid-template-columns: 1fr; }
 }
+
+/* ==================== STAFF-ONLY PAGES ==================== */
+.access-notice { display: flex; justify-content: center; }
+.access-card {
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  background: var(--sy-paper-pure);
+  border: 1px solid var(--sy-rule);
+  border-radius: var(--r-lg);
+  padding: 2.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+.access-icon {
+  width: 56px; height: 56px;
+  margin: 0 auto 1rem;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--sy-green-pale);
+  color: var(--sy-green-dk);
+}
+.access-icon svg { width: 26px; height: 26px; }
+.access-title { font-size: 1.4rem; margin: 0 0 0.5rem; }
+.access-text { margin: 0 0 0.75rem; line-height: 1.8; color: var(--sy-ink-soft); }
+.access-muted { color: var(--sy-muted); font-size: 14px; margin: 0 0 1rem; text-align: center; }
+.access-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1.25rem; }
+.projects-new-btn { display: inline-block; margin-top: 1rem; }

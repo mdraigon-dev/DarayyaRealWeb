@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { stringify as stringifyYaml } from 'yaml';
 import { t, type Lang } from '../i18n/strings';
-import { commitFile, commitBinaryFile } from '../data/git-gateway';
+import { commitChanges, saveErrorMessage } from '../data/repo';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 
 type Props = {
@@ -54,7 +54,6 @@ function extForMime(mime: string, fallbackName: string): string {
     'image/jpeg': 'jpg',
     'image/gif': 'gif',
     'image/webp': 'webp',
-    'image/svg+xml': 'svg',
     'application/msword': 'doc',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
     'application/vnd.ms-excel': 'xls',
@@ -66,21 +65,6 @@ function extForMime(mime: string, fallbackName: string): string {
   return fromName && /^[a-z0-9]{2,5}$/.test(fromName) ? fromName : 'bin';
 }
 
-/**
- * Read a File as base64 (data-URL form, then strip the "data:..;base64," prefix).
- */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const idx = result.indexOf(',');
-      resolve(idx >= 0 ? result.slice(idx + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
-    reader.readAsDataURL(file);
-  });
-}
 
 /**
  * CircularUploader
@@ -137,19 +121,8 @@ export default function CircularUploader({ lang, onClose }: Props) {
       const repoFilePath = `public/circulars/files/${id}.${ext}`;
       const metadataPath = `src/content/circulars/${id}.md`;
 
-      // STEP 1: Commit the binary file
-      setSave({ kind: 'uploading', step: lang === 'ar' ? 'تحويل الملف…' : 'Encoding file…' });
-      const base64 = await fileToBase64(file);
-
-      setSave({ kind: 'uploading', step: lang === 'ar' ? 'رفع الملف إلى المستودع…' : 'Committing file to repo…' });
-      await commitBinaryFile(
-        repoFilePath,
-        base64,
-        lang === 'ar' ? `رفع وثيقة: ${titleAr}` : `Upload circular: ${titleEn || titleAr}`,
-      );
-
-      // STEP 2: Commit the metadata .md
-      setSave({ kind: 'uploading', step: lang === 'ar' ? 'حفظ بيانات الوثيقة…' : 'Saving metadata…' });
+      // The file and its details are saved together as one commit.
+      setSave({ kind: 'uploading', step: lang === 'ar' ? 'رفع الملف وحفظ بياناته…' : 'Uploading the file and its details…' });
       // Shown publicly on the document card, so use the admin's chosen
       // display name and never fall back to their email address.
       const uploadedBy = (() => {
@@ -190,10 +163,12 @@ export default function CircularUploader({ lang, onClose }: Props) {
       });
       const mdContent = `---\n${fmYaml}---\n\n(Uploaded ${date} by ${uploadedBy || 'council'})\n`;
 
-      await commitFile(
-        metadataPath,
-        mdContent,
-        lang === 'ar' ? `ميتاداتا وثيقة: ${titleAr}` : `Metadata for circular: ${titleEn || titleAr}`,
+      await commitChanges(
+        lang === 'ar' ? `رفع وثيقة: ${titleAr}` : `Upload document: ${titleEn || titleAr}`,
+        [
+          { path: repoFilePath, file, expectSha: null },
+          { path: metadataPath, text: mdContent, expectSha: null },
+        ],
       );
 
       setSave({ kind: 'success' });
@@ -202,7 +177,7 @@ export default function CircularUploader({ lang, onClose }: Props) {
         onClose();
       }, 4000);
     } catch (err: any) {
-      setSave({ kind: 'error', message: err?.message || 'Upload failed' });
+      setSave({ kind: 'error', message: saveErrorMessage(err, lang) });
     }
   };
 
@@ -304,7 +279,7 @@ export default function CircularUploader({ lang, onClose }: Props) {
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             disabled={inUploading}
-            accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.doc,.docx,.xls,.xlsx,.txt"
+            accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
           />
           <div className="circ-uploader-field-hint">
             {t(lang, 'circ_field_file_hint')}

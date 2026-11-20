@@ -7,6 +7,8 @@ import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
 import { buildActivityFeed, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
 import { daysUntil, useNow } from '../data/time';
+import { useIdentity } from '../data/use-identity';
+import { can } from '../data/permissions';
 
 type Bilingual = { ar: string; en: string };
 type HomeProject = ProjectCardData & Omit<ActivityProject, 'title' | 'subs'> & {
@@ -27,6 +29,8 @@ type Props = {
 };
 
 export default function HomeContent({ lang, basePath, projects, documents = [] }: Props) {
+  const identity = useIdentity();
+  const canSeeDashboard = identity.kind === 'authenticated' && can(identity.user, 'view-dashboard');
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
   // Totals come straight from the recorded project data (no browser-side
@@ -174,11 +178,13 @@ export default function HomeContent({ lang, basePath, projects, documents = [] }
           basePath={basePath}
           pageSize={10}
         />
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <a className="btn-secondary" href={`${basePath}/admin/`}>
-            {lang === 'ar' ? 'عرض لوحة المجلس الكاملة ←' : 'View full council dashboard →'}
-          </a>
-        </div>
+        {canSeeDashboard && (
+          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+            <a className="btn-secondary" href={`${basePath}/admin/`}>
+              {lang === 'ar' ? 'عرض لوحة المجلس الكاملة ←' : 'View full council dashboard →'}
+            </a>
+          </div>
+        )}
       </section>
     </>
   );

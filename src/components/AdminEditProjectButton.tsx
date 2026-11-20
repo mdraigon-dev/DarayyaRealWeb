@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
-import { classifyUser, type AuthUser, type ProjectEngineer } from '../data/permissions';
+import { can, type AuthUser, type ProjectEngineer } from '../data/permissions';
 
 declare global {
   interface Window {
@@ -54,8 +54,7 @@ export default function AdminEditProjectButton({ projectId, lang, engineers, bas
   // Loading or anonymous: render nothing (no flash for public visitors)
   if (auth === undefined || auth === null) return null;
 
-  const role = classifyUser(auth, engineers);
-  if (role !== 'admin') return null;
+  if (!can(auth, 'edit-projects')) return null;
 
   const editUrl = `${basePath}/admin/edit/${projectId}/`;
 

@@ -3,13 +3,13 @@
  *
  * One JSON file in the repo (src/content/contribute/page.json) holds the
  * intro text and an ordered list of contact methods. Admins edit it in place
- * on the page; the save is a single Git Gateway commit (plus one commit per
- * new QR image), and the public page updates on the next deploy.
+ * on the page; the page and any new or removed QR images are saved as a single
+ * commit, and the public page updates on the next deploy.
  *
  * Because this page tells people where to send money, every link it renders
  * is built here from a validated value — never an arbitrary href.
  */
-import { commitBinaryFile, commitFile, deleteFile, getFileContent } from './git-gateway';
+import { commitChanges, getFileContent, type Change } from './repo';
 import { isAllowedImage, MAX_IMAGE_BYTES } from './image-upload';
 
 export const CONTRIBUTE_PATH = 'src/content/contribute/page.json';
@@ -159,24 +159,12 @@ export async function loadLivePage(): Promise<{ page: ContributePage; sha: strin
 
 const EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => {
-      const s = r.result as string;
-      resolve(s.slice(s.indexOf(',') + 1));
-    };
-    r.onerror = () => reject(r.error || new Error('read failed'));
-    r.readAsDataURL(file);
-  });
-}
-
-export async function uploadContributeImage(file: File, message: string): Promise<string> {
+/** Validate a QR / image for the page; returns its public path and the change to commit. */
+export function prepareContributeImage(file: File): { src: string; change: Change } {
   if (!isAllowedImage(file)) throw new Error('IMAGE_TYPE');
   if (file.size > MAX_IMAGE_BYTES) throw new Error('IMAGE_SIZE');
   const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${EXT[file.type]}`;
-  await commitBinaryFile(`public/uploads/contribute/${name}`, await fileToBase64(file), message);
-  return `/uploads/contribute/${name}`;
+  return { src: `/uploads/contribute/${name}`, change: { path: `public/uploads/contribute/${name}`, file, expectSha: null } };
 }
 
 /** Strip a method down to the fields its type uses, with clean values. */
@@ -194,14 +182,15 @@ function cleanMethod(m: ContactMethod): ContactMethod {
 
 /**
  * Commit the page. `sha` pins the version the editor started from, so two
- * admins editing at once can't silently overwrite each other (GitConflictError).
- * Images no longer used afterwards are removed, best effort.
+ * people editing at once can't silently overwrite each other (GitConflictError).
  */
 export async function saveContributePage(opts: {
   page: ContributePage;
   previous: ContributePage;
   sha: string | null;
   by: string;
+  /** new image files referenced by the page */
+  images?: Change[];
 }): Promise<ContributePage> {
   const next: ContributePage = {
     intro: { ar: (opts.page.intro?.ar || '').trim(), en: (opts.page.intro?.en || '').trim() },
@@ -210,14 +199,18 @@ export async function saveContributePage(opts: {
     updatedBy: opts.by || undefined,
   };
   const json = JSON.stringify(next, null, 2) + '\n';
-  await commitFile(CONTRIBUTE_PATH, json, `Update "How to contribute" page by ${opts.by || 'admin'}`, 'main', opts.sha ?? undefined);
 
+  // Images no longer used are removed in the same commit.
   const kept = new Set(next.methods.map((m) => m.image).filter(Boolean));
+  const removals: Change[] = [];
   for (const m of opts.previous.methods) {
     const src = safeImageSrc(m.image);
-    if (src && !kept.has(src)) {
-      deleteFile(`public${src}`, `Remove unused contribution image ${src}`).catch(() => {});
-    }
+    if (src && !kept.has(src)) removals.push({ path: `public${src}`, delete: true });
   }
+  await commitChanges(`Update "How to contribute" page by ${opts.by || 'admin'}`, [
+    ...(opts.images || []),
+    { path: CONTRIBUTE_PATH, text: json, expectSha: opts.sha },
+    ...removals,
+  ]);
   return next;
 }

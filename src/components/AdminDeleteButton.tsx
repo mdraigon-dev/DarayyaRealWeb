@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Lang } from '../i18n/strings';
+import { saveErrorMessage } from '../data/repo';
 
 type Props = {
   lang: Lang;
@@ -36,7 +37,9 @@ export default function AdminDeleteButton({ lang, what, onConfirm, variant = 'in
       const raw = err?.message || '';
       const message = raw === 'ITEM_NOT_FOUND'
         ? (ar ? 'العنصر غير موجود — ربما حُذف مسبقاً.' : 'Not found — it may already be deleted.')
-        : (ar ? 'تعذّر الحذف. حاول مجدداً.' : "Couldn't delete. Try again.");
+        : err?.name === 'PermissionError' || err?.name === 'SaveError'
+          ? saveErrorMessage(err, ar ? 'ar' : 'en')
+          : (ar ? 'تعذّر الحذف. حاول مجدداً.' : "Couldn't delete. Try again.");
       setState({ kind: 'error', message });
     }
   };

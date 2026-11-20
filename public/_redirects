@@ -1,0 +1,34 @@
+# Staff pages are only served to people whose sign-in cookie (nf_jwt, from
+# Netlify Identity) carries one of the listed roles. Everyone else gets the
+# sign-in page instead, with status 401, at the same address.
+# Keep in sync with GATED_PAGES in src/data/roles.ts.
+
+# Project editor and new project: project managers and administrators
+/ar/admin/edit/*     /ar/admin/edit/:splat     200!  Role=admin,project-manager
+/ar/admin/edit/*     /ar/signin/               401!
+/en/admin/edit/*     /en/admin/edit/:splat     200!  Role=admin,project-manager
+/en/admin/edit/*     /en/signin/               401!
+/ar/admin/new/*      /ar/admin/new/:splat      200!  Role=admin,project-manager
+/ar/admin/new/*      /ar/signin/               401!
+/en/admin/new/*      /en/admin/new/:splat      200!  Role=admin,project-manager
+/en/admin/new/*      /en/signin/               401!
+
+# Profile: anyone with a role
+/ar/admin/profile/*  /ar/admin/profile/:splat  200!  Role=admin,team-manager,project-manager,engineer,secretary,finance
+/ar/admin/profile/*  /ar/signin/               401!
+/en/admin/profile/*  /en/admin/profile/:splat  200!  Role=admin,team-manager,project-manager,engineer,secretary,finance
+/en/admin/profile/*  /en/signin/               401!
+
+# Dashboard: team managers and administrators
+/ar/admin            /ar/admin/                200!  Role=admin,team-manager
+/ar/admin            /ar/signin/               401!
+/ar/admin/*          /ar/admin/:splat          200!  Role=admin,team-manager
+/ar/admin/*          /ar/signin/               401!
+/en/admin            /en/admin/                200!  Role=admin,team-manager
+/en/admin            /en/signin/               401!
+/en/admin/*          /en/admin/:splat          200!  Role=admin,team-manager
+/en/admin/*          /en/signin/               401!
+
+# Content manager (Decap CMS) edits any file: administrators only
+/admin/*             /admin/:splat             200!  Role=admin
+/admin/*             /ar/signin/               401!

@@ -24,7 +24,7 @@ This file gives you (Claude Code) the context you need to work on this codebase 
 - `src/i18n/strings.ts` — all UI strings. ~150 keys in `ar` and `en`. Add new strings here, never hard-code Arabic or English in components.
 - `src/styles/global.css` — every visual style. Design tokens at the top.
 - `astro.config.mjs` — `site` must match the deployed Netlify URL (used for SEO/absolute links; routing is unaffected).
-- `src/data/` — client-side logic: donation math, Git Gateway client, permissions, admin prefs. `git-gateway.ts` + `project-file-edit.ts` are shared by every surface that commits content.
+- `src/data/` — client-side logic: donation math, save-service client, roles, admin prefs. `repo.ts` + `project-file-edit.ts` are shared by every surface that commits content.
 
 ## Common tasks
 
@@ -45,13 +45,14 @@ The user should use the Decap CMS UI at `/admin/`. If they ask you to add one pr
 - **Currency is always stored as USD** in the data. Display conversion happens at render time via `fmtMoney(lang, currency, usdAmount)`.
 - **Map and other Leaflet code only runs client-side** because Leaflet needs `window`. All map components use `client:load`.
 - **The logo is an SVG symbol** embedded once in `BaseLayout.astro`, referenced via `<use href="#darayya-logo">`. This is why `_logo_symbol.html.txt` exists — it gets inlined at build time.
-- **The Council Dashboard at `/ar/admin/` is partially gated.** The page itself is public (`client:load`) and shows overview stats plus clearly-labeled Demo Mode donation data; only the Project Management table and editing tools are gated behind Netlify Identity (client-side check in `AdminDashboard`). All data on the public part is either build-time project data or fake/demo data — no real financial data may ever be embedded in static HTML. If real donations are added in v2, the dashboard must move behind server-side auth with data from a backend API.
-- **Creating a project must never overwrite an existing one.** `commitProjectFile` in `src/data/project-file-edit.ts` handles this: create mode checks for an existing file and commits with no SHA so GitHub rejects collisions (surfaced as `ID_EXISTS`). Don't "simplify" it back to a plain commit.
+- **The Council Dashboard at `/ar/admin/` is staff-only.** Netlify blocks it for anyone without the `admin` or `team-manager` role (`public/_redirects`), and `AdminDashboard` renders nothing but a sign-in notice until the signed-in user has the `view-dashboard` capability.
+- **Roles and saving.** Every save from the site goes through the save service (`netlify/functions/repo.ts`), which checks the person's Identity roles (`app_metadata.roles`) with the rules in `netlify/lib/rules.ts`. UI buttons follow `src/data/roles.ts`. Never read roles from `user_metadata` (users can edit it) and don't add new direct Git Gateway calls. See `docs/ROLES.md`.
+- **Creating a project must never overwrite an existing one.** `commitProjectFile` in `src/data/project-file-edit.ts` handles this: create mode checks for an existing file and saves with `expectSha: null`, so the save service refuses a collision (surfaced as `ID_EXISTS`). Don't "simplify" it back to a plain commit.
 
 ## Things to NOT do without asking the user
 
 - Don't add payment processing — they said "no payments for v1".
-- Don't add backend services — this must stay deployable to GitHub Pages.
+- Don't add backend services beyond the save service (`netlify/functions/repo.ts`), which the user asked for. The site is hosted on Netlify.
 - Don't remove the AR or EN locale — bilingual is core to the product.
 - Don't change the Syrian green/gold color tokens without confirming.
 

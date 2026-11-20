@@ -4,6 +4,9 @@ import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit
 import { loadPrefs, defaultPrefs, preferredAuthorName, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
 import { atForPickedDay, localToday } from '../data/time';
 import LocationPicker from './LocationPicker';
+import AccessNotice from './AccessNotice';
+import { can, type AuthUser } from '../data/permissions';
+import { saveErrorMessage, GitConflictError } from '../data/repo';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -68,7 +71,7 @@ export type ProjectFormState = {
 type AuthState =
   | { kind: 'loading' }
   | { kind: 'anonymous' }
-  | { kind: 'authenticated'; user: { email: string; user_metadata?: { full_name?: string } } };
+  | { kind: 'authenticated'; user: AuthUser };
 
 type SaveState =
   | { kind: 'idle' }
@@ -380,7 +383,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           ? (lang === 'ar'
               ? 'تعذّر الحفظ بسبب تعارض مستمر. حدّث الصفحة وحاول مجدداً.'
               : "Couldn't save due to a persistent conflict. Refresh and try again.")
-          : raw;
+          : (err instanceof GitConflictError || err?.name === 'PermissionError' || err?.name === 'SaveError')
+            ? saveErrorMessage(err, lang)
+            : raw;
       setSave({ kind: 'error', message });
     }
   }
@@ -423,6 +428,13 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       </section>
     );
   }
+
+  // Project managers and administrators only.
+  if (!can(auth.user, 'edit-projects')) {
+    return <AccessNotice lang={lang} state="no-access" roles={['admin', 'project-manager']} />;
+  }
+  // Raised amounts come from recorded contributions; only admins adjust them directly.
+  const canAdjustRaised = can(auth.user, 'reverse-funds');
 
   // Authenticated — render the editor
   // If a save just succeeded, show a success screen with options instead
@@ -707,6 +719,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                   type="number"
                   className="editor-number-input"
                   value={state.raisedUSD}
+                  disabled={!canAdjustRaised}
+                  title={canAdjustRaised ? undefined : (lang === 'ar' ? 'يُسجَّل المحصّل من صفحة المشروع (المالية)' : 'Recorded from the project page by Finance')}
                   onChange={(e) => update('raisedUSD', Math.min(state.budgetUSD, Math.max(0, parseInt(e.target.value, 10) || 0)))}
                   min={0}
                   max={state.budgetUSD}
@@ -718,6 +732,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                   max={Math.max(state.budgetUSD, 1)}
                   step={100}
                   value={Math.min(state.raisedUSD, state.budgetUSD)}
+                  disabled={!canAdjustRaised}
                   onChange={(e) => update('raisedUSD', parseInt(e.target.value, 10))}
                 />
               </div>

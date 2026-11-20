@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { t, loc, type Lang, type StringKey } from '../i18n/strings';
-import { classifyUser } from '../data/permissions';
+import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
-import { GitConflictError } from '../data/git-gateway';
+import { GitConflictError, saveErrorMessage, type Change } from '../data/repo';
 import { isAllowedImage, MAX_IMAGE_BYTES } from '../data/image-upload';
 import {
   METHOD_TYPES, hasText, loadLivePage, methodHref, normalizePage, safeImageSrc,
-  saveContributePage, uploadContributeImage, validateMethod,
+  saveContributePage, prepareContributeImage, validateMethod,
   type Bi, type ContactMethod, type ContributePage, type MethodType, type ValidationError,
 } from '../data/contribute';
 import TimeStamp from './TimeStamp';
@@ -26,7 +26,7 @@ const EMPTY_BI: Bi = { ar: '', en: '' };
  */
 export default function ContributeContent({ lang, page: built }: Props) {
   const identity = useIdentity();
-  const isAdmin = identity.kind === 'authenticated' && classifyUser(identity.user, []) === 'admin';
+  const isAdmin = identity.kind === 'authenticated' && can(identity.user, 'edit-contribute-page');
   const [page, setPage] = useState<ContributePage>(() => normalizePage(built));
   const [editing, setEditing] = useState(false);
   const [flash, setFlash] = useState(false);
@@ -303,20 +303,23 @@ function ContributeEditor({ lang, fallback, localImages, by, onCancel, onSaved }
     setSaving(true);
     try {
       const newLocal: Record<string, string> = {};
+      const images: Change[] = [];
       const ready: ContactMethod[] = [];
       for (const m of items) {
         let image = m.image;
         if (m.type === 'qr' && m.file) {
-          image = await uploadContributeImage(m.file, `Upload contribution QR image by ${by || 'admin'}`);
+          const prepared = prepareContributeImage(m.file);
+          image = prepared.src;
+          images.push(prepared.change);
           if (m.preview) newLocal[image] = m.preview;
         }
         const { file, preview, ...rest } = m;
         ready.push({ ...rest, image });
       }
-      const next = await saveContributePage({ page: { intro, methods: ready }, previous: base, sha, by });
+      const next = await saveContributePage({ page: { intro, methods: ready }, previous: base, sha, by, images });
       onSaved(next, newLocal);
     } catch (e) {
-      setError(t(lang, e instanceof GitConflictError ? 'contrib_err_conflict' : 'contrib_err_save'));
+      setError(e instanceof GitConflictError ? t(lang, 'contrib_err_conflict') : saveErrorMessage(e, lang));
       setSaving(false);
     }
   };

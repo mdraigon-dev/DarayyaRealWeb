@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
 import { buildActivityFeed, lastActivityAt, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
-import { classifyUser } from '../data/permissions';
+import { can } from '../data/permissions';
+import AccessNotice from './AccessNotice';
 import { useIdentity } from '../data/use-identity';
 import { timeKey, daysUntil, useNow } from '../data/time';
 import ActivityFeed from './ActivityFeed';
@@ -36,10 +37,20 @@ const STALE_DAYS = 30;
  * budgets and raised amounts, contributions recorded by admins, and dated
  * activity. Nothing is sampled or simulated.
  */
-export default function AdminDashboard({ lang, basePath, projects, documents = [] }: Props) {
-  const currency = 'USD' as const;
+export default function AdminDashboard(props: Props) {
+  // Team managers and administrators only. Netlify also blocks the page for
+  // everyone else (see public/_redirects); this covers local previews and
+  // keeps the dashboard out of the page's static HTML.
   const identity = useIdentity();
-  const isAdmin = identity.kind === 'authenticated' && classifyUser(identity.user, []) === 'admin';
+  if (identity.kind === 'loading') return <AccessNotice lang={props.lang} state="loading" />;
+  if (identity.kind !== 'authenticated') return <AccessNotice lang={props.lang} state="signed-out" />;
+  if (!can(identity.user, 'view-dashboard')) return <AccessNotice lang={props.lang} state="no-access" />;
+  return <Dashboard {...props} canEdit={can(identity.user, 'edit-projects')} canUseCms={can(identity.user, 'reverse-funds')} />;
+}
+
+function Dashboard({ lang, basePath, projects, documents = [], canEdit, canUseCms }: Props & { canEdit: boolean; canUseCms: boolean }) {
+  const currency = 'USD' as const;
+  const isAdmin = canEdit;
   const now = useNow(); // null until the page runs in the browser
   const base = `${(import.meta as any).env?.BASE_URL ?? '/'}${lang}`.replace(/\/{2,}/g, '/');
   const projectHref = (id: string) => (isAdmin ? `${base}/admin/edit/${id}/` : `${basePath}/projects/${id}/`);
@@ -276,9 +287,11 @@ export default function AdminDashboard({ lang, basePath, projects, documents = [
             <a className="btn-primary admin-new-project-btn" href={`${base}/admin/new/`}>
               + {t(lang, 'admin_new_project')}
             </a>
-            <a className="btn-secondary" href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects`}>
-              {t(lang, 'admin_open_cms')}
-            </a>
+            {canUseCms && (
+              <a className="btn-secondary" href={`${(import.meta as any).env?.BASE_URL ?? '/'}admin/#/collections/projects`}>
+                {t(lang, 'admin_open_cms')}
+              </a>
+            )}
             <span className="admin-actions-hint">{t(lang, 'admin_actions_hint')}</span>
           </div>
 
