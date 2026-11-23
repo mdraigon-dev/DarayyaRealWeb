@@ -38,13 +38,6 @@ subs:
     budgetUSD: 9000
     raisedUSD: 1100
 updates:
-  - at: "2026-11-17T16:47:50.100Z"
-    author:
-      ar: "مجلس المدينة"
-      en: "City Council"
-    body:
-      ar: "تم شراء الاعمدة وتركيبها"
-      en: ""
   - at: "2026-05-21"
     author:
       ar: "مجلس المدينة"
