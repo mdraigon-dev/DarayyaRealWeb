@@ -54,13 +54,7 @@ updates:
     body:
       ar: "تم الانتهاء من المسح الطبوغرافي للشارع. بدء التنفيذ بانتظار وصول التبرعات إلى ٤٠٪."
       en: "Topographic survey of the street completed. Execution begins once donations reach 40%."
-photos:
-  - src: "/uploads/projects/roads-thawra/1795042379432-yugfrt.jpg"
-    status: "stalled"
-    caption:
-      ar: "تم تعثر تزفيت الشارع بسبب سحب الآليات إلى قطنا. موعد عودة الآليات بداية العام الجديد"
-      en: ""
-    at: "2026-11-18T22:52:59.432Z"
+photos: []
 comments:
   - author:
       ar: "m.draigon@gmail.com"
