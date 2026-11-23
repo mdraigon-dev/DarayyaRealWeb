@@ -15,7 +15,7 @@ description:
   ar: "تركيب ١٨ عمود إنارة LED توفيراً للطاقة، على طول الشارع المؤدي للمدرسة الابتدائية، لضمان سلامة الطلاب والأهالي."
   en: "Installing 18 LED light poles to save energy along the road leading to the primary school, ensuring student and resident safety."
 budgetUSD: 18000
-raisedUSD: 10100
+raisedUSD: 2800
 lat: 33.4641
 lng: 36.23528
 subs:
@@ -27,7 +27,7 @@ subs:
       ar: "٩ أعمدة"
       en: "9 poles"
     budgetUSD: 9000
-    raisedUSD: 9000
+    raisedUSD: 1700
   - id: "l2"
     title:
       ar: "الجهة الغربية للشارع"
@@ -52,8 +52,5 @@ photos:
       ar: "تم شراء الاعمدة وتركيبها"
       en: ""
     at: "2026-11-17T16:47:50.100Z"
-fundLog:
-  - at: "2026-11-18T22:57:28.671Z"
-    amountUSD: 7300
-    subId: "l1"
+fundLog: []
 ---
