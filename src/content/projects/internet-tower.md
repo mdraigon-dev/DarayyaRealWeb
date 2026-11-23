@@ -68,13 +68,6 @@ comments:
       ar: "سوف تنقطع مياه الشرب اليوم لاصلاح كابل الهاتف"
       en: ""
     at: "2026-11-17T16:04:35.775Z"
-  - author:
-      ar: "eng mohammad"
-      en: "eng mohammad"
-    body:
-      ar: ""
-      en: "the water is shutoff today to fix the power line"
-    at: "2026-11-17T16:35:59.334Z"
 fundLog:
   - at: "2026-11-17T16:05:44.092Z"
     amountUSD: 5000
