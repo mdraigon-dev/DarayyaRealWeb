@@ -37,6 +37,14 @@ const enUrl = lang === 'en' ? canonicalUrl : alternateUrl;
 <html lang={lang} dir={dir}>
 <head>
   <meta charset="UTF-8" />
+  <!-- Personal display settings (My preferences), applied before the page paints. Key: SETTINGS_KEY in src/data/user-settings.ts -->
+  <script is:inline>
+    try {
+      var s = JSON.parse(localStorage.getItem('darayya:settings') || '{}');
+      if (s.textSize === 'large' || s.textSize === 'larger') document.documentElement.setAttribute('data-text-size', s.textSize);
+      if (s.reduceMotion === true) document.documentElement.setAttribute('data-reduce-motion', '');
+    } catch (e) {}
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#00582C" />
   <title>{title}</title>
@@ -71,7 +79,14 @@ const enUrl = lang === 'en' ? canonicalUrl : alternateUrl;
   <script>
     // Keep the nf_jwt cookie (used by Netlify to gate staff pages) in step with sign-in.
     import { watchIdentityCookie } from '../data/identity-cookie';
+    import { pullSettingsFromAccount } from '../data/user-settings';
     watchIdentityCookie();
+    // Settings saved on the person's account follow them to this device.
+    const ni = (window as any).netlifyIdentity;
+    if (ni) {
+      ni.on('init', (u: any) => pullSettingsFromAccount(u));
+      ni.on('login', (u: any) => pullSettingsFromAccount(u));
+    }
   </script>
 </head>
 <body>

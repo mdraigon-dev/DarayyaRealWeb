@@ -367,7 +367,7 @@ function Dashboard({ lang, basePath, projects, documents = [], canEdit, canUseCm
                   <div>{fmtMoney(lang, currency, p.budgetUSD)}</div>
                   <div>
                     <div>{fmtMoney(lang, currency, p.raisedUSD)}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--sy-gold)', fontWeight: 700 }}>{fmtNum(lang, pct)}%</div>
+                    <div style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--sy-gold)', fontWeight: 700 }}>{fmtNum(lang, pct)}%</div>
                   </div>
                   <div className="admin-table-updated">
                     <TimeStamp at={lastActivityAt(p)} lang={lang} mode="relative" fallback="—" />

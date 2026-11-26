@@ -1,18 +1,25 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
 import AdminProfile from '../../../../components/AdminProfile.tsx';
 
 const lang = 'en' as const;
 const baseUrl = import.meta.env.BASE_URL;
 const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 const basePath = `${cleanBase}/${lang}`;
+// Only what the page needs to list the person's linked projects.
+const projects = (await getCollection('projects')).map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  engineers: (p.data.engineers || []).map((e: any) => ({ userId: e.userId })),
+}));
 ---
 
 <BaseLayout
-  title="Admin preferences — Namaa | نماء"
-  description="Admin preferences"
+  title="My preferences — Namaa | نماء"
+  description="My preferences"
   lang={lang}
   currentPage="admin"
 >
-  <AdminProfile lang={lang} basePath={basePath} client:load />
+  <AdminProfile lang={lang} basePath={basePath} projects={projects} client:load />
 </BaseLayout>

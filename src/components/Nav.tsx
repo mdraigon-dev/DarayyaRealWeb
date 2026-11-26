@@ -126,6 +126,11 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
               {l.label}
             </a>
           ))}
+          {/* On small phones the language switch lives in this menu. */}
+          <div className="nav-lang-mobile" role="group" aria-label="Language">
+            <a className={lang === 'ar' ? 'active' : ''} href={arHref} lang="ar">العربية</a>
+            <a className={lang === 'en' ? 'active' : ''} href={enHref} lang="en">English</a>
+          </div>
         </div>
         <div className="lang-toggle" title="Language / اللغة" role="group" aria-label="Language">
           <a className={lang === 'ar' ? 'active' : ''} href={arHref} aria-current={lang === 'ar' ? 'page' : undefined}>AR</a>
@@ -141,9 +146,10 @@ export default function Nav({ lang, currentPage, pathname }: Props) {
             className="nav-auth-btn"
             onClick={handleLogin}
             title={lang === 'ar' ? 'تسجيل الدخول للمسؤولين والمهندسين' : 'Sign in for admins and engineers'}
+            aria-label={lang === 'ar' ? 'تسجيل الدخول' : 'Login'}
           >
             <span className="nav-auth-icon" aria-hidden="true">👤</span>
-            <span>{lang === 'ar' ? 'تسجيل الدخول' : 'Login'}</span>
+            <span className="nav-auth-label">{lang === 'ar' ? 'تسجيل الدخول' : 'Login'}</span>
           </button>
         )}
         {authUser && (
