@@ -307,7 +307,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 );
               })}
             </div>
-            <p style={{ marginTop: '1rem', fontSize: '14px', color: 'var(--sy-muted)' }}>
+            <p style={{ marginTop: '1rem', fontSize: 'calc(14px * var(--fs))', color: 'var(--sy-muted)' }}>
               {t(lang, 'hierarchy_hint')}
             </p>
           </div>

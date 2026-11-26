@@ -9,6 +9,7 @@ import {
   saveContributePage, prepareContributeImage, validateMethod,
   type Bi, type ContactMethod, type ContributePage, type MethodType, type ValidationError,
 } from '../data/contribute';
+import { scrollBehavior } from '../data/user-settings';
 import TimeStamp from './TimeStamp';
 import PhotoLightbox from './PhotoLightbox';
 
@@ -67,7 +68,7 @@ export default function ContributeContent({ lang, page: built }: Props) {
             setEditing(false);
             setFlash(true);
             setTimeout(() => setFlash(false), 8000);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: scrollBehavior() });
           }}
         />
       ) : (

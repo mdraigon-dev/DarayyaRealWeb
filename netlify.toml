@@ -60,6 +60,15 @@
 # fallback page), and Netlify redirects don't shadow existing files unless
 # forced. Without it this rule never fires and visitors get the slower
 # client-side redirect instead.
+# Staff who chose English as their preferred language on "My preferences"
+# carry a darayya_lang_en cookie (set in src/data/user-settings.ts).
+[[redirects]]
+  from = "/"
+  to = "/en/"
+  status = 302
+  force = true
+  conditions = {Cookie = ["darayya_lang_en"]}
+
 [[redirects]]
   from = "/"
   to = "/ar/"

@@ -167,7 +167,7 @@ function UnsplashOrFallback({
         <div className="photo-caption">{caption}</div>
         <div className="photo-date">
           <span>{date}</span>
-          <span style={{ color: 'var(--sy-muted)', fontSize: '11px' }}>
+          <span style={{ color: 'var(--sy-muted)', fontSize: 'calc(11px * var(--fs))' }}>
             📷 {photo.photographer} · Unsplash
           </span>
         </div>
