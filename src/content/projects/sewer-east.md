@@ -83,7 +83,6 @@ engineers:
       ar: "فني مساحة"
       en: "Survey Technician"
     phone: "2416465465"
-    email: "rama@mail.com"
 comments:
   - author:
       ar: "رئيس البلدية"

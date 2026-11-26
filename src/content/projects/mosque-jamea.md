@@ -84,7 +84,6 @@ engineers:
       ar: "المهندس المشرف"
       en: "Supervising Engineer"
     phone: "+963 11 445 1230"
-    email: "a.khaled@darayya-council.sy"
   - name:
       ar: "أ. محمود الجابر"
       en: "Mr. Mahmoud Al-Jaber"
@@ -98,7 +97,6 @@ engineers:
     role:
       ar: "أخصّائية الهندسة المعمارية التراثية"
       en: "Heritage Architecture Specialist"
-    email: "l.shami@darayya-council.sy"
 comments:
   - author:
       ar: "مجلس المدينة"
