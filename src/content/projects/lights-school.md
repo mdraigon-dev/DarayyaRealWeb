@@ -15,7 +15,7 @@ description:
   ar: "تركيب ١٨ عمود إنارة LED توفيراً للطاقة، على طول الشارع المؤدي للمدرسة الابتدائية، لضمان سلامة الطلاب والأهالي."
   en: "Installing 18 LED light poles to save energy along the road leading to the primary school, ensuring student and resident safety."
 budgetUSD: 18000
-raisedUSD: 2800
+raisedUSD: 10700
 lat: 33.4641
 lng: 36.23528
 subs:
@@ -36,7 +36,7 @@ subs:
       ar: "٩ أعمدة"
       en: "9 poles"
     budgetUSD: 9000
-    raisedUSD: 1100
+    raisedUSD: 9000
 updates:
   - at: "2026-05-21"
     author:
@@ -46,5 +46,9 @@ updates:
       ar: "تم اعتماد المشروع رسمياً وفتح باب التبرعات. الأعمدة ستكون من نوع LED بضمان ٥ سنوات."
       en: "Project officially approved and donations are open. Poles are LED type with a 5-year warranty."
 photos: []
-fundLog: []
+fundLog:
+  - at: "2026-11-26T18:30:31.244Z"
+    amountUSD: 7900
+    subId: "l2"
+    by: "رئيس مجلس المدينة"
 ---
