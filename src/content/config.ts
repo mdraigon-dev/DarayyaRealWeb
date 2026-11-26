@@ -26,6 +26,9 @@ const bilingual = z.object({
   message: 'Arabic or English text is required / النص مطلوب بالعربية أو الإنجليزية',
 });
 
+// An Identity user ID. A bad value is dropped rather than failing the build.
+const looseId = z.string().trim().regex(/^[\w-]{1,80}$/).optional().catch(undefined);
+
 // Labels that may legitimately be blank (an author name, a photo caption, a
 // legacy date). A blank one must never block the build.
 const bilingualLabel = z.object({
@@ -125,13 +128,17 @@ const projectCollection = defineCollection({
       })
     ).default([]),
 
-    // Team — engineers, contractors, supervisors
+    // Team — engineers, contractors, supervisors.
+    // `userId` links the entry to a Netlify Identity account (who may post on
+    // the project). Staff email addresses are never part of the site: any
+    // legacy `email` left in a file is dropped here, before any page sees it.
     engineers: z.array(
       z.object({
         name: bilingual,
         role: bilingualLabel,
-        phone: z.string().optional(),
-        email: z.string().optional(),
+        /** Optional public contact number */
+        phone: z.string().optional().catch(undefined),
+        userId: looseId,
       })
     ).default([]),
 
@@ -263,7 +270,32 @@ const contributeCollection = defineCollection({
   }),
 });
 
+// ============================================================
+// TEAM DIRECTORY — src/content/team/directory.json
+// Shared list of team members project managers add to projects. Edited from
+// /{lang}/admin/team/. Lenient on purpose: anything malformed is skipped,
+// never a build failure. No email addresses (the repository is public).
+// ============================================================
+const teamMember = z.object({
+  id: z.string(),
+  name: bilingualLabel,
+  role: bilingualLabel.optional().default({ ar: '', en: '' }),
+  userId: looseId,
+  phone: z.string().optional().catch(undefined),
+});
+const teamCollection = defineCollection({
+  type: 'data',
+  schema: z.object({
+    members: z.array(z.unknown()).catch([]).default([]).transform((items) =>
+      items.flatMap((m) => {
+        const r = teamMember.safeParse(m);
+        return r.success ? [r.data] : [];
+      })),
+  }).passthrough(),
+});
+
 export const collections = {
+  team: teamCollection,
   contribute: contributeCollection,
   projects: projectCollection,
   updates: updatesCollection,

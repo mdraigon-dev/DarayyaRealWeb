@@ -6404,3 +6404,23 @@ time.timestamp { color: inherit; }
 .access-muted { color: var(--sy-muted); font-size: 14px; margin: 0 0 1rem; text-align: center; }
 .access-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1.25rem; }
 .projects-new-btn { display: inline-block; margin-top: 1rem; }
+
+/* ── Team directory and linked accounts ─────────────────────────────── */
+.team-intro { color: var(--sy-ink-soft); margin: 0 0 1rem; line-height: 1.6; }
+.team-notice p { margin: 0 0 0.75rem; }
+.team-status { margin: 0.75rem 0 0; font-size: 14px; font-weight: 600; }
+.team-status-ok { color: var(--sy-green-dk); }
+.team-status-error { color: var(--sy-red); }
+.team-account-error {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 0.8rem; margin: 0 0 1rem; border-radius: 8px;
+  background: rgba(206, 17, 38, 0.06); color: var(--sy-red); font-size: 13px;
+}
+.team-link-btn {
+  background: none; border: 1px solid var(--sy-green); color: var(--sy-green-dk);
+  border-radius: 999px; padding: 0.25rem 0.75rem; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.team-link-btn:hover { background: var(--sy-green-wash); }
+.team-account-field select:disabled { opacity: 0.7; }
+.projects-staff-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }

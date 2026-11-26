@@ -61,6 +61,8 @@ export const handler = async (event: any, context: any) => {
     body,
     gh: github({ token, repo, branch: process.env.GITHUB_BRANCH || 'main' }),
     chunks,
+    // Short-lived admin token for the Identity API (staff list only).
+    identity: context?.clientContext?.identity,
   });
   return json(reply.status, reply.body);
 };

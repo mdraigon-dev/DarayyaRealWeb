@@ -29,10 +29,12 @@ export type PathClass =
   | { kind: 'document-file' }
   | { kind: 'contribute-page' }
   | { kind: 'contribute-image' }
+  | { kind: 'team-directory' }
   | { kind: 'other-content' }
   | { kind: 'forbidden' };
 
 const ID = '[a-z0-9][a-z0-9-]{0,80}';
+export const TEAM_DIRECTORY_PATH = 'src/content/team/directory.json';
 const FILE = '[A-Za-z0-9][A-Za-z0-9._-]{0,120}';
 const IMG = '\\.(png|jpe?g|webp|gif)';
 
@@ -49,6 +51,7 @@ export function classifyPath(path: string): PathClass {
   if (new RegExp(`^public/circulars/files/${FILE}\\.(pdf|png|jpe?g|gif|webp|docx?|xlsx?|pptx?|txt|csv)$`, 'i').test(path)) return { kind: 'document-file' };
   if (path === 'src/content/contribute/page.json') return { kind: 'contribute-page' };
   if (new RegExp(`^public/uploads/contribute/${FILE}${IMG}$`, 'i').test(path)) return { kind: 'contribute-image' };
+  if (path === TEAM_DIRECTORY_PATH) return { kind: 'team-directory' };
   if (/\.(svg|html?|xhtml|js|mjs|xml)$/i.test(path) && path.startsWith('public/')) return { kind: 'forbidden' };
   if (/^src\/content\/[\w./-]+$/.test(path) || /^public\/uploads\/[\w./-]+$/.test(path)) return { kind: 'other-content' };
   return { kind: 'forbidden' };
@@ -225,7 +228,11 @@ export async function authorize(user: RoleUser, changes: FileChange[], lookup: L
         const after = c.delete ? null : (c.text ?? null);
         if (!c.delete && after === null) throw deny('INVALID_CHANGE', 'Project files must be saved as text.');
         const needs = projectNeeds(now.exists ? now.text : null, after);
+        // Assignment is always checked against the team as it is in the
+        // repository now, never the one in this save, so an engineer can't
+        // add themselves (changing the team also needs edit-projects).
         const engineers = now.exists && now.text ? safeEngineers(now.text) : [];
+        if (after !== null) noNewTeamEmails(now.exists ? now.text : null, after);
         for (const n of needs) {
           if (n === 'create-project' || n === 'edit-project') need(caps.has('edit-projects'), 'Your role cannot create or edit projects');
           if (n === 'delete-project') need(isAdmin, 'Only administrators can delete a project');
@@ -253,6 +260,11 @@ export async function authorize(user: RoleUser, changes: FileChange[], lookup: L
         break;
       }
 
+      case 'team-directory':
+        need(caps.has('edit-projects'), 'Your role cannot change the team directory');
+        if (!c.delete) checkDirectory(c.text ?? null);
+        break;
+
       case 'contribute-page':
       case 'contribute-image':
         need(caps.has('edit-contribute-page'), 'Your role cannot edit the "How to contribute" page');
@@ -263,4 +275,34 @@ export async function authorize(user: RoleUser, changes: FileChange[], lookup: L
 
 function safeEngineers(text: string): unknown {
   try { return parseProject(text).fm.engineers; } catch { return []; }
+}
+
+const emailsOf = (engineers: unknown): Set<string> => new Set(
+  list(engineers)
+    .map((e: any) => (typeof e?.email === 'string' ? e.email.trim().toLowerCase() : ''))
+    .filter(Boolean),
+);
+
+/**
+ * Team entries link accounts by Identity user ID; the repository is public,
+ * so a save may keep a legacy email that is already there (until the
+ * migration removes it) but never add one.
+ */
+function noNewTeamEmails(before: string | null, after: string): void {
+  const had = before ? emailsOf(safeEngineers(before)) : new Set<string>();
+  for (const e of emailsOf(parseProject(after).fm.engineers)) {
+    if (!had.has(e)) throw new RuleError('INVALID_CHANGE', 'Team members are linked by account, not by email address.');
+  }
+}
+
+/** The shared team directory: JSON with a members list, and no email addresses. */
+function checkDirectory(text: string | null): void {
+  let data: any;
+  try { data = JSON.parse(text ?? ''); } catch { throw new RuleError('INVALID_FORMAT', 'The team directory must be valid JSON.'); }
+  if (!data || typeof data !== 'object' || !Array.isArray(data.members)) {
+    throw new RuleError('INVALID_FORMAT', 'The team directory needs a members list.');
+  }
+  if (/@[^\s"]+\.[a-z]{2,}/i.test(text ?? '') || data.members.some((m: any) => m && typeof m === 'object' && 'email' in m)) {
+    throw new RuleError('INVALID_CHANGE', 'The team directory must not contain email addresses.');
+  }
 }

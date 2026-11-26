@@ -19,6 +19,7 @@ This file gives you (Claude Code) the context you need to work on this codebase 
 
 ## Key files
 
+- `src/content/team/directory.json` — shared team directory (edited at `/{lang}/admin/team/`).
 - `src/content/projects/*.md` — the actual content. 17 projects right now. Each is bilingual (AR + EN in YAML frontmatter).
 - `src/content/config.ts` — Zod schema. If you change this, also update `public/admin/config.yml` to keep them in sync.
 - `src/i18n/strings.ts` — all UI strings. ~150 keys in `ar` and `en`. Add new strings here, never hard-code Arabic or English in components.
@@ -47,6 +48,8 @@ The user should use the Decap CMS UI at `/admin/`. If they ask you to add one pr
 - **The logo is an SVG symbol** embedded once in `BaseLayout.astro`, referenced via `<use href="#darayya-logo">`. This is why `_logo_symbol.html.txt` exists — it gets inlined at build time.
 - **The Council Dashboard at `/ar/admin/` is staff-only.** Netlify blocks it for anyone without the `admin` or `team-manager` role (`public/_redirects`), and `AdminDashboard` renders nothing but a sign-in notice until the signed-in user has the `view-dashboard` capability.
 - **Roles and saving.** Every save from the site goes through the save service (`netlify/functions/repo.ts`), which checks the person's Identity roles (`app_metadata.roles`) with the rules in `netlify/lib/rules.ts`. UI buttons follow `src/data/roles.ts`. Never read roles from `user_metadata` (users can edit it) and don't add new direct Git Gateway calls. See `docs/ROLES.md`.
+- **Team members are linked by Identity user ID, never by email.** `engineers[].userId` (and `userId` in `src/content/team/directory.json`) decides who may post; `isAssigned()` in `src/data/roles.ts` matches it against `sub` (save service) or `id` (browser). Never add an `email` field to team entries or show staff emails anywhere: the repo and site are public. The schema drops legacy emails, and the save service refuses new ones. Staff accounts for the "Linked account" dropdown come from the save service's `staff` action (`{ id, name, roles }` only). See `docs/ROLES.md`.
+- **Tests**: `npm test` runs the save-service tests in `tests/`.
 - **Creating a project must never overwrite an existing one.** `commitProjectFile` in `src/data/project-file-edit.ts` handles this: create mode checks for an existing file and saves with `expectSha: null`, so the save service refuses a collision (surfaced as `ID_EXISTS`). Don't "simplify" it back to a plain commit.
 
 ## Things to NOT do without asking the user

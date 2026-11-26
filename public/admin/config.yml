@@ -236,8 +236,11 @@ collections:
             fields:
               - { label: "بالعربية ★",    name: "ar", widget: "string", hint: "مثلاً: مهندس مشرف، مقاول رئيسي" }
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
-          - { label: "الهاتف (اختياري)",          name: "phone", widget: "string", required: false }
-          - { label: "البريد الإلكتروني (اختياري)", name: "email", widget: "string", required: false }
+          - { label: "رقم تواصل عام (اختياري)", name: "phone", widget: "string", required: false, hint: "يظهر للعموم على صفحة المشروع" }
+          # Identity account that may post on this project. Pick it in the
+          # project editor or team directory on the site (/ar/admin/team/);
+          # staff email addresses are never stored here (the repo is public).
+          - { label: "معرّف الحساب المرتبط (اختياري)", name: "userId", widget: "string", required: false, hint: "يُضبط من محرّر المشروع على الموقع. لا تكتب بريداً إلكترونياً." }
 
       # ─── 9. تحديثات ميدانية ─────────────────────────────────────
       - label: "📝 تحديثات ميدانية"

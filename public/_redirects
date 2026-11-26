@@ -13,6 +13,12 @@
 /en/admin/new/*      /en/admin/new/:splat      200!  Role=admin,project-manager
 /en/admin/new/*      /en/signin/               401!
 
+# Team directory: project managers and administrators
+/ar/admin/team/*     /ar/admin/team/:splat     200!  Role=admin,project-manager
+/ar/admin/team/*     /ar/signin/               401!
+/en/admin/team/*     /en/admin/team/:splat     200!  Role=admin,project-manager
+/en/admin/team/*     /en/signin/               401!
+
 # Profile: anyone with a role
 /ar/admin/profile/*  /ar/admin/profile/:splat  200!  Role=admin,team-manager,project-manager,engineer,secretary,finance
 /ar/admin/profile/*  /ar/signin/               401!

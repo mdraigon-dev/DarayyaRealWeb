@@ -9,9 +9,10 @@ import {
   MAX_IMAGES_PER_UPDATE,
 } from '../data/image-upload';
 import { saveErrorMessage, type Change } from '../data/repo';
-import { canPostOn, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { atForPickedDay, localToday } from '../data/time';
 import { identityStarted } from '../data/identity-ready';
+import { useCanPost } from '../data/use-can-post';
 
 declare global {
   interface Window {
@@ -136,10 +137,12 @@ export default function AuthAwareUpdateAdder({ projectId, lang, engineers, proje
     return () => { cancelled = true; };
   }, []);
 
+  const allowed = useCanPost(auth.kind === 'authenticated' ? auth.user : null, projectId, engineers);
+
   if (auth.kind !== 'authenticated') return null;
 
-  // Project managers, admins, and engineers assigned to this project.
-  if (!canPostOn(auth.user, engineers)) return null;
+  // Project managers, admins, and engineers on this project's team.
+  if (!allowed) return null;
 
   const defaultAuthor = preferredAuthorName(auth.user, prefs);
 

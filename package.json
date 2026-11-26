@@ -9,7 +9,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "cms": "decap-server"
+    "cms": "decap-server",
+    "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^4.0.0",

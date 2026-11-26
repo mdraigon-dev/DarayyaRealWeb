@@ -40,8 +40,10 @@ type Photo = {
 type Engineer = {
   name: Bilingual;
   role: Bilingual;
+  /** Optional public contact number */
   phone?: string;
-  email?: string;
+  /** Linked Identity account (decides who may post; never shown) */
+  userId?: string;
 };
 
 type Comment = {
@@ -459,10 +461,9 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                     <div className="engineer-info">
                       <div className="engineer-name">{loc(lang, e.name)}</div>
                       <div className="engineer-role">{loc(lang, e.role)}</div>
-                      {(e.phone || e.email) && (
+                      {e.phone && (
                         <div className="engineer-contact">
-                          {e.phone && <span>📞 {e.phone}</span>}
-                          {e.email && <a href={`mailto:${e.email}`}>✉ {e.email}</a>}
+                          <a href={`tel:${e.phone.replace(/[^\d+]/g, '')}`} dir="ltr">📞 {e.phone}</a>
                         </div>
                       )}
                     </div>

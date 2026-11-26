@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { type Lang } from '../i18n/strings';
 import { appendProjectItem } from '../data/project-file-edit';
 import { loadPrefs, preferredAuthorName, publicAuthor, defaultPrefs, type AdminPrefs } from '../data/admin-prefs';
-import { can, canPostOn, rolesText, type ProjectEngineer, type AuthUser } from '../data/permissions';
+import { can, rolesText, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { saveErrorMessage } from '../data/repo';
 import { identityStarted } from '../data/identity-ready';
+import { useCanPost } from '../data/use-can-post';
 
 declare global {
   interface Window {
@@ -39,7 +40,7 @@ type SaveState =
  *
  * Inline "Add quick note" form. Visible only to:
  *   - project managers and admins (roles in Identity app_metadata)
- *   - engineers listed on THIS project (email match against engineers[].email)
+ *   - engineers on THIS project's team (their account is linked: engineers[].userId)
  *
  * Other logged-in users and anonymous visitors see nothing. The form
  * reads/modifies/writes the project's markdown file via Git Gateway.
@@ -83,10 +84,12 @@ export default function AuthAwareNoteAdder({ projectId, lang, engineers, onAdded
     return () => { cancelled = true; };
   }, []);
 
+  const allowed = useCanPost(auth.kind === 'authenticated' ? auth.user : null, projectId, engineers);
+
   if (auth.kind !== 'authenticated') return null;
 
-  // Project managers, admins, and engineers assigned to this project.
-  if (!canPostOn(auth.user, engineers)) return null;
+  // Project managers, admins, and engineers on this project's team.
+  if (!allowed) return null;
 
   const isAdmin = can(auth.user, 'edit-projects');
   const lang_seg = lang === 'ar' ? 'ar' : 'en';

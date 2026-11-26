@@ -16,7 +16,7 @@ export type Capability =
   | 'view-dashboard'        // Dashboard page
   | 'edit-projects'         // create projects, edit details, budgets, line items, engineers
   | 'post-any-project'      // notes, field updates, photos on any project
-  | 'post-assigned-project' // the same, only on projects listing the person's email
+  | 'post-assigned-project' // the same, only on projects whose team links the person's account
   | 'moderate-projects'     // delete notes, updates, photos
   | 'record-funds'          // record a contribution
   | 'reverse-funds'         // reverse a recorded contribution, adjust totals directly
@@ -51,10 +51,15 @@ export const GATED_PAGES: Array<{ prefix: string; roles: Role[] }> = [
   { prefix: '/admin/edit/', roles: ['admin', 'project-manager'] },
   { prefix: '/admin/new/', roles: ['admin', 'project-manager'] },
   { prefix: '/admin/profile/', roles: [...ROLES] },
+  { prefix: '/admin/team/', roles: ['admin', 'project-manager'] },
   { prefix: '/admin/', roles: ['admin', 'team-manager'] },
 ];
 
 export type RoleUser = {
+  /** Identity user ID as the save service sees it (the token's `sub`). */
+  sub?: string;
+  /** Identity user ID as the browser's netlifyIdentity user has it. */
+  id?: string;
   email?: string;
   app_metadata?: { roles?: unknown };
 } | null | undefined;
@@ -81,11 +86,31 @@ export function can(user: RoleUser, cap: Capability): boolean {
   return capsOf(user).has(cap);
 }
 
-/** Is this person listed (by email) on the project's engineers? */
+/**
+ * TEMPORARY: team entries saved before accounts were linked by user ID still
+ * carry the engineer's email. Until an administrator has run "Link existing
+ * project teams" on the team directory page, those still count. Once no
+ * project file contains `email:` under engineers, set this to false (and
+ * delete it): see docs/ROLES.md.
+ */
+export const LEGACY_EMAIL_MATCH = true;
+
+/** The account's Identity user ID: `sub` in the save service, `id` in the browser. */
+export function userIdOf(user: RoleUser): string {
+  return String(user?.sub || user?.id || '').trim();
+}
+
+/** Is this person on the project's team (linked by their Identity user ID)? */
 export function isAssigned(user: RoleUser, engineers: unknown): boolean {
-  const email = (user?.email || '').trim().toLowerCase();
-  if (!email || !Array.isArray(engineers)) return false;
-  return engineers.some((e: any) => String(e?.email || '').trim().toLowerCase() === email);
+  if (!user || !Array.isArray(engineers)) return false;
+  const id = userIdOf(user);
+  const email = (user.email || '').trim().toLowerCase();
+  return engineers.some((e: any) => {
+    const linked = typeof e?.userId === 'string' ? e.userId.trim() : '';
+    if (linked) return !!id && linked === id;
+    if (!LEGACY_EMAIL_MATCH || !email) return false;
+    return typeof e?.email === 'string' && e.email.trim().toLowerCase() === email;
+  });
 }
 
 /** Can this person add notes, field updates and photos on this project? */

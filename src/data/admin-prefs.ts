@@ -12,53 +12,83 @@
  * onto that cleanly.)
  */
 
-export type EngineerPreset = {
+/** A team member saved by the old, per-browser "Engineer presets" (before the shared team directory). */
+export type LegacyPreset = {
   name: { ar: string; en: string };
   role: { ar: string; en: string };
-  email?: string;
   phone?: string;
 };
 
 export type AdminPrefs = {
   /** Name shown as the author when this admin adds a note or field update. */
   displayName: string;
-  /** Reusable team members the admin can drop into a new project. */
-  engineerPresets: EngineerPreset[];
 };
 
 export function defaultPrefs(): AdminPrefs {
-  return { displayName: '', engineerPresets: [] };
+  return { displayName: '' };
 }
 
 function keyFor(email: string): string {
   return `darayya:admin-prefs:${email.trim().toLowerCase()}`;
 }
 
-export function loadPrefs(email: string | undefined | null): AdminPrefs {
-  if (!email || typeof window === 'undefined') return defaultPrefs();
+function readRaw(email: string): Record<string, unknown> | null {
   try {
     const raw = window.localStorage.getItem(keyFor(email));
-    if (!raw) return defaultPrefs();
-    const parsed = JSON.parse(raw) as Partial<AdminPrefs>;
-    return {
-      displayName: typeof parsed.displayName === 'string' ? parsed.displayName : '',
-      engineerPresets: Array.isArray(parsed.engineerPresets)
-        ? parsed.engineerPresets.filter(isEngineerPreset)
-        : [],
-    };
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
-    return defaultPrefs();
+    return null;
   }
+}
+
+export function loadPrefs(email: string | undefined | null): AdminPrefs {
+  if (!email || typeof window === 'undefined') return defaultPrefs();
+  const parsed = readRaw(email);
+  return { displayName: typeof parsed?.displayName === 'string' ? parsed.displayName : '' };
 }
 
 export function savePrefs(email: string | undefined | null, prefs: AdminPrefs): boolean {
   if (!email || typeof window === 'undefined') return false;
   try {
-    window.localStorage.setItem(keyFor(email), JSON.stringify(prefs));
+    // Keep any old presets until they're moved to the shared team directory.
+    const old = readRaw(email);
+    const keep = Array.isArray(old?.engineerPresets) && (old!.engineerPresets as unknown[]).length
+      ? { engineerPresets: old!.engineerPresets }
+      : {};
+    window.localStorage.setItem(keyFor(email), JSON.stringify({ ...keep, displayName: prefs.displayName }));
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Presets this browser still holds from the old profile page. Emails they
+ * may contain are dropped: team members are linked by account now.
+ */
+export function loadLegacyPresets(email: string | undefined | null): LegacyPreset[] {
+  if (!email || typeof window === 'undefined') return [];
+  const list = readRaw(email)?.engineerPresets;
+  if (!Array.isArray(list)) return [];
+  const bl = (v: any) => ({ ar: typeof v?.ar === 'string' ? v.ar : '', en: typeof v?.en === 'string' ? v.en : '' });
+  return list
+    .filter((x: any) => x && typeof x === 'object' && typeof x.name === 'object')
+    .map((x: any) => ({
+      name: bl(x.name),
+      role: bl(x.role),
+      ...(typeof x.phone === 'string' && x.phone.trim() ? { phone: x.phone.trim() } : {}),
+    }))
+    .filter((x) => x.name.ar.trim() || x.name.en.trim());
+}
+
+/** Forget the old presets once they've been moved (the button shows only once). */
+export function clearLegacyPresets(email: string | undefined | null): void {
+  if (!email || typeof window === 'undefined') return;
+  const old = readRaw(email);
+  if (!old) return;
+  delete old.engineerPresets;
+  try { window.localStorage.setItem(keyFor(email), JSON.stringify(old)); } catch { /* storage blocked */ }
 }
 
 /**
@@ -99,10 +129,4 @@ export function publicAuthor(
   const n = (typed.trim() || preferredAuthorName(user, prefs)).trim();
   if (n && !n.includes('@')) return { ar: n, en: n };
   return { ar: 'مجلس المدينة', en: 'City Council' };
-}
-
-function isEngineerPreset(x: unknown): x is EngineerPreset {
-  if (!x || typeof x !== 'object') return false;
-  const e = x as Record<string, unknown>;
-  return typeof e.name === 'object' && typeof e.role === 'object';
 }
