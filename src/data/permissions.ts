@@ -12,6 +12,8 @@ import { can, canPostOn, rolesOf, ROLE_LABELS, type Capability } from './roles';
 import type { Lang } from '../i18n/strings';
 
 export type AuthUser = {
+  /** Identity user ID — what project teams link to (engineers[].userId). */
+  id?: string;
   email: string;
   app_metadata?: { roles?: string[] };
   user_metadata?: { full_name?: string };
@@ -20,7 +22,9 @@ export type AuthUser = {
 export type ProjectEngineer = {
   name?: { ar?: string; en?: string };
   role?: { ar?: string; en?: string };
-  email?: string;
+  /** Identity user ID of the linked account */
+  userId?: string;
+  /** Public contact number */
   phone?: string;
 };
 

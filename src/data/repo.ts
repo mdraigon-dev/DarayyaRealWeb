@@ -90,6 +90,28 @@ export async function getFileSha(path: string): Promise<string | null> {
   return r?.exists ? r.sha : null;
 }
 
+// ── Staff accounts (for linking team entries) ──────────────────────────
+
+/** An account a team entry can be linked to. The service never sends emails. */
+export type StaffAccount = { id: string; name: string; roles: string[] };
+
+/**
+ * Engineers and project managers, from Netlify Identity. Project managers and
+ * administrators only. `resolveEmails` maps legacy team emails to user IDs
+ * (used once, by the migration on the team directory page).
+ * Throws SaveError('STAFF_UNAVAILABLE') if Identity can't be reached.
+ */
+export async function listStaff(
+  lang: 'ar' | 'en',
+  resolveEmails?: string[],
+): Promise<{ staff: StaffAccount[]; matches: Record<string, string> }> {
+  const r = await call({ action: 'staff', lang, ...(resolveEmails ? { resolveEmails } : {}) });
+  return {
+    staff: Array.isArray(r?.staff) ? r.staff : [],
+    matches: r?.matches && typeof r.matches === 'object' ? r.matches : {},
+  };
+}
+
 // ── Uploading binaries ──────────────────────────────────────────────────
 
 const CHUNK = 3 * 1024 * 1024; // raw bytes per request (≈4 MB once encoded)

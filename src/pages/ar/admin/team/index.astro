@@ -1,0 +1,22 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import TeamDirectory from '../../../../components/TeamDirectory.tsx';
+
+const lang = 'ar' as const;
+const baseUrl = import.meta.env.BASE_URL;
+const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+const basePath = `${cleanBase}/${lang}`;
+// Only the IDs go into the page: "Link existing project teams" reads each
+// file live through the save service.
+const projectIds = (await getCollection('projects')).map((p) => p.slug).sort();
+---
+
+<BaseLayout
+  title="دليل الفريق — نماء | Namaa"
+  description="دليل الفريق — نماء | Namaa"
+  lang={lang}
+  currentPage="admin"
+>
+  <TeamDirectory lang={lang} basePath={basePath} projectIds={projectIds} client:load />
+</BaseLayout>

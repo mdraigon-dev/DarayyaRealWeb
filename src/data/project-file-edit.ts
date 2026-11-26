@@ -159,6 +159,28 @@ export async function appendProjectItems(opts: {
   throw lastErr ?? new GitConflictError('CONFLICT');
 }
 
+/**
+ * The project's team as it is in the repository right now. The built pages
+ * only know teams by linked account (emails are stripped at build time), so
+ * the post buttons check this when the static team doesn't match: it covers
+ * an engineer linked since the last build, and legacy email-linked entries
+ * until the migration has run. The save service checks the same file.
+ */
+const liveTeams = new Map<string, Promise<unknown[]>>();
+export function readLiveTeam(projectId: string): Promise<unknown[]> {
+  let p = liveTeams.get(projectId);
+  if (!p) {
+    p = loadBase(projectPath(projectId))
+      .then((f) => {
+        const e = splitFrontmatter(f.content).frontmatter.engineers;
+        return Array.isArray(e) ? e : [];
+      })
+      .catch(() => { liveTeams.delete(projectId); return []; });
+    liveTeams.set(projectId, p);
+  }
+  return p;
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Full project editor: write the whole file
 // ────────────────────────────────────────────────────────────────────
@@ -460,4 +482,62 @@ export async function removeProjectItem(opts: {
   }
   if (lastErr) throw lastErr;
   if (removed === undefined) throw new Error('ITEM_NOT_FOUND');
+}
+
+// ────────────────────────────────────────────────────────────────────
+// One-time migration: link team entries saved with an email to accounts
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * For every project file: each team entry that still has an `email` gets the
+ * matching account's `userId` (when there is one) and loses the email. All
+ * changed files are saved in ONE commit. `resolve` maps the emails found to
+ * user IDs (the save service's staff action); emails never leave this
+ * function in anything that's saved or logged.
+ */
+export async function linkProjectTeams(opts: {
+  projectIds: string[];
+  resolve: (emails: string[]) => Promise<Record<string, string>>;
+  message: string;
+}): Promise<{ projects: number; linked: number; unmatched: number }> {
+  const files: Array<{ path: string; sha: string; fm: Record<string, unknown>; body: string }> = [];
+  for (const id of opts.projectIds) {
+    const path = projectPath(id);
+    sessionCache.delete(path);
+    const f = await getFileContent(path);
+    if (!f) continue;
+    const { frontmatter, body } = splitFrontmatter(f.content);
+    const team = Array.isArray(frontmatter.engineers) ? (frontmatter.engineers as Record<string, unknown>[]) : [];
+    if (team.some((e) => e && typeof e === 'object' && 'email' in e)) files.push({ path, sha: f.sha, fm: frontmatter, body });
+  }
+  if (files.length === 0) return { projects: 0, linked: 0, unmatched: 0 };
+  if (files.length > 30) throw new Error('TOO_MANY');
+
+  const norm = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+  const emails = new Set<string>();
+  for (const f of files) {
+    for (const e of f.fm.engineers as Record<string, unknown>[]) if (norm(e?.email)) emails.add(norm(e.email));
+  }
+  const matches = emails.size ? await opts.resolve([...emails]) : {};
+
+  let linked = 0;
+  let unmatched = 0;
+  const changes: Change[] = files.map((f) => {
+    f.fm.engineers = (f.fm.engineers as Record<string, unknown>[]).map((e) => {
+      if (!e || typeof e !== 'object' || !('email' in e)) return e;
+      const { email, ...rest } = e;
+      const id = matches[norm(email)];
+      if (norm(email)) {
+        if (id) linked++; else unmatched++;
+      }
+      return id && !rest.userId ? { ...rest, userId: id } : rest;
+    });
+    const text = `---\n${stringifyYaml(f.fm, YAML_OPTS_APPEND)}---\n${f.body}`;
+    return { path: f.path, text, expectSha: f.sha };
+  });
+
+  const shas = await commitChanges(opts.message, changes);
+  for (const c of changes) recordCommit(c.path, c.text!, shas[c.path] ?? null);
+  liveTeams.clear();
+  return { projects: files.length, linked, unmatched };
 }

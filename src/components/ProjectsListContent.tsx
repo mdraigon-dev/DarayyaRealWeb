@@ -34,9 +34,14 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
         <h2 className="section-title">{t(lang, 'projects_title')}</h2>
         <p className="section-desc">{t(lang, 'projects_desc')}</p>
         {canCreate && (
-          <a className="btn-primary admin-new-project-btn projects-new-btn" href={`${basePath}/admin/new/`}>
-            + {t(lang, 'admin_new_project')}
-          </a>
+          <div className="projects-staff-actions">
+            <a className="btn-primary admin-new-project-btn projects-new-btn" href={`${basePath}/admin/new/`}>
+              + {t(lang, 'admin_new_project')}
+            </a>
+            <a className="btn-secondary projects-new-btn" href={`${basePath}/admin/team/`}>
+              {t(lang, 'team_dir_link')}
+            </a>
+          </div>
         )}
       </div>
 

@@ -7,7 +7,6 @@ import {
   savePrefs,
   defaultPrefs,
   type AdminPrefs,
-  type EngineerPreset,
 } from '../data/admin-prefs';
 
 declare global {
@@ -26,13 +25,6 @@ type AuthState =
   | { kind: 'loading' }
   | { kind: 'anonymous' }
   | { kind: 'authenticated'; user: AuthUser };
-
-const emptyPreset = (): EngineerPreset => ({
-  name: { ar: '', en: '' },
-  role: { ar: '', en: '' },
-  email: '',
-  phone: '',
-});
 
 export default function AdminProfile({ lang, basePath }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
@@ -101,32 +93,11 @@ export default function AdminProfile({ lang, basePath }: Props) {
   const email = auth.user.email;
 
   const handleSave = () => {
-    const cleaned: AdminPrefs = {
-      displayName: prefs.displayName.trim(),
-      // Drop entirely-empty presets so the list stays tidy.
-      engineerPresets: prefs.engineerPresets.filter(
-        (p) => p.name.ar.trim() || p.name.en.trim() || p.role.ar.trim() || p.role.en.trim(),
-      ),
-    };
+    const cleaned: AdminPrefs = { displayName: prefs.displayName.trim() };
     savePrefs(email, cleaned);
     setPrefs(cleaned);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
-  };
-
-  const updatePreset = (i: number, patch: Partial<EngineerPreset>) => {
-    setPrefs((p) => {
-      const next = [...p.engineerPresets];
-      next[i] = { ...next[i], ...patch };
-      return { ...p, engineerPresets: next };
-    });
-  };
-  const updatePresetBilingual = (i: number, field: 'name' | 'role', side: 'ar' | 'en', v: string) => {
-    setPrefs((p) => {
-      const next = [...p.engineerPresets];
-      next[i] = { ...next[i], [field]: { ...next[i][field], [side]: v } };
-      return { ...p, engineerPresets: next };
-    });
   };
 
   return (
@@ -177,107 +148,6 @@ export default function AdminProfile({ lang, basePath }: Props) {
           maxLength={80}
           dir={lang === 'ar' ? 'rtl' : 'ltr'}
         />
-      </div>
-
-      {/* Engineer presets */}
-      <div className="profile-card">
-        <h3 className="profile-card-title">
-          {lang === 'ar' ? 'قوالب المهندسين' : 'Engineer presets'}
-        </h3>
-        <p className="profile-card-hint">
-          {lang === 'ar'
-            ? 'أعضاء فريق محفوظون مسبقاً يمكنك إضافتهم بنقرة واحدة عند إنشاء مشروع.'
-            : 'Saved team members you can drop into a project with one click when creating it.'}
-        </p>
-
-        {prefs.engineerPresets.length === 0 && (
-          <p className="profile-empty">
-            {lang === 'ar' ? 'لا توجد قوالب بعد.' : 'No presets yet.'}
-          </p>
-        )}
-
-        {prefs.engineerPresets.map((p, i) => (
-          <div key={i} className="profile-preset">
-            <div className="profile-preset-head">
-              <span className="profile-preset-num">{i + 1}</span>
-              <button
-                type="button"
-                className="profile-remove-btn"
-                onClick={() =>
-                  setPrefs((pr) => ({
-                    ...pr,
-                    engineerPresets: pr.engineerPresets.filter((_, j) => j !== i),
-                  }))
-                }
-                aria-label={lang === 'ar' ? 'حذف' : 'Remove'}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="profile-row">
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)'}</label>
-                <input
-                  type="text" className="profile-input" dir="rtl"
-                  value={p.name.ar}
-                  onChange={(e) => updatePresetBilingual(i, 'name', 'ar', e.target.value)}
-                />
-              </div>
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)'}</label>
-                <input
-                  type="text" className="profile-input" dir="ltr"
-                  value={p.name.en}
-                  onChange={(e) => updatePresetBilingual(i, 'name', 'en', e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="profile-row">
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'الدور (عربي)' : 'Role (Arabic)'}</label>
-                <input
-                  type="text" className="profile-input" dir="rtl"
-                  value={p.role.ar}
-                  onChange={(e) => updatePresetBilingual(i, 'role', 'ar', e.target.value)}
-                />
-              </div>
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'الدور (إنجليزي)' : 'Role (English)'}</label>
-                <input
-                  type="text" className="profile-input" dir="ltr"
-                  value={p.role.en}
-                  onChange={(e) => updatePresetBilingual(i, 'role', 'en', e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="profile-row">
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'البريد (اختياري)' : 'Email (optional)'}</label>
-                <input
-                  type="email" className="profile-input" dir="ltr"
-                  value={p.email || ''}
-                  onChange={(e) => updatePreset(i, { email: e.target.value })}
-                />
-              </div>
-              <div className="profile-field">
-                <label>{lang === 'ar' ? 'الهاتف (اختياري)' : 'Phone (optional)'}</label>
-                <input
-                  type="tel" className="profile-input" dir="ltr"
-                  value={p.phone || ''}
-                  onChange={(e) => updatePreset(i, { phone: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <button
-          type="button"
-          className="profile-add-btn"
-          onClick={() => setPrefs((p) => ({ ...p, engineerPresets: [...p.engineerPresets, emptyPreset()] }))}
-        >
-          + {lang === 'ar' ? 'إضافة قالب مهندس' : 'Add engineer preset'}
-        </button>
       </div>
 
       <div className="profile-actions">

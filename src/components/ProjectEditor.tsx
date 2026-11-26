@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { t, loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
 import { commitProjectFile, loadProjectForEdit } from '../data/project-file-edit';
-import { loadPrefs, defaultPrefs, preferredAuthorName, type AdminPrefs, type EngineerPreset } from '../data/admin-prefs';
+import { loadPrefs, defaultPrefs, preferredAuthorName, type AdminPrefs } from '../data/admin-prefs';
+import { loadDirectory, useStaff, type TeamMember } from '../data/team-directory';
+import StaffAccountSelect from './StaffAccountSelect';
 import { atForPickedDay, localToday } from '../data/time';
 import LocationPicker from './LocationPicker';
 import AccessNotice from './AccessNotice';
@@ -27,7 +29,15 @@ type Sub = {
 type Engineer = {
   name: Bilingual;
   role: Bilingual;
+  /** Optional public contact number */
   phone?: string;
+  /** Identity account that may post on the project */
+  userId?: string;
+  /**
+   * Legacy: an entry saved before accounts were linked by ID. Never shown or
+   * edited; kept on save only so that person keeps access until the
+   * "Link existing project teams" migration replaces it with a userId.
+   */
   email?: string;
 };
 
@@ -171,10 +181,25 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
     return () => { cancelled = true; };
   }, []);
 
-  // Load this admin's saved engineer presets once we know who they are.
+  // This person's display name (for authoring new entries).
   useEffect(() => {
     if (auth.kind === 'authenticated') setPrefs(loadPrefs(auth.user.email));
   }, [auth]);
+
+  // Team: the shared directory to pick members from, and the staff accounts
+  // a member can be linked to. Only for people who can edit projects.
+  const canEditTeam = auth.kind === 'authenticated' && can(auth.user, 'edit-projects');
+  const { state: staff, reload: reloadStaff } = useStaff(lang, canEditTeam);
+  const [directory, setDirectory] = useState<TeamMember[] | null>(null);
+  useEffect(() => {
+    if (!canEditTeam) return;
+    let cancelled = false;
+    loadDirectory().then(
+      (d) => { if (!cancelled) setDirectory(d.members); },
+      () => { if (!cancelled) setDirectory([]); },
+    );
+    return () => { cancelled = true; };
+  }, [canEditTeam]);
 
   // Once authenticated, load the LIVE project file (not just the SHA). This
   // matters because notes/updates added inline since the last build live only
@@ -206,6 +231,19 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         if (typeof live.budgetUSD === 'number') setRecordedBudget(live.budgetUSD);
         setState((s) => ({
           ...s,
+          // The team as it is in the repo: the build drops legacy emails,
+          // and saving without them would cut those engineers off.
+          engineers: Array.isArray(live.engineers)
+            ? (live.engineers as Array<Record<string, any>>)
+                .filter((x) => x && typeof x === 'object')
+                .map((x) => ({
+                  name: { ar: String(x.name?.ar ?? ''), en: String(x.name?.en ?? '') },
+                  role: { ar: String(x.role?.ar ?? ''), en: String(x.role?.en ?? '') },
+                  phone: typeof x.phone === 'string' ? x.phone : '',
+                  ...(typeof x.userId === 'string' && x.userId ? { userId: x.userId } : {}),
+                  ...(typeof x.email === 'string' && x.email && !x.userId ? { email: x.email } : {}),
+                }))
+            : s.engineers,
           comments: Array.isArray(live.comments) ? (live.comments as typeof s.comments) : s.comments,
           updates: Array.isArray(live.updates) ? (live.updates as typeof s.updates) : s.updates,
           budgetUSD: num(live.budgetUSD, s.budgetUSD),
@@ -339,7 +377,13 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       const lists: Array<[string, unknown[]]> = [
         ['subs', state.subs.filter((x) => hasText(x.title))],
         ['updates', state.updates.filter((x) => hasText(x.body))],
-        ['engineers', state.engineers.filter((x) => hasText(x.name))],
+        ['engineers', state.engineers.filter((x) => hasText(x.name)).map((x) => ({
+          name: x.name,
+          role: x.role,
+          ...(x.phone && x.phone.trim() ? { phone: x.phone.trim() } : {}),
+          // A linked account replaces any legacy email.
+          ...(x.userId ? { userId: x.userId } : x.email ? { email: x.email } : {}),
+        }))],
         ['comments', state.comments.filter((x) => hasText(x.body))],
       ];
       for (const [key, list] of lists) {
@@ -928,34 +972,34 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           {lang === 'ar' ? 'الفريق والمهندسون' : 'Engineers & team'}
         </h3>
 
-        {prefs.engineerPresets.length > 0 && (
+        {canEditTeam && (
           <div className="editor-preset-bar">
-            <span className="editor-preset-label">
-              {lang === 'ar' ? 'من القوالب المحفوظة:' : 'From your presets:'}
-            </span>
+            <span className="editor-preset-label">{t(lang, 'team_from_directory')}</span>
             <div className="editor-preset-chips">
-              {prefs.engineerPresets.map((p: EngineerPreset, i: number) => {
-                const label = (lang === 'ar' ? p.name.ar || p.name.en : p.name.en || p.name.ar) || '—';
-                return (
-                  <button
-                    type="button"
-                    key={i}
-                    className="editor-preset-chip"
-                    onClick={() => update('engineers', [
-                      ...state.engineers,
-                      {
-                        name: { ar: p.name.ar, en: p.name.en },
-                        role: { ar: p.role.ar, en: p.role.en },
-                        email: p.email || '',
-                        phone: p.phone || '',
-                      },
-                    ])}
-                  >
-                    + {label}
-                  </button>
-                );
-              })}
+              {directory === null && <span className="editor-field-hint">…</span>}
+              {directory !== null && directory.length === 0 && (
+                <span className="editor-field-hint">{t(lang, 'team_directory_none')}</span>
+              )}
+              {(directory || []).map((m) => (
+                <button
+                  type="button"
+                  key={m.id}
+                  className="editor-preset-chip"
+                  onClick={() => update('engineers', [
+                    ...state.engineers,
+                    {
+                      name: { ...m.name },
+                      role: { ...m.role },
+                      phone: m.phone || '',
+                      ...(m.userId ? { userId: m.userId } : {}),
+                    },
+                  ])}
+                >
+                  + {loc(lang, m.name) || '—'}
+                </button>
+              ))}
             </div>
+            <a className="team-link-btn" href={`${basePath}/admin/team/`}>{t(lang, 'team_dir_link')}</a>
           </div>
         )}
 
@@ -998,21 +1042,23 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
             />
             <div className="editor-row">
               <div className="editor-field editor-field-half">
-                <label>{lang === 'ar' ? 'البريد الإلكتروني (اختياري)' : 'Email (optional)'}</label>
-                <input
-                  type="email"
-                  className="editor-text-input"
-                  dir="ltr"
-                  value={e.email || ''}
-                  onChange={(ev) => {
+                <StaffAccountSelect
+                  lang={lang}
+                  staff={staff}
+                  onRetry={reloadStaff}
+                  value={e.userId}
+                  legacy={!!e.email}
+                  onChange={(userId) => {
                     const next = [...state.engineers];
-                    next[i] = { ...e, email: ev.target.value };
+                    const { email: _legacy, userId: _old, ...rest } = e;
+                    // Choosing (or clearing) the account replaces any legacy email.
+                    next[i] = userId ? { ...rest, userId } : rest;
                     update('engineers', next);
                   }}
                 />
               </div>
               <div className="editor-field editor-field-half">
-                <label>{lang === 'ar' ? 'الهاتف (اختياري)' : 'Phone (optional)'}</label>
+                <label>{t(lang, 'team_phone')}</label>
                 <input
                   type="tel"
                   className="editor-text-input"
@@ -1024,6 +1070,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                     update('engineers', next);
                   }}
                 />
+                <p className="editor-field-hint">{t(lang, 'team_phone_hint')}</p>
               </div>
             </div>
           </div>
@@ -1033,7 +1080,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           className="editor-add-btn"
           onClick={() => update('engineers', [
             ...state.engineers,
-            { name: { ar: '', en: '' }, role: { ar: '', en: '' }, email: '', phone: '' },
+            { name: { ar: '', en: '' }, role: { ar: '', en: '' }, phone: '' },
           ])}
         >
           + {lang === 'ar' ? 'إضافة عضو فريق' : 'Add team member'}

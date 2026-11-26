@@ -5,13 +5,15 @@
  *   read   { path }                      → { exists, sha, text }
  *   blob   { data, upload? }             → { sha }  (binary upload, in chunks when large)
  *   commit { message, changes: [...] }   → { commit, shas }
+ *   staff  { lang?, resolveEmails? }     → { staff: [{ id, name, roles }], matches? }
+ *          (edit-projects only; never returns an email address)
  *
  * Every action needs a signed-in Netlify Identity user with at least one
  * role; `commit` checks each change against the role rules in rules.ts.
  */
 import { authorize, classifyPath, RuleError, type FileChange } from './rules';
 import { GitHubError, type GitHub } from './github';
-import { rolesOf } from '../../src/data/roles';
+import { capsOf, rolesOf, type Role } from '../../src/data/roles';
 
 export type ServiceUser = {
   sub?: string;
@@ -26,6 +28,9 @@ export type ChunkStore = {
   get(key: string): Promise<string | null>;
   delete(key: string): Promise<void>;
 };
+
+/** Netlify Identity's admin API, from context.clientContext.identity. */
+export type IdentityAdmin = { url?: string; token?: string } | null | undefined;
 
 export type Reply = { status: number; body: Record<string, unknown> };
 
@@ -43,6 +48,8 @@ export async function handle(opts: {
   body: any;
   gh: GitHub;
   chunks: ChunkStore;
+  identity?: IdentityAdmin;
+  fetch?: typeof fetch;
 }): Promise<Reply> {
   const { user, body, gh, chunks } = opts;
   if (!user || !user.email) return fail(401, 'NOT_SIGNED_IN', 'Sign in to save changes.');
@@ -54,6 +61,7 @@ export async function handle(opts: {
       case 'read': return await read(gh, body);
       case 'blob': return await blob(gh, chunks, user, body);
       case 'commit': return await commit(gh, user, body);
+      case 'staff': return await staff(user, body, opts.identity, opts.fetch ?? fetch);
       default: return fail(400, 'BAD_REQUEST', 'Unknown action.');
     }
   } catch (e) {
@@ -192,4 +200,69 @@ async function commit(gh: GitHub, user: ServiceUser, body: any): Promise<Reply> 
     }
   }
   return fail(409, 'CONFLICT', 'The site is busy saving other changes. Try again in a moment.');
+}
+
+// ── Staff list (Netlify Identity admin API) ────────────────────────────
+
+const STAFF_ROLES: Role[] = ['engineer', 'project-manager'];
+const PER_PAGE = 100;
+const MAX_PAGES = 50;
+const MAX_RESOLVE = 500;
+
+/**
+ * The accounts a project manager can link to a team entry: everyone holding
+ * the engineer or project-manager role, as { id, name, roles }. Emails stay
+ * here: the repository and the site are public. `resolveEmails` (used once,
+ * to migrate team entries saved with an email) returns email → user ID for
+ * the addresses the caller already has from the project files.
+ */
+async function staff(user: ServiceUser, body: any, identity: IdentityAdmin, f: typeof fetch): Promise<Reply> {
+  if (!capsOf(user).has('edit-projects')) {
+    return fail(403, 'FORBIDDEN', 'Only project managers and administrators can see the staff list.');
+  }
+  const wanted = new Set<string>(
+    (Array.isArray(body.resolveEmails) ? body.resolveEmails : [])
+      .slice(0, MAX_RESOLVE)
+      .filter((e: unknown) => typeof e === 'string')
+      .map((e: string) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const unnamed = body.lang === 'ar' ? 'حساب بلا اسم' : 'Unnamed account';
+
+  if (!identity?.url || !identity.token) {
+    return fail(502, 'STAFF_UNAVAILABLE', "Couldn't load the staff list.");
+  }
+
+  const users: any[] = [];
+  try {
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const res = await f(`${identity.url.replace(/\/+$/, '')}/admin/users?page=${page}&per_page=${PER_PAGE}`, {
+        headers: { Authorization: `Bearer ${identity.token}` },
+      });
+      if (!res.ok) return fail(502, 'STAFF_UNAVAILABLE', "Couldn't load the staff list.");
+      const data: any = await res.json();
+      const batch: any[] = Array.isArray(data?.users) ? data.users : Array.isArray(data) ? data : [];
+      users.push(...batch);
+      if (batch.length < PER_PAGE) break;
+    }
+  } catch {
+    return fail(502, 'STAFF_UNAVAILABLE', "Couldn't load the staff list.");
+  }
+
+  const list: Array<{ id: string; name: string; roles: Role[] }> = [];
+  const matches: Record<string, string> = {};
+  for (const u of users) {
+    const id = typeof u?.id === 'string' ? u.id : '';
+    if (!id) continue;
+    const email = typeof u?.email === 'string' ? u.email.trim().toLowerCase() : '';
+    if (email && wanted.has(email)) matches[email] = id;
+    const roles = rolesOf(u).filter((r) => STAFF_ROLES.includes(r));
+    if (roles.length === 0) continue;
+    const n = typeof u?.user_metadata?.full_name === 'string' ? u.user_metadata.full_name.trim() : '';
+    // Only these three fields are copied: nothing else from the account
+    // (email, metadata, sign-in dates) leaves the service.
+    list.push({ id, name: n && !n.includes('@') ? n : unnamed, roles });
+  }
+  list.sort((a, b) => a.name.localeCompare(b.name, body.lang === 'ar' ? 'ar' : 'en'));
+  return ok(wanted.size ? { staff: list, matches } : { staff: list });
 }
