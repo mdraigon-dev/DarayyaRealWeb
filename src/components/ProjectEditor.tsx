@@ -71,6 +71,8 @@ export type ProjectFormState = {
   raisedUSD: number;
   /** Optional funding deadline, YYYY-MM-DD ('' = none) */
   deadline: string;
+  /** Government funding: a label and a public note (see src/data/gov-funding.ts) */
+  govFunding: { type: 'none' | 'partial' | 'full'; note: Bilingual };
   lat: number;
   lng: number;
   subs: Sub[];
@@ -370,6 +372,11 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       delete frontmatter.donors;
       delete frontmatter.daysLeft;
       if (state.deadline) frontmatter.deadline = state.deadline; else delete frontmatter.deadline;
+      if (state.govFunding.type === 'none') delete frontmatter.govFunding;
+      else frontmatter.govFunding = {
+        type: state.govFunding.type,
+        note: { ar: state.govFunding.note.ar.trim(), en: state.govFunding.note.en.trim() },
+      };
       // Lists this form manages: written when non-empty, removed when emptied.
       // Rows left blank are dropped rather than saved: an empty entry would
       // fail the site's content check and stop the next deploy.
@@ -811,6 +818,42 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                 : 'If set, the site shows the days remaining and keeps the count current.'}
             </p>
           </div>
+        </div>
+
+        <div className="editor-field">
+          <label>{t(lang, 'gov_editor_label')}</label>
+          <div className="gov-editor-choices" role="radiogroup" aria-label={t(lang, 'gov_editor_label')}>
+            {(['none', 'partial', 'full'] as const).map((v) => (
+              <label key={v} className={`gov-editor-choice${state.govFunding.type === v ? ' is-selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="gov-funding"
+                  value={v}
+                  checked={state.govFunding.type === v}
+                  onChange={() => update('govFunding', { ...state.govFunding, type: v })}
+                />
+                {t(lang, v === 'none' ? 'gov_editor_none' : v === 'partial' ? 'gov_editor_partial' : 'gov_editor_full')}
+              </label>
+            ))}
+          </div>
+          {state.govFunding.type !== 'none' && (
+            <div className="editor-row" style={{ marginTop: '0.75rem' }}>
+              {(['ar', 'en'] as const).map((l) => (
+                <div key={l} className="editor-field editor-field-half">
+                  <label>{t(lang, 'gov_editor_note')} — {l === 'ar' ? 'العربية' : 'English'}</label>
+                  <textarea
+                    className="editor-text-input"
+                    rows={2}
+                    dir={l === 'ar' ? 'rtl' : 'ltr'}
+                    placeholder={l === lang ? t(lang, 'gov_editor_note_ph') : undefined}
+                    value={state.govFunding.note[l]}
+                    onChange={(e) => update('govFunding', { ...state.govFunding, note: { ...state.govFunding.note, [l]: e.target.value } })}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="editor-field-hint">{t(lang, 'gov_editor_hint')}</p>
         </div>
       </div>
 

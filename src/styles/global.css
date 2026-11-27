@@ -6550,3 +6550,45 @@ time.timestamp { color: inherit; }
   }
   .nav-lang-mobile a.active { background: var(--sy-green-pale); color: var(--sy-green-dk); border-color: var(--sy-green-lt); }
 }
+
+/* ==================== GOVERNMENT FUNDING ==================== */
+.gov-badge {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  width: fit-content;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  font-size: calc(12px * var(--fs));
+  font-weight: 700;
+  line-height: 1.3;
+  background: var(--sy-gold-wash);
+  color: var(--sy-gold-dk);
+  border: 1px solid var(--sy-gold-lt);
+}
+.gov-badge svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.gov-badge--full { background: var(--sy-green-pale); color: var(--sy-green-dk); border-color: var(--sy-green-lt); }
+.project-card .gov-badge { margin: 0 0 0.6rem; }
+.detail-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+.gov-box {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--sy-gold-lt);
+  border-inline-start: 4px solid var(--sy-gold);
+  background: var(--sy-gold-wash);
+}
+.gov-box--full { border-color: var(--sy-green-lt); border-inline-start-color: var(--sy-green-dk); background: var(--sy-green-wash); }
+.gov-box-title { font-weight: 700; color: var(--sy-ink); margin-bottom: 0.25rem; }
+.gov-box-note { margin: 0 0 0.35rem; line-height: 1.7; color: var(--sy-ink-soft); white-space: pre-line; }
+.gov-box-sub { margin: 0; font-size: calc(13px * var(--fs)); color: var(--sy-muted); }
+.gov-editor-choices { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.gov-editor-choice {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--sy-rule);
+  border-radius: var(--r-md);
+  background: var(--sy-paper-pure);
+  cursor: pointer;
+  font-weight: 600;
+}
+.gov-editor-choice input { accent-color: var(--sy-green-dk); }
+.gov-editor-choice.is-selected { border-color: var(--sy-green-dk); background: var(--sy-green-wash); color: var(--sy-green-dk); }
