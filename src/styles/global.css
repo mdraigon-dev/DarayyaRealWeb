@@ -6580,6 +6580,11 @@ time.timestamp { color: inherit; }
 .gov-box-title { font-weight: 700; color: var(--sy-ink); margin-bottom: 0.25rem; }
 .gov-box-note { margin: 0 0 0.35rem; line-height: 1.7; color: var(--sy-ink-soft); white-space: pre-line; }
 .gov-box-sub { margin: 0; font-size: calc(13px * var(--fs)); color: var(--sy-muted); }
+/* Under the funding bar of a partly government-funded project */
+.donate-gov-breakdown { margin-top: 0.5rem; font-size: calc(13px * var(--fs)); color: var(--sy-ink-soft); }
+/* Government amount section in the admin funding panel */
+.fund-admin-gov { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--sy-rule); }
+.fund-admin-gov-head .fund-admin-current { margin: 0.4rem 0 0; }
 .gov-editor-choices { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .gov-editor-choice {
   display: inline-flex; align-items: center; gap: 0.4rem;

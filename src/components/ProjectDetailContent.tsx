@@ -17,7 +17,7 @@ import { formatAbsolute, daysUntil, useNow } from '../data/time';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { commitName } from '../data/admin-prefs';
-import { govFundingOf } from '../data/gov-funding';
+import { govFundingOf, govCoveredUSD, fundedUSD } from '../data/gov-funding';
 import GovFundingBadge from './GovFundingBadge';
 
 type Bilingual = { ar: string; en: string };
@@ -137,16 +137,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   const totalBudget = (liveSubs.length > 0)
     ? liveSubs.reduce((s, x) => s + x.budgetUSD, 0)
     : project.budgetUSD;
+
+  // Government funding counts towards the total shown (never added to the
+  // recorded contributions). Kept live so a saved amount shows at once.
+  const [liveGov, setLiveGov] = useState<unknown>(project.govFunding);
+  const govHolder = { govFunding: liveGov };
+  const gov = govFundingOf(govHolder);
+  const govCovered = govCoveredUSD(govHolder, totalBudget);
+  const displayedFunded = fundedUSD(govHolder, displayedRaised, totalBudget);
   const pct = Math.min(
     100,
-    Math.round((displayedRaised / Math.max(1, totalBudget)) * 100)
+    Math.round((displayedFunded / Math.max(1, totalBudget)) * 100)
   );
 
   // Effective display status: 'funding' that reached 100% reads as 'active'.
-  const gov = govFundingOf(project);
   const effStatus = displayStatus({
     status: project.status,
-    raisedUSD: displayedRaised,
+    raisedUSD: displayedFunded,
     budgetUSD: totalBudget,
   });
 
@@ -283,7 +290,10 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
             <div className="tree">
               {liveSubs.map((s, i) => {
-                const subDisplayedRaised = subRaisedDisplayed[s.id] ?? s.raisedUSD;
+                // A fully government-funded project shows every item funded.
+                const subDisplayedRaised = gov.type === 'full'
+                  ? Math.max(s.budgetUSD, subRaisedDisplayed[s.id] ?? s.raisedUSD)
+                  : subRaisedDisplayed[s.id] ?? s.raisedUSD;
                 const subPct = Math.min(
                   100,
                   Math.round((subDisplayedRaised / Math.max(1, s.budgetUSD)) * 100)
@@ -545,7 +555,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
           <div className="donate-card">
             <h3>{t(lang, 'contribute_title')}</h3>
             <div className="donate-stat">
-              <div className="donate-stat-big">{fmtMoney(lang, currency, displayedRaised)}</div>
+              <div className="donate-stat-big">{fmtMoney(lang, currency, displayedFunded)}</div>
               <div className="donate-stat-of">
                 {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, totalBudget)}</strong>
               </div>
@@ -555,13 +565,23 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 </div>
                 <div className="progress-meta">
                   <span className="progress-percent">{fmtNum(lang, pct)}%</span>
-                  {displayedRaised >= totalBudget && (
+                  {gov.type === 'full' ? (
+                    <span className="progress-amount">{t(lang, 'gov_bar_full')}</span>
+                  ) : displayedFunded >= totalBudget && (
                     <span className="progress-amount">
                       {lang === 'ar' ? '✓ مموّل بالكامل' : '✓ Fully funded'}
                     </span>
                   )}
                 </div>
               </div>
+              {gov.type === 'partial' && govCovered > 0 && (
+                <div className="donate-gov-breakdown">
+                  {t(lang, 'gov_breakdown', {
+                    gov: fmtMoney(lang, currency, govCovered),
+                    raised: fmtMoney(lang, currency, displayedRaised),
+                  })}
+                </div>
+              )}
             </div>
 
             {gov.type !== 'none' && (
@@ -598,7 +618,13 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               engineers={project.engineers || []}
               lang={lang}
               currency={currency}
+              govFunding={liveGov}
               onUpdated={handleFundsUpdated}
+              onGovUpdated={(amountUSD) => setLiveGov({
+                ...(liveGov && typeof liveGov === 'object' ? liveGov : {}),
+                type: 'partial',
+                amountUSD,
+              })}
             />
           </div>
         </div>

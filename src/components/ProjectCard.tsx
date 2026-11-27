@@ -1,6 +1,6 @@
 import { t, loc, fmtNum, fmtMoney, isAutoTranslated, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
-import { isFullyGovFunded } from '../data/gov-funding';
+import { isFullyGovFunded, withGovFunding } from '../data/gov-funding';
 import GovFundingBadge from './GovFundingBadge';
 
 type BilingualMaybeAuto = { ar: string; en?: string; en_auto?: boolean };
@@ -24,7 +24,9 @@ type Props = {
   currency: 'USD' | 'SYP';
 };
 
-export default function ProjectCard({ project, href, lang, currency }: Props) {
+export default function ProjectCard({ project: rawProject, href, lang, currency }: Props) {
+  // Government funding counts towards the bar (display only).
+  const project = withGovFunding(rawProject);
   const pct = Math.round((project.raisedUSD / project.budgetUSD) * 100);
   // Effective status: 'funding' that's at 100% reads as 'active' to visitors
   const effStatus = displayStatus(project);

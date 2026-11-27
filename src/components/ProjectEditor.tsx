@@ -10,6 +10,7 @@ import AccessNotice from './AccessNotice';
 import { can, type AuthUser } from '../data/permissions';
 import { saveErrorMessage, GitConflictError } from '../data/repo';
 import { identityStarted } from '../data/identity-ready';
+import { govFundingOf } from '../data/gov-funding';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -57,6 +58,12 @@ type Update = {
   body: Bilingual;
 };
 
+/** Government funding as it is in the repository now (see gov-funding.ts). */
+function liveGovFunding(raw: unknown): ProjectFormState['govFunding'] {
+  const g = govFundingOf({ govFunding: raw });
+  return { type: g.type, amountUSD: g.amountUSD, note: g.note };
+}
+
 export type ProjectFormState = {
   id: string;
   order: number;
@@ -72,7 +79,7 @@ export type ProjectFormState = {
   /** Optional funding deadline, YYYY-MM-DD ('' = none) */
   deadline: string;
   /** Government funding: a label and a public note (see src/data/gov-funding.ts) */
-  govFunding: { type: 'none' | 'partial' | 'full'; note: Bilingual };
+  govFunding: { type: 'none' | 'partial' | 'full'; amountUSD: number; note: Bilingual };
   lat: number;
   lng: number;
   subs: Sub[];
@@ -250,6 +257,8 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
           updates: Array.isArray(live.updates) ? (live.updates as typeof s.updates) : s.updates,
           budgetUSD: num(live.budgetUSD, s.budgetUSD),
           raisedUSD: num(live.raisedUSD, s.raisedUSD),
+          // Finance may have recorded a government amount since the last build.
+          govFunding: liveGovFunding(live.govFunding),
           subs: Array.isArray(live.subs)
             ? (live.subs as Array<Record<string, unknown>>).map((x, i) => {
                 const prev = s.subs.find((p) => p.id === x.id) || s.subs[i];
@@ -375,6 +384,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       if (state.govFunding.type === 'none') delete frontmatter.govFunding;
       else frontmatter.govFunding = {
         type: state.govFunding.type,
+        ...(state.govFunding.type === 'partial' && state.govFunding.amountUSD > 0 ? { amountUSD: state.govFunding.amountUSD } : {}),
         note: { ar: state.govFunding.note.ar.trim(), en: state.govFunding.note.en.trim() },
       };
       // Lists this form manages: written when non-empty, removed when emptied.
@@ -836,6 +846,20 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
               </label>
             ))}
           </div>
+          {state.govFunding.type === 'partial' && (
+            <div className="editor-field" style={{ marginTop: '0.75rem' }}>
+              <label>{t(lang, 'gov_editor_amount')}</label>
+              <input
+                type="number"
+                className="editor-text-input"
+                dir="ltr"
+                min={0}
+                step="any"
+                value={state.govFunding.amountUSD || ''}
+                onChange={(e) => update('govFunding', { ...state.govFunding, amountUSD: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </div>
+          )}
           {state.govFunding.type !== 'none' && (
             <div className="editor-row" style={{ marginTop: '0.75rem' }}>
               {(['ar', 'en'] as const).map((l) => (

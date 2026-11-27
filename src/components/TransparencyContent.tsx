@@ -6,7 +6,7 @@ import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
-import { govFundingOf } from '../data/gov-funding';
+import { govFundingOf, govCoveredUSD, withGovFunding } from '../data/gov-funding';
 import { formatFileSize, type Circular } from './CircularsContent';
 import AdminDeleteButton from './AdminDeleteButton';
 import { commitName } from '../data/admin-prefs';
@@ -36,7 +36,9 @@ type Props = {
  * actually published under Circulars (category "report"), and a CSV export.
  * Admins can delete a report here as on the Circulars page.
  */
-export default function TransparencyContent({ projects, documents = [], lang, basePath }: Props) {
+export default function TransparencyContent({ projects: rawProjects, documents = [], lang, basePath }: Props) {
+  // Government funding counts towards each project's bar and totals.
+  const projects = rawProjects.map(withGovFunding);
   const currency = 'USD' as const;
   const identity = useIdentity();
   const isAdmin = identity.kind === 'authenticated' && can(identity.user, 'delete-documents');
@@ -69,9 +71,12 @@ export default function TransparencyContent({ projects, documents = [], lang, ba
   // CSV of current project data, generated in the browser.
   const downloadProjectsCSV = () => {
     const headers = lang === 'ar'
-      ? ['المعرف', 'العنوان', 'القطاع', 'الموقع', 'الحالة', 'الميزانية USD', 'المحصّل USD', 'النسبة %', 'المتبقّي USD', 'آخر تحديث', 'الموعد النهائي', 'التمويل الحكومي', 'ملاحظة التمويل الحكومي']
-      : ['ID', 'Title', 'Category', 'Location', 'Status', 'Budget USD', 'Raised USD', 'Percent %', 'Still needed USD', 'Last update', 'Deadline', 'Government funding', 'Government funding note'];
-    const rows = projects.map((p) => {
+      ? ['المعرف', 'العنوان', 'القطاع', 'الموقع', 'الحالة', 'الميزانية USD', 'المحصّل USD', 'النسبة %', 'المتبقّي USD', 'آخر تحديث', 'الموعد النهائي', 'التمويل الحكومي', 'المبلغ الحكومي USD', 'ملاحظة التمويل الحكومي']
+      : ['ID', 'Title', 'Category', 'Location', 'Status', 'Budget USD', 'Raised USD', 'Percent %', 'Still needed USD', 'Last update', 'Deadline', 'Government funding', 'Government amount USD', 'Government funding note'];
+    // "Raised" stays the recorded contributions; percent and still-needed
+    // count the government's share, which has its own column.
+    const rows = rawProjects.map((raw) => {
+      const p = withGovFunding(raw);
       const pct = p.budgetUSD > 0 ? Math.round((p.raisedUSD / p.budgetUSD) * 100) : 0;
       return [
         p.id,
@@ -80,12 +85,13 @@ export default function TransparencyContent({ projects, documents = [], lang, ba
         loc(lang, p.location),
         displayStatus(p),
         String(p.budgetUSD),
-        String(p.raisedUSD),
+        String(raw.raisedUSD),
         String(pct),
         String(Math.max(0, p.budgetUSD - p.raisedUSD)),
         (lastActivityAt(p) || '').slice(0, 10),
         p.deadline || '',
         (() => { const g = govFundingOf(p); return g.type === 'none' ? '' : t(lang, g.type === 'full' ? 'gov_badge_full' : 'gov_badge_partial'); })(),
+        (() => { const g = govCoveredUSD(raw, raw.budgetUSD); return g > 0 ? String(g) : ''; })(),
         (() => { const g = govFundingOf(p); return g.type === 'none' ? '' : loc(lang, g.note); })(),
       ];
     });

@@ -40,6 +40,7 @@ const initial = {
   deadline: project.deadline ?? '',
   govFunding: {
     type: (project as any).govFunding?.type === 'full' || (project as any).govFunding?.type === 'partial' ? (project as any).govFunding.type : 'none',
+    amountUSD: Number((project as any).govFunding?.amountUSD) > 0 ? Number((project as any).govFunding.amountUSD) : 0,
     note: fixBilingual((project as any).govFunding?.note ?? { ar: '', en: '' }),
   },
   updates: fixList(project.updates, (u: any) => ({
