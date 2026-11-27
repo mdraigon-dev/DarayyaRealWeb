@@ -93,7 +93,7 @@ export function can(user: RoleUser, cap: Capability): boolean {
  * project file contains `email:` under engineers, set this to false (and
  * delete it): see docs/ROLES.md.
  */
-export const LEGACY_EMAIL_MATCH = true;
+export const LEGACY_EMAIL_MATCH = false;
 
 /** The account's Identity user ID: `sub` in the save service, `id` in the browser. */
 export function userIdOf(user: RoleUser): string {

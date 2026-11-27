@@ -6597,3 +6597,13 @@ time.timestamp { color: inherit; }
 }
 .gov-editor-choice input { accent-color: var(--sy-green-dk); }
 .gov-editor-choice.is-selected { border-color: var(--sy-green-dk); background: var(--sy-green-wash); color: var(--sy-green-dk); }
+
+/* Two-part bars: the government's share (gold), then contributions (green). */
+.tree-mini-progress, .progress-track--split { display: flex; }
+.tree-mini-fill { flex-shrink: 0; }
+.tree-mini-fill--gov, .progress-fill--gov { background: var(--sy-gold); }
+.tree-mini-progress .tree-mini-fill + .tree-mini-fill,
+.progress-track--split .progress-fill + .progress-fill { border-start-start-radius: 0; border-end-start-radius: 0; margin-inline-start: 2px; }
+.tree-mini-progress .tree-mini-fill--gov,
+.progress-track--split .progress-fill--gov { border-start-end-radius: 0; border-end-end-radius: 0; }
+.tree-node-gov { font-size: calc(12px * var(--fs)); color: var(--sy-muted); margin-top: 0.15rem; }

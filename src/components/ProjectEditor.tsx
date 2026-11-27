@@ -10,7 +10,7 @@ import AccessNotice from './AccessNotice';
 import { can, type AuthUser } from '../data/permissions';
 import { saveErrorMessage, GitConflictError } from '../data/repo';
 import { identityStarted } from '../data/identity-ready';
-import { govFundingOf } from '../data/gov-funding';
+import { govFundingOf, govBySub, hasItemShares } from '../data/gov-funding';
 
 // ────────────────────────────────────────────────────────────────────
 // Types — mirror the Zod schema so the form state matches what gets
@@ -25,6 +25,8 @@ type Sub = {
   length: Bilingual;
   budgetUSD: number;
   raisedUSD: number;
+  /** Government's share of this item (partly government-funded projects) */
+  govUSD?: number;
 };
 
 type Engineer = {
@@ -62,6 +64,18 @@ type Update = {
 function liveGovFunding(raw: unknown): ProjectFormState['govFunding'] {
   const g = govFundingOf({ govFunding: raw });
   return { type: g.type, amountUSD: g.amountUSD, note: g.note };
+}
+
+/**
+ * An older project holds its government amount only for the whole project.
+ * Show it spread over the line items (as the project page does), so saving
+ * stores the share per item.
+ */
+function withItemShares(st: ProjectFormState): ProjectFormState {
+  if (st.govFunding.type !== 'partial' || st.subs.length === 0 || hasItemShares(st)) return st;
+  if (!(st.govFunding.amountUSD > 0)) return st;
+  const shares = govBySub(st);
+  return { ...st, subs: st.subs.map((x) => ({ ...x, govUSD: shares[x.id] || 0 })) };
 }
 
 export type ProjectFormState = {
@@ -141,7 +155,7 @@ const CATEGORY_OPTIONS: Array<{ value: ProjectFormState['category']; ar: string;
 // ────────────────────────────────────────────────────────────────────
 
 export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew = false }: Props) {
-  const [state, setState] = useState<ProjectFormState>(initial);
+  const [state, setState] = useState<ProjectFormState>(() => withItemShares(initial));
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   // The total as written in the project file, kept only to spot a total that
@@ -238,7 +252,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
         // the build would quietly undo them.
         const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
         if (typeof live.budgetUSD === 'number') setRecordedBudget(live.budgetUSD);
-        setState((s) => ({
+        setState((s) => withItemShares({
           ...s,
           // The team as it is in the repo: the build drops legacy emails,
           // and saving without them would cut those engineers off.
@@ -272,6 +286,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                   length: bl(x.length),
                   budgetUSD: num(x.budgetUSD, prev?.budgetUSD ?? 0),
                   raisedUSD: num(x.raisedUSD, prev?.raisedUSD ?? 0),
+                  govUSD: num(x.govUSD, 0) || undefined,
                 };
               })
             : s.subs,
@@ -291,6 +306,7 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
   // shows them read-only and writes them on save, so the list, the map and
   // the project page can never disagree again.
   const hasSubs = state.subs.length > 0;
+  const govItemsTotal = state.subs.reduce((a, x) => a + (x.govUSD || 0), 0);
   const subsBudget = state.subs.reduce((a, x) => a + (x.budgetUSD || 0), 0);
   const subsRaised = state.subs.reduce((a, x) => a + (x.raisedUSD || 0), 0);
   const totalBudget = hasSubs ? subsBudget : state.budgetUSD;
@@ -381,10 +397,14 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       delete frontmatter.donors;
       delete frontmatter.daysLeft;
       if (state.deadline) frontmatter.deadline = state.deadline; else delete frontmatter.deadline;
+      // With line items, the government's share is saved per item and the
+      // project amount is their total (like the budget).
+      const itemShares = state.govFunding.type === 'partial' && state.subs.length > 0;
+      const govAmount = itemShares ? govItemsTotal : state.govFunding.amountUSD;
       if (state.govFunding.type === 'none') delete frontmatter.govFunding;
       else frontmatter.govFunding = {
         type: state.govFunding.type,
-        ...(state.govFunding.type === 'partial' && state.govFunding.amountUSD > 0 ? { amountUSD: state.govFunding.amountUSD } : {}),
+        ...(state.govFunding.type === 'partial' && govAmount > 0 ? { amountUSD: govAmount } : {}),
         note: { ar: state.govFunding.note.ar.trim(), en: state.govFunding.note.en.trim() },
       };
       // Lists this form manages: written when non-empty, removed when emptied.
@@ -392,7 +412,9 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
       // fail the site's content check and stop the next deploy.
       const hasText = (b?: { ar?: string; en?: string }) => !!((b?.ar || '').trim() || (b?.en || '').trim());
       const lists: Array<[string, unknown[]]> = [
-        ['subs', state.subs.filter((x) => hasText(x.title))],
+        ['subs', state.subs.filter((x) => hasText(x.title)).map(({ govUSD, ...x }) => (
+          itemShares && (govUSD || 0) > 0 ? { ...x, govUSD } : x
+        ))],
         ['updates', state.updates.filter((x) => hasText(x.body))],
         ['engineers', state.engineers.filter((x) => hasText(x.name)).map((x) => ({
           name: x.name,
@@ -846,7 +868,13 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
               </label>
             ))}
           </div>
-          {state.govFunding.type === 'partial' && (
+          {state.govFunding.type === 'partial' && state.subs.length > 0 && (
+            <p className="editor-field-hint" style={{ marginTop: '0.75rem' }}>
+              <strong>{t(lang, 'gov_editor_items_total', { amount: fmtMoney(lang, 'USD', govItemsTotal) })}</strong>
+              {' — '}{lang === 'ar' ? 'أدخل حصة الحكومة لكل بند في قسم البنود الفرعية أدناه.' : "Enter the government's share for each line item in the sub-projects section below."}
+            </p>
+          )}
+          {state.govFunding.type === 'partial' && state.subs.length === 0 && (
             <div className="editor-field" style={{ marginTop: '0.75rem' }}>
               <label>{t(lang, 'gov_editor_amount')}</label>
               <input
@@ -1012,6 +1040,32 @@ export default function ProjectEditor({ initial, lang, basePath, returnTo, isNew
                 />
               </div>
             </div>
+            {state.govFunding.type === 'partial' && (
+              <div className="editor-row">
+                <div className="editor-field editor-field-half">
+                  <label>{t(lang, 'gov_editor_item_share')}</label>
+                  <input
+                    type="number"
+                    className="editor-number-input"
+                    min={0}
+                    max={Math.max(0, s.budgetUSD - s.raisedUSD)}
+                    value={s.govUSD || ''}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const next = [...state.subs];
+                      const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+                      next[i] = { ...s, govUSD: Math.min(v, Math.max(0, s.budgetUSD - s.raisedUSD)) };
+                      update('subs', next);
+                    }}
+                  />
+                  <p className="editor-field-hint">
+                    {lang === 'ar'
+                      ? `حتى ${fmtMoney(lang, 'USD', Math.max(0, s.budgetUSD - s.raisedUSD))} (الميزانية ناقص المساهمات المسجّلة).`
+                      : `Up to ${fmtMoney(lang, 'USD', Math.max(0, s.budgetUSD - s.raisedUSD))} (budget minus recorded contributions).`}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <button

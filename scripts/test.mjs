@@ -12,6 +12,12 @@ mkdirSync(out, { recursive: true });
 const entries = readdirSync('tests').filter((f) => f.endsWith('.test.ts')).map((f) => join('tests', f));
 await build({ entryPoints: entries, outdir: out, bundle: true, platform: 'node', format: 'esm', outExtension: { '.js': '.mjs' }, packages: 'external', logLevel: 'warning' });
 const files = readdirSync(out).map((f) => join(out, f));
-const r = spawnSync(process.execPath, ['--test', ...files], { stdio: 'inherit' });
+// Each bundle is run directly (node:test reports on its own). Newer Node
+// versions skip paths under node_modules when given to `node --test`.
+let status = 0;
+for (const f of files) {
+  const r = spawnSync(process.execPath, [f], { stdio: 'inherit' });
+  if (r.status !== 0) status = r.status ?? 1;
+}
 rmSync(out, { recursive: true, force: true });
-process.exit(r.status ?? 1);
+process.exit(status);

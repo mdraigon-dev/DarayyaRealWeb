@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
 import { addProjectFunds, setGovFundingAmount } from '../data/project-file-edit';
-import { govFundingOf, govCoveredUSD } from '../data/gov-funding';
+import { govFundingOf, govCoveredUSD, govBySub } from '../data/gov-funding';
 import { can, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 import { commitName } from '../data/admin-prefs';
@@ -15,7 +15,7 @@ declare global {
 }
 
 type Bilingual = { ar: string; en: string };
-type FundSub = { id: string; title: Bilingual; budgetUSD: number; raisedUSD: number };
+type FundSub = { id: string; title: Bilingual; budgetUSD: number; raisedUSD: number; govUSD?: number };
 
 type Props = {
   projectId: string;
@@ -32,7 +32,7 @@ type Props = {
   /** Called after a successful commit so the page can update its totals now */
   onUpdated: (r: { subId?: string; amount: number }) => void;
   /** Called after the government amount is saved */
-  onGovUpdated?: (amountUSD: number) => void;
+  onGovUpdated?: (r: { subId?: string; amountUSD: number }) => void;
 };
 
 type AuthState =
@@ -66,6 +66,7 @@ export default function AdminFundUpdater({
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const hasSubs = subs.length > 0;
   const [target, setTarget] = useState<string>(hasSubs ? subs[0].id : '');
+  const [govTarget, setGovTarget] = useState<string>(hasSubs ? subs[0].id : '');
   const [amount, setAmount] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
@@ -96,7 +97,8 @@ export default function AdminFundUpdater({
   // Keep a valid default target if the subs list changes.
   useEffect(() => {
     if (hasSubs && !subs.some((s) => s.id === target)) setTarget(subs[0].id);
-  }, [subs, hasSubs, target]);
+    if (hasSubs && !subs.some((s) => s.id === govTarget)) setGovTarget(subs[0].id);
+  }, [subs, hasSubs, target, govTarget]);
 
   if (auth.kind !== 'authenticated') return null;
   // Funds are admin-only (money is sensitive) — engineers-of-project can post
@@ -122,7 +124,9 @@ export default function AdminFundUpdater({
   const currentRaised = hasSubs
     ? subs.reduce((a, s) => a + s.raisedUSD, 0)
     : projectRaisedUSD;
-  const govCovered = govCoveredUSD({ govFunding }, totalBudgetUSD);
+  const govCovered = govCoveredUSD({ govFunding, subs }, totalBudgetUSD);
+  // The government's share of each line item (see src/data/gov-funding.ts).
+  const govItems = govBySub({ govFunding, subs });
   // What contributions can still add to the whole project once the
   // government's share is counted.
   const projectRoom = Math.max(0, totalBudgetUSD - govCovered - currentRaised);
@@ -134,7 +138,7 @@ export default function AdminFundUpdater({
   const remaining = Math.min(projectRoom, Math.max(
     0,
     targetSub
-      ? targetSub.budgetUSD - targetSub.raisedUSD
+      ? targetSub.budgetUSD - targetSub.raisedUSD - (govItems[targetSub.id] || 0)
       : totalBudgetUSD - projectRaisedUSD,
   ));
   const fullyFunded = remaining <= 0;
@@ -204,11 +208,16 @@ export default function AdminFundUpdater({
       setGovSave({ kind: 'error', message: t(lang, 'fund_invalid') });
       return;
     }
-    if (!canEditProject && amt <= gov.amountUSD) {
-      setGovSave({ kind: 'error', message: t(lang, 'fund_gov_must_increase', { current: fmtMoney(lang, currency, gov.amountUSD) }) });
+    // With line items the amount is the chosen item's share.
+    const govSub = hasSubs ? subs.find((s) => s.id === govTarget) : undefined;
+    const currentShare = govSub ? (govItems[govSub.id] || 0) : gov.amountUSD;
+    if (!canEditProject && amt <= currentShare) {
+      setGovSave({ kind: 'error', message: t(lang, 'fund_gov_must_increase', { current: fmtMoney(lang, currency, currentShare) }) });
       return;
     }
-    const govMax = Math.max(0, totalBudgetUSD - currentRaised);
+    const govMax = govSub
+      ? Math.max(0, govSub.budgetUSD - govSub.raisedUSD)
+      : Math.max(0, totalBudgetUSD - currentRaised);
     if (amt > govMax) {
       setGovSave({ kind: 'error', message: t(lang, 'fund_gov_exceeds', { max: fmtMoney(lang, currency, govMax) }) });
       return;
@@ -216,8 +225,9 @@ export default function AdminFundUpdater({
     setGovSave({ kind: 'saving' });
     try {
       const message = `Update government funding: $${amt} on ${projectId} by ${commitName(auth.user)}`;
-      await setGovFundingAmount({ projectId, amountUSD: amt, message });
-      onGovUpdated?.(amt);
+      const subId = govSub?.id;
+      await setGovFundingAmount({ projectId, subId, amountUSD: amt, message });
+      onGovUpdated?.({ subId, amountUSD: amt });
       setGovSave({ kind: 'idle' });
       setGovAmount('');
       setGovFlash(true);
@@ -265,7 +275,7 @@ export default function AdminFundUpdater({
             >
               {subs.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {loc(lang, s.title)} — {fmtMoney(lang, currency, s.raisedUSD)} / {fmtMoney(lang, currency, s.budgetUSD)}
+                  {loc(lang, s.title)} — {fmtMoney(lang, currency, s.raisedUSD + (govItems[s.id] || 0))} / {fmtMoney(lang, currency, s.budgetUSD)}
                 </option>
               ))}
             </select>
@@ -327,13 +337,30 @@ export default function AdminFundUpdater({
           <strong>{t(lang, 'fund_gov_title')}</strong>
           <div className="fund-admin-sub">{t(lang, 'fund_gov_hint')}</div>
           <div className="fund-admin-current">
-            {gov.type === 'partial' && gov.amountUSD > 0
-              ? t(lang, 'fund_gov_current', { amount: fmtMoney(lang, currency, gov.amountUSD) })
+            {gov.type === 'partial' && govCovered > 0
+              ? t(lang, 'fund_gov_current', { amount: fmtMoney(lang, currency, govCovered) })
               : t(lang, 'fund_gov_none')}
           </div>
         </div>
+        {hasSubs && (
+          <label className="fund-admin-field">
+            <span>{t(lang, 'fund_target_label')}</span>
+            <select
+              className="fund-admin-select"
+              value={govTarget}
+              onChange={(e) => { setGovTarget(e.target.value); setGovSave({ kind: 'idle' }); }}
+              disabled={govSave.kind === 'saving'}
+            >
+              {subs.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {loc(lang, s.title)} — {t(lang, 'fund_gov_item_share', { amount: fmtMoney(lang, currency, govItems[s.id] || 0) })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="fund-admin-field">
-          <span>{t(lang, 'fund_gov_amount_label')}</span>
+          <span>{t(lang, hasSubs ? 'fund_gov_item_amount_label' : 'fund_gov_amount_label')}</span>
           <input
             type="number"
             className="fund-admin-input"

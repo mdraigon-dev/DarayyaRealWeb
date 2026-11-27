@@ -328,3 +328,73 @@ test('government funding: the government amount plus contributions cannot pass t
   assert.equal(r.status, 422);
   assert.equal(r.body.error, 'EXCEEDS_BUDGET');
 });
+
+// ── Government share per line item ──────────────────────────────────────
+import { govBySub, splitByNeed } from '../src/data/gov-funding';
+
+test('government share: an older project amount is spread over items by what each still needs', () => {
+  const subs = [
+    { id: 'a', budgetUSD: 28000, raisedUSD: 5500 },
+    { id: 'b', budgetUSD: 18000, raisedUSD: 3000 },
+    { id: 'c', budgetUSD: 12000, raisedUSD: 1200 },
+  ];
+  const shares = govBySub({ govFunding: { type: 'partial', amountUSD: 30000 }, subs });
+  assert.equal(Object.values(shares).reduce((a, b) => a + b, 0), 30000);
+  for (const s of subs) assert.ok(s.raisedUSD + shares[s.id] <= s.budgetUSD);
+  assert.ok(shares.a > shares.b && shares.b > shares.c);
+  assert.deepEqual(splitByNeed(subs, 999999), { a: 22500, b: 15000, c: 10800 });
+});
+
+test('government share: saved per-item shares are used as they are; full covers what each item needs', () => {
+  const subs = [
+    { id: 'a', budgetUSD: 1000, raisedUSD: 100, govUSD: 400 },
+    { id: 'b', budgetUSD: 500, raisedUSD: 0 },
+  ];
+  assert.deepEqual(govBySub({ govFunding: { type: 'partial', amountUSD: 400 }, subs }), { a: 400, b: 0 });
+  assert.deepEqual(govBySub({ govFunding: { type: 'full' }, subs }), { a: 900, b: 500 });
+});
+
+/** A project with two line items (a: 600 budget, 100 raised; b: 400 budget). */
+function withItems(gov: string, a: string = '', b: string = '', raisedA = 100, logA = ''): string {
+  return project(LINKED_TEAM)
+    .replace('budgetUSD: 1000\nraisedUSD: 0\n', `budgetUSD: 1000\nraisedUSD: ${raisedA}\n${gov ? `govFunding: ${gov}\n` : ''}${logA}subs:
+  - { id: "a", title: { ar: "أ", en: "A" }, budgetUSD: 600, raisedUSD: ${raisedA}${a} }
+  - { id: "b", title: { ar: "ب", en: "B" }, budgetUSD: 400, raisedUSD: 0${b} }
+`);
+}
+
+test('government share per item: Finance can raise one item on an older file (spread saved per item)', async () => {
+  // Older file: 300 for the project. Spread by need (500 / 400): a 167, b 133.
+  const before = withItems('{ type: "partial", amountUSD: 300 }');
+  const after = withItems('{ type: "partial", amountUSD: 333 }', ', govUSD: 200', ', govUSD: 133');
+  const { r } = await saveAs(finance, before, after);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+});
+
+test('government share per item: Finance cannot move money from one item to another', async () => {
+  const before = withItems('{ type: "partial", amountUSD: 300 }', ', govUSD: 200', ', govUSD: 100');
+  const after = withItems('{ type: "partial", amountUSD: 350 }', ', govUSD: 300', ', govUSD: 50');
+  const { r } = await saveAs(finance, before, after);
+  assert.equal(r.status, 403);
+  const pmSave = await saveAs(pm, before, after);
+  assert.equal(pmSave.r.status, 200, 'a project manager may re-allocate');
+});
+
+test('government share per item: an item cannot be funded past its own budget', async () => {
+  const before = withItems('{ type: "partial", amountUSD: 100 }', ', govUSD: 100', '');
+  const after = withItems('{ type: "partial", amountUSD: 501 }', ', govUSD: 501', '');
+  const { r } = await saveAs(finance, before, after);
+  assert.equal(r.status, 422);
+  assert.equal(r.body.error, 'EXCEEDS_BUDGET');
+});
+
+test('government share per item: a contribution cannot take an item past its budget', async () => {
+  const log = (n: number) => `fundLog:\n  - { at: "2026-11-27T10:00:00.000Z", amountUSD: ${n}, subId: "a" }\n`;
+  const before = withItems('{ type: "partial", amountUSD: 450 }', ', govUSD: 450', '', 100, '');
+  const ok = withItems('{ type: "partial", amountUSD: 450 }', ', govUSD: 450', '', 150, log(50));
+  assert.equal((await saveAs(finance, before, ok)).r.status, 200);
+  const over = withItems('{ type: "partial", amountUSD: 450 }', ', govUSD: 450', '', 151, log(51));
+  const { r } = await saveAs(finance, before, over);
+  assert.equal(r.status, 422);
+  assert.equal(r.body.error, 'EXCEEDS_BUDGET');
+});

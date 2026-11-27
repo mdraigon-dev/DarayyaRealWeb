@@ -17,7 +17,7 @@ import { formatAbsolute, daysUntil, useNow } from '../data/time';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { commitName } from '../data/admin-prefs';
-import { govFundingOf, govCoveredUSD, fundedUSD } from '../data/gov-funding';
+import { govFundingOf, govCoveredUSD, fundedUSD, govBySub } from '../data/gov-funding';
 import GovFundingBadge from './GovFundingBadge';
 
 type Bilingual = { ar: string; en: string };
@@ -27,6 +27,8 @@ type Sub = {
   length: Bilingual;
   budgetUSD: number;
   raisedUSD: number;
+  /** Government's share of this item (see src/data/gov-funding.ts) */
+  govUSD?: number;
 };
 // `at` is the real timestamp; `date` is legacy free text kept only as a fallback.
 type Update = { at?: string; date?: Bilingual; author: Bilingual; body: Bilingual };
@@ -141,9 +143,13 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   // Government funding counts towards the total shown (never added to the
   // recorded contributions). Kept live so a saved amount shows at once.
   const [liveGov, setLiveGov] = useState<unknown>(project.govFunding);
-  const govHolder = { govFunding: liveGov };
+  const govHolder = { govFunding: liveGov, subs: liveSubs };
   const gov = govFundingOf(govHolder);
   const govCovered = govCoveredUSD(govHolder, totalBudget);
+  // Each line item's government share, so the items add up to the total.
+  const govItems = govBySub(govHolder);
+  // Bar segments: the government's share, then contributions.
+  const govPct = Math.min(100, Math.round((Math.min(govCovered, totalBudget) / Math.max(1, totalBudget)) * 100));
   const displayedFunded = fundedUSD(govHolder, displayedRaised, totalBudget);
   const pct = Math.min(
     100,
@@ -290,14 +296,16 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
             </div>
             <div className="tree">
               {liveSubs.map((s, i) => {
-                // A fully government-funded project shows every item funded.
-                const subDisplayedRaised = gov.type === 'full'
-                  ? Math.max(s.budgetUSD, subRaisedDisplayed[s.id] ?? s.raisedUSD)
-                  : subRaisedDisplayed[s.id] ?? s.raisedUSD;
+                // Contributions recorded on this item, plus its government share
+                // (on a fully government-funded project: whatever it still needs).
+                const subContrib = subRaisedDisplayed[s.id] ?? s.raisedUSD;
+                const subGov = Math.min(govItems[s.id] || 0, Math.max(0, s.budgetUSD - subContrib));
+                const subDisplayedRaised = subContrib + subGov;
                 const subPct = Math.min(
                   100,
                   Math.round((subDisplayedRaised / Math.max(1, s.budgetUSD)) * 100)
                 );
+                const subGovPct = Math.min(subPct, Math.round((subGov / Math.max(1, s.budgetUSD)) * 100));
                 const isLast = i === liveSubs.length - 1;
                 return (
                   <div key={s.id} className={`tree-node ${isLast ? 'last' : 'continues'}`}>
@@ -309,13 +317,22 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                           <div className="tree-node-meta">
                             {loc(lang, s.length)} • {t(lang, 'hierarchy_collected')} {fmtNum(lang, subPct)}%
                           </div>
+                          {subGov > 0 && gov.type === 'partial' && (
+                            <div className="tree-node-gov">
+                              {t(lang, 'gov_breakdown', {
+                                gov: fmtMoney(lang, currency, subGov),
+                                raised: fmtMoney(lang, currency, subContrib),
+                              })}
+                            </div>
+                          )}
                         </div>
                         <div className="tree-node-amount">
                           {fmtMoney(lang, currency, subDisplayedRaised)} / {fmtMoney(lang, currency, s.budgetUSD)}
                         </div>
                       </div>
                       <div className="tree-mini-progress">
-                        <div className="tree-mini-fill" style={{ width: `${subPct}%` }}></div>
+                        {subGovPct > 0 && <div className="tree-mini-fill tree-mini-fill--gov" style={{ width: `${subGovPct}%` }}></div>}
+                        <div className="tree-mini-fill" style={{ width: `${subPct - subGovPct}%` }}></div>
                       </div>
                     </div>
                   </div>
@@ -560,8 +577,11 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
                 {t(lang, 'donate_raised_of')} <strong>{fmtMoney(lang, currency, totalBudget)}</strong>
               </div>
               <div className="progress" style={{ marginTop: '0.75rem' }}>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${pct}%` }}></div>
+                <div className="progress-track progress-track--split">
+                  {gov.type === 'partial' && govPct > 0 && (
+                    <div className="progress-fill progress-fill--gov" style={{ width: `${Math.min(govPct, pct)}%` }}></div>
+                  )}
+                  <div className="progress-fill" style={{ width: `${gov.type === 'partial' ? Math.max(0, pct - Math.min(govPct, pct)) : pct}%` }}></div>
                 </div>
                 <div className="progress-meta">
                   <span className="progress-percent">{fmtNum(lang, pct)}%</span>
@@ -620,11 +640,24 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               currency={currency}
               govFunding={liveGov}
               onUpdated={handleFundsUpdated}
-              onGovUpdated={(amountUSD) => setLiveGov({
-                ...(liveGov && typeof liveGov === 'object' ? liveGov : {}),
-                type: 'partial',
-                amountUSD,
-              })}
+              onGovUpdated={({ subId, amountUSD }) => {
+                if (subId) {
+                  // Same as the saved file: freeze the current spread, then set this item.
+                  const next = liveSubs.map((s) => ({ ...s, govUSD: s.id === subId ? amountUSD : (govItems[s.id] || 0) }));
+                  setLiveSubs(next);
+                  setLiveGov({
+                    ...(liveGov && typeof liveGov === 'object' ? liveGov : {}),
+                    type: 'partial',
+                    amountUSD: next.reduce((a, s) => a + (s.govUSD || 0), 0),
+                  });
+                } else {
+                  setLiveGov({
+                    ...(liveGov && typeof liveGov === 'object' ? liveGov : {}),
+                    type: 'partial',
+                    amountUSD,
+                  });
+                }
+              }}
             />
           </div>
         </div>

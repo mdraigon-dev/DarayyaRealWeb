@@ -98,6 +98,8 @@ const projectCollection = defineCollection({
         length: bilingualLabel,
         budgetUSD: z.number().min(0),
         raisedUSD: z.number().min(0),
+        /** Government's share of this item (partly government-funded projects) */
+        govUSD: z.number().min(0).optional(),
       })
     ).default([]),
 
@@ -168,8 +170,14 @@ const projectCollection = defineCollection({
     // total edited on its own (e.g. in /admin/ CMS) used to show on the list
     // and map but not on the project page.
     if (p.subs.length === 0) return p;
+    // Same for the government's share once it's saved per item.
+    const itemGov = p.subs.reduce((a, s) => a + (s.govUSD || 0), 0);
+    const govFunding = p.govFunding?.type === 'partial' && itemGov > 0
+      ? { ...p.govFunding, amountUSD: itemGov }
+      : p.govFunding;
     return {
       ...p,
+      govFunding,
       budgetUSD: p.subs.reduce((a, s) => a + s.budgetUSD, 0),
       raisedUSD: p.subs.reduce((a, s) => a + s.raisedUSD, 0),
     };
