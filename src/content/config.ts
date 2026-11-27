@@ -72,6 +72,14 @@ const projectCollection = defineCollection({
     raisedUSD: z.number().min(0),
     /** Optional funding deadline (YYYY-MM-DD); days left is computed live. */
     deadline: isoAt.optional(),
+    /**
+     * Government funding (absent = none). A label with an explanatory note;
+     * it doesn't change budgetUSD or raisedUSD. See src/data/gov-funding.ts.
+     */
+    govFunding: z.object({
+      type: z.enum(['none', 'partial', 'full']).catch('none'),
+      note: bilingualLabel.optional(),
+    }).optional(),
     // Legacy fields from the online-donation era — no longer read or shown.
     donors: z.number().int().min(0).default(0),
     daysLeft: z.number().int().min(0).default(0),

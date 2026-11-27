@@ -6,6 +6,7 @@ import { can } from '../data/permissions';
 import { useIdentity } from '../data/use-identity';
 import { deleteDocument } from '../data/documents';
 import { formatAbsolute } from '../data/time';
+import { govFundingOf } from '../data/gov-funding';
 import { formatFileSize, type Circular } from './CircularsContent';
 import AdminDeleteButton from './AdminDeleteButton';
 import { commitName } from '../data/admin-prefs';
@@ -19,6 +20,7 @@ type Project = ActivityProject & {
   budgetUSD: number;
   raisedUSD: number;
   deadline?: string;
+  govFunding?: unknown;
 };
 
 type Props = {
@@ -67,8 +69,8 @@ export default function TransparencyContent({ projects, documents = [], lang, ba
   // CSV of current project data, generated in the browser.
   const downloadProjectsCSV = () => {
     const headers = lang === 'ar'
-      ? ['المعرف', 'العنوان', 'القطاع', 'الموقع', 'الحالة', 'الميزانية USD', 'المحصّل USD', 'النسبة %', 'المتبقّي USD', 'آخر تحديث', 'الموعد النهائي']
-      : ['ID', 'Title', 'Category', 'Location', 'Status', 'Budget USD', 'Raised USD', 'Percent %', 'Still needed USD', 'Last update', 'Deadline'];
+      ? ['المعرف', 'العنوان', 'القطاع', 'الموقع', 'الحالة', 'الميزانية USD', 'المحصّل USD', 'النسبة %', 'المتبقّي USD', 'آخر تحديث', 'الموعد النهائي', 'التمويل الحكومي', 'ملاحظة التمويل الحكومي']
+      : ['ID', 'Title', 'Category', 'Location', 'Status', 'Budget USD', 'Raised USD', 'Percent %', 'Still needed USD', 'Last update', 'Deadline', 'Government funding', 'Government funding note'];
     const rows = projects.map((p) => {
       const pct = p.budgetUSD > 0 ? Math.round((p.raisedUSD / p.budgetUSD) * 100) : 0;
       return [
@@ -83,6 +85,8 @@ export default function TransparencyContent({ projects, documents = [], lang, ba
         String(Math.max(0, p.budgetUSD - p.raisedUSD)),
         (lastActivityAt(p) || '').slice(0, 10),
         p.deadline || '',
+        (() => { const g = govFundingOf(p); return g.type === 'none' ? '' : t(lang, g.type === 'full' ? 'gov_badge_full' : 'gov_badge_partial'); })(),
+        (() => { const g = govFundingOf(p); return g.type === 'none' ? '' : loc(lang, g.note); })(),
       ];
     });
     const csv = [headers, ...rows].map((row) => row.map(escapeCSVCell).join(',')).join('\n');

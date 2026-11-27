@@ -145,6 +145,21 @@ export const STRINGS = {
     contribute_note: 'يُدار التمويل حصراً عبر لجنة التنمية ومجلس المدينة في داريّا.',
 
     // Staff-only pages
+    // Government funding
+    gov_badge_full: 'ممول حكومياً بالكامل',
+    gov_badge_partial: 'ممول حكومياً جزئياً',
+    gov_title_full: 'مشروع ممول بالكامل من الحكومة',
+    gov_title_partial: 'مشروع ممول جزئياً من الحكومة',
+    gov_full_no_contrib: 'لا يحتاج هذا المشروع إلى مساهمات من المجتمع.',
+    gov_partial_contrib: 'يُستكمل باقي التمويل بمساهمات المجتمع عبر لجنة التنمية.',
+    gov_editor_label: 'التمويل الحكومي',
+    gov_editor_none: 'غير ممول حكومياً',
+    gov_editor_partial: 'ممول جزئياً',
+    gov_editor_full: 'ممول بالكامل',
+    gov_editor_note: 'ملاحظة توضيحية (تظهر للعموم)',
+    gov_editor_note_ph: 'مثلاً: بتمويل من وزارة الأشغال العامة ضمن خطة ٢٠٢٦',
+    gov_editor_hint: 'هذه إشارة وملاحظة فقط: لا تغيّر الميزانية أو المبلغ المحصّل. المشروع الممول بالكامل لا يطلب مساهمات من العموم.',
+    gov_csv: 'التمويل الحكومي',
     // My preferences (profile) page
     prof_title: 'تفضيلاتي',
     prof_back: '→ لوحة المجلس',
@@ -585,6 +600,21 @@ export const STRINGS = {
     contribute_note: 'Funding is handled exclusively through the Development Committee and the City Council in Darayya.',
 
     // Staff-only pages
+    // Government funding
+    gov_badge_full: 'Government-funded',
+    gov_badge_partial: 'Partly government-funded',
+    gov_title_full: 'Fully funded by the government',
+    gov_title_partial: 'Partly funded by the government',
+    gov_full_no_contrib: 'This project does not need contributions from the community.',
+    gov_partial_contrib: 'The rest of the funding comes from community contributions through the Development Committee.',
+    gov_editor_label: 'Government funding',
+    gov_editor_none: 'Not government-funded',
+    gov_editor_partial: 'Partly funded',
+    gov_editor_full: 'Fully funded',
+    gov_editor_note: 'Explanatory note (shown publicly)',
+    gov_editor_note_ph: 'e.g. Funded by the Ministry of Public Works under the 2026 plan',
+    gov_editor_hint: "A label and a note only: it doesn't change the budget or the amount raised. A fully funded project doesn't ask the public for contributions.",
+    gov_csv: 'Government funding',
     // My preferences (profile) page
     prof_title: 'My preferences',
     prof_back: '← Council dashboard',

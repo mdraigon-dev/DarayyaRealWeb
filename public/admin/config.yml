@@ -170,6 +170,29 @@ collections:
         pattern: ['^\d{4}-\d{2}-\d{2}(T.*)?$', 'استخدم تاريخاً مثل 2026-11-17']
         hint: "تاريخ بصيغة 2026-12-31. يحسب الموقع الأيام المتبقية تلقائياً."
 
+      - label: "🏛️ التمويل الحكومي"
+        name: "govFunding"
+        widget: "object"
+        required: false
+        collapsed: true
+        hint: "إشارة وملاحظة فقط: لا تغيّر الميزانية أو المبلغ المحصّل. المشروع الممول بالكامل لا يطلب مساهمات من العموم."
+        fields:
+          - label: "النوع"
+            name: "type"
+            widget: "select"
+            default: "none"
+            options:
+              - { label: "غير ممول حكومياً", value: "none" }
+              - { label: "ممول جزئياً", value: "partial" }
+              - { label: "ممول بالكامل", value: "full" }
+          - label: "ملاحظة توضيحية"
+            name: "note"
+            widget: "object"
+            required: false
+            fields:
+              - { label: "بالعربية", name: "ar", widget: "text", required: false }
+              - { label: "English", name: "en", widget: "text", required: false }
+
       # ─── 6. إعدادات متقدمة ───────────────────────────────────────
       - label: "🔧 المعرّف الفريد (رمز المشروع)"
         name: "id"

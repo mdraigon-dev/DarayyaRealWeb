@@ -8,6 +8,7 @@ import { displayStatus } from '../data/donation-math';
 import { buildActivityFeed, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
 import { daysUntil, useNow } from '../data/time';
 import { useIdentity } from '../data/use-identity';
+import { isFullyGovFunded } from '../data/gov-funding';
 import { can } from '../data/permissions';
 
 type Bilingual = { ar: string; en: string };
@@ -40,9 +41,10 @@ export default function HomeContent({ lang, basePath, projects, documents = [] }
   const completed = projects.filter(p => p.status === 'completed').length;
   const open = projects.filter(p => displayStatus(p) === 'funding').length;
 
-  // Featured = open-for-funding (not yet fully funded), shown least-funded first
+  // Featured = open-for-funding (not yet fully funded, and not paid for by the
+  // government), shown least-funded first
   const featured = projects
-    .filter(p => displayStatus(p) === 'funding')
+    .filter(p => displayStatus(p) === 'funding' && !isFullyGovFunded(p))
     .sort((a, b) => (a.raisedUSD / a.budgetUSD) - (b.raisedUSD / b.budgetUSD))
     .slice(0, 3);
 

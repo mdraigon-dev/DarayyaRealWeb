@@ -1,5 +1,7 @@
 import { t, loc, fmtNum, fmtMoney, isAutoTranslated, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
+import { isFullyGovFunded } from '../data/gov-funding';
+import GovFundingBadge from './GovFundingBadge';
 
 type BilingualMaybeAuto = { ar: string; en?: string; en_auto?: boolean };
 
@@ -12,6 +14,7 @@ export type ProjectCardData = {
   description: BilingualMaybeAuto;
   budgetUSD: number;
   raisedUSD: number;
+  govFunding?: unknown;
 };
 
 type Props = {
@@ -25,7 +28,7 @@ export default function ProjectCard({ project, href, lang, currency }: Props) {
   const pct = Math.round((project.raisedUSD / project.budgetUSD) * 100);
   // Effective status: 'funding' that's at 100% reads as 'active' to visitors
   const effStatus = displayStatus(project);
-  const isUrgent = effStatus === 'funding' && pct < 20;
+  const isUrgent = effStatus === 'funding' && pct < 20 && !isFullyGovFunded(project);
   const categoryLabel = t(lang, `cat_${project.category}` as any);
   const statusLabel = t(lang, `status_${effStatus}` as any);
 
@@ -45,6 +48,7 @@ export default function ProjectCard({ project, href, lang, currency }: Props) {
         <span className={`project-status status-${effStatus}`}>{statusLabel}</span>
       </div>
       <h3 className="project-card-title">{loc(lang, project.title)}</h3>
+      <GovFundingBadge project={project} lang={lang} />
       {hasAutoTranslation && (
         <span className="auto-translated-pill" title={t(lang, 'auto_translated_hint')}>
           ⚙ {t(lang, 'auto_translated_label')}

@@ -17,6 +17,8 @@ import { formatAbsolute, daysUntil, useNow } from '../data/time';
 import { computeSubRaised, computeProjectRaised, displayStatus, type DemoBreakdown } from '../data/donation-math';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { commitName } from '../data/admin-prefs';
+import { govFundingOf } from '../data/gov-funding';
+import GovFundingBadge from './GovFundingBadge';
 
 type Bilingual = { ar: string; en: string };
 type Sub = {
@@ -64,6 +66,7 @@ type ProjectFull = {
   budgetUSD: number;
   raisedUSD: number;
   deadline?: string;
+  govFunding?: unknown;
   lat?: number;
   lng?: number;
   subs: Sub[];
@@ -140,6 +143,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
   );
 
   // Effective display status: 'funding' that reached 100% reads as 'active'.
+  const gov = govFundingOf(project);
   const effStatus = displayStatus({
     status: project.status,
     raisedUSD: displayedRaised,
@@ -223,8 +227,9 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
           <span className={`project-status status-${effStatus}`}>{t(lang, `status_${effStatus}` as any)}</span>
         </div>
         <h1 className="detail-title">{loc(lang, project.title)}</h1>
-        <div style={{ marginBottom: '0.75rem' }}>
+        <div className="detail-pills">
           <HealthPill health={project.health} lang={lang} />
+          <GovFundingBadge project={project} lang={lang} />
         </div>
         <div className="detail-loc">
           <span className="detail-loc-item">
@@ -559,9 +564,18 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               </div>
             </div>
 
+            {gov.type !== 'none' && (
+              <div className={`gov-box gov-box--${gov.type}`}>
+                <div className="gov-box-title">{t(lang, gov.type === 'full' ? 'gov_title_full' : 'gov_title_partial')}</div>
+                {(gov.note.ar || gov.note.en) && <p className="gov-box-note" dir="auto">{loc(lang, gov.note)}</p>}
+                <p className="gov-box-sub">{t(lang, gov.type === 'full' ? 'gov_full_no_contrib' : 'gov_partial_contrib')}</p>
+              </div>
+            )}
+
             {/* Public contribution message — online donations are not offered;
-                funding is arranged through the committee. */}
-            <div className="contribute-msg">
+                funding is arranged through the committee. Not shown when the
+                government funds the whole project. */}
+            {gov.type !== 'full' && <div className="contribute-msg">
               <p>
                 {t(lang, 'contribute_msg_before')}{' '}
                 <strong className="committee-name">{t(lang, 'committee_name')}</strong>{' '}
@@ -569,7 +583,7 @@ export default function ProjectDetailContent({ project, lang, basePath }: Props)
               </p>
               <p className="contribute-note">{t(lang, 'contribute_note')}</p>
               <a className="contribute-page-link" href={`${basePath}/contribute/`}>{t(lang, 'contrib_page_link')}</a>
-            </div>
+            </div>}
 
             {fundFlash && (
               <div className="fund-admin-flash">✓ {t(lang, 'fund_added')}</div>
