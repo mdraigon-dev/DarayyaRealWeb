@@ -28,6 +28,7 @@ subs:
       en: "Entire building"
     budgetUSD: 28000
     raisedUSD: 5500
+    govUSD: 22500
   - id: "cl2"
     title:
       ar: "تجهيز غرف الفحص"
@@ -37,6 +38,7 @@ subs:
       en: "6 rooms"
     budgetUSD: 18000
     raisedUSD: 3000
+    govUSD: 9317
   - id: "cl3"
     title:
       ar: "قاعة العمليات الصغرى"
@@ -46,6 +48,7 @@ subs:
       en: "1 room"
     budgetUSD: 12000
     raisedUSD: 1200
+    govUSD: 6708
 updates:
   - at: "2026-05-21"
     author:
@@ -72,5 +75,5 @@ engineers:
     phone: ""
 govFunding:
   type: "partial"
-  amountUSD: 30000
+  amountUSD: 38525
 ---
