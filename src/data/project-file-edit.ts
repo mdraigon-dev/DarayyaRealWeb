@@ -25,6 +25,7 @@
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { govFundingOf, govCoveredUSD } from './gov-funding';
 import { getFileContent, getFileSha, commitFile, commitChanges, prepareChanges, GitConflictError, type Change } from './repo';
 
 export type ProjectFileCache = { content: string; sha: string };
@@ -333,6 +334,13 @@ export async function addProjectFunds(opts: {
   };
 
   return mutateProjectFile(opts.projectId, (fm) => {
+    // The government's share counts towards the budget (see gov-funding.ts).
+    if (govFundingOf(fm).type === 'full') throw new Error('GOV_FUNDED');
+    const allSubs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
+    const budget = allSubs.length ? allSubs.reduce((a, s) => a + num(s.budgetUSD), 0) : num(fm.budgetUSD);
+    const raisedNow = allSubs.length ? allSubs.reduce((a, s) => a + num(s.raisedUSD), 0) : num(fm.raisedUSD);
+    if (raisedNow + govCoveredUSD(fm, budget) + opts.amountUSD > budget + 0.005) throw new Error('EXCEEDS_BUDGET');
+
     let out: { projectRaised: number; subRaised?: number };
     if (opts.subId) {
       const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
@@ -351,6 +359,30 @@ export async function addProjectFunds(opts: {
     }
     fm.fundLog = [...(Array.isArray(fm.fundLog) ? fm.fundLog : []), entry];
     return { ...out, entry };
+  }, opts.message);
+}
+
+/**
+ * Record (or raise) the amount the government covers on a partly
+ * government-funded project. Finance may only raise it; lowering or removing
+ * it is a project edit (the save service enforces both). The government
+ * amount plus recorded contributions can never pass the budget.
+ */
+export async function setGovFundingAmount(opts: {
+  projectId: string;
+  amountUSD: number;
+  message: string;
+}): Promise<void> {
+  if (!Number.isFinite(opts.amountUSD) || opts.amountUSD <= 0) throw new Error('INVALID_AMOUNT');
+  await mutateProjectFile(opts.projectId, (fm) => {
+    const g = govFundingOf(fm);
+    if (g.type === 'full') throw new Error('GOV_FUNDED');
+    const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
+    const budget = subs.length ? subs.reduce((a, s) => a + num(s.budgetUSD), 0) : num(fm.budgetUSD);
+    const raised = subs.length ? subs.reduce((a, s) => a + num(s.raisedUSD), 0) : num(fm.raisedUSD);
+    if (raised + opts.amountUSD > budget + 0.005) throw new Error('EXCEEDS_BUDGET');
+    const prev = fm.govFunding && typeof fm.govFunding === 'object' ? (fm.govFunding as Record<string, unknown>) : {};
+    fm.govFunding = { ...prev, type: 'partial', amountUSD: opts.amountUSD };
   }, opts.message);
 }
 

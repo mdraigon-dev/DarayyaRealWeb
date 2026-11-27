@@ -261,3 +261,70 @@ test('"Link existing project teams" links by userId, drops every email, in one c
     delete (globalThis as any).window;
   }
 });
+
+// ── Government funding ─────────────────────────────────────────────────
+
+const finance = { sub: 'user-fin', email: 'fin@example.org', app_metadata: { roles: ['finance'] } };
+
+/** The demo project (budget 1000, nothing raised) with a govFunding entry. */
+function withGov(text: string, gov: string): string {
+  return text.replace('raisedUSD: 0\n', `raisedUSD: 0\ngovFunding: ${gov}\n`);
+}
+
+/** Record a contribution of `amount` with its fundLog entry. */
+function contribute(text: string, amount: number): string {
+  return text.replace('raisedUSD: 0\n', `raisedUSD: ${amount}\nfundLog:\n  - at: "2026-11-27T10:00:00.000Z"\n    amountUSD: ${amount}\n`);
+}
+
+async function saveAs(user: object, before: string, after: string) {
+  const repo = fakeGitHub({ [PROJECT]: before });
+  const r = await handle({ user, gh: repo.gh, chunks, body: { action: 'commit', message: 'Save', changes: [{ path: PROJECT, text: after }] } });
+  return { r, repo };
+}
+
+test('government funding: a fully funded project takes no contributions', async () => {
+  const before = withGov(project(LINKED_TEAM), '{ type: "full" }');
+  const { r, repo } = await saveAs(finance, before, contribute(before, 100));
+  assert.equal(r.status, 422);
+  assert.equal(r.body.error, 'GOV_FUNDED');
+  assert.equal(repo.commits.length, 0);
+});
+
+test('government funding: contributions only fill what the government does not cover', async () => {
+  const before = withGov(project(LINKED_TEAM), '{ type: "partial", amountUSD: 700 }');
+  const tooMuch = await saveAs(finance, before, contribute(before, 301));
+  assert.equal(tooMuch.r.status, 422);
+  assert.equal(tooMuch.r.body.error, 'EXCEEDS_BUDGET');
+  const fits = await saveAs(finance, before, contribute(before, 300));
+  assert.equal(fits.r.status, 200, JSON.stringify(fits.r.body));
+});
+
+test('government funding: Finance can record and raise the amount, but not lower it', async () => {
+  const none = project(LINKED_TEAM);
+  const set = await saveAs(finance, none, withGov(none, '{ type: "partial", amountUSD: 400 }'));
+  assert.equal(set.r.status, 200, JSON.stringify(set.r.body));
+
+  const at400 = withGov(none, '{ type: "partial", amountUSD: 400 }');
+  const raise = await saveAs(finance, at400, withGov(none, '{ type: "partial", amountUSD: 600 }'));
+  assert.equal(raise.r.status, 200, JSON.stringify(raise.r.body));
+
+  const lower = await saveAs(finance, at400, withGov(none, '{ type: "partial", amountUSD: 100 }'));
+  assert.equal(lower.r.status, 403);
+  const full = await saveAs(finance, at400, withGov(none, '{ type: "full" }'));
+  assert.equal(full.r.status, 403, 'marking a project fully funded is a project edit');
+});
+
+test('government funding: a project manager can lower the amount', async () => {
+  const none = project(LINKED_TEAM);
+  const { r } = await saveAs(pm, withGov(none, '{ type: "partial", amountUSD: 400 }'), withGov(none, '{ type: "partial", amountUSD: 100 }'));
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+});
+
+test('government funding: the government amount plus contributions cannot pass the budget', async () => {
+  const raised = contribute(project(LINKED_TEAM), 600);
+  const after = contribute(withGov(project(LINKED_TEAM), '{ type: "partial", amountUSD: 401 }'), 600);
+  assert.match(after, /amountUSD: 401/);
+  const { r } = await saveAs(finance, raised, after);
+  assert.equal(r.status, 422);
+  assert.equal(r.body.error, 'EXCEEDS_BUDGET');
+});

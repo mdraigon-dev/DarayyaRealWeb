@@ -8,7 +8,7 @@ import { displayStatus } from '../data/donation-math';
 import { buildActivityFeed, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
 import { daysUntil, useNow } from '../data/time';
 import { useIdentity } from '../data/use-identity';
-import { isFullyGovFunded } from '../data/gov-funding';
+import { isFullyGovFunded, withGovFunding } from '../data/gov-funding';
 import { can } from '../data/permissions';
 
 type Bilingual = { ar: string; en: string };
@@ -29,7 +29,9 @@ type Props = {
   documents?: ActivityDocument[];
 };
 
-export default function HomeContent({ lang, basePath, projects, documents = [] }: Props) {
+export default function HomeContent({ lang, basePath, projects: rawProjects, documents = [] }: Props) {
+  // Government funding counts towards each project's bar and totals.
+  const projects = rawProjects.map(withGovFunding);
   const identity = useIdentity();
   const canSeeDashboard = identity.kind === 'authenticated' && can(identity.user, 'view-dashboard');
   const [currency] = useState<'USD' | 'SYP'>('USD');

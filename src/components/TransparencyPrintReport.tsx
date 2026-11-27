@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { loc, fmtMoney, fmtNum, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
+import { withGovFunding } from '../data/gov-funding';
 import { lastActivityAt, type ActivityProject } from '../data/activity-feed';
 import { formatAbsolute } from '../data/time';
 
@@ -35,7 +36,8 @@ type Props = {
 export default function TransparencyPrintReport({ projects: rawProjects, lang, emblemSvg }: Props) {
   const currency: 'USD' | 'SYP' = 'USD';
 
-  const projects = rawProjects;
+  // Government funding counts towards each project's bar and totals.
+  const projects = rawProjects.map(withGovFunding);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 

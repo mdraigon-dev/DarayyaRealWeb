@@ -175,7 +175,7 @@ collections:
         widget: "object"
         required: false
         collapsed: true
-        hint: "إشارة وملاحظة فقط: لا تغيّر الميزانية أو المبلغ المحصّل. المشروع الممول بالكامل لا يطلب مساهمات من العموم."
+        hint: "الممول بالكامل: يظهر المشروع ممولاً بالكامل ولا يقبل مساهمات. الممول جزئياً: أدخل المبلغ الذي تغطيه الحكومة، وتُستكمل البقية بالمساهمات. لا يُضاف المبلغ الحكومي إلى المحصّل."
         fields:
           - label: "النوع"
             name: "type"
@@ -185,6 +185,7 @@ collections:
               - { label: "غير ممول حكومياً", value: "none" }
               - { label: "ممول جزئياً", value: "partial" }
               - { label: "ممول بالكامل", value: "full" }
+          - { label: "المبلغ الذي تغطيه الحكومة (دولار) — للتمويل الجزئي فقط", name: "amountUSD", widget: "number", value_type: "float", min: 0, required: false }
           - label: "ملاحظة توضيحية"
             name: "note"
             widget: "object"

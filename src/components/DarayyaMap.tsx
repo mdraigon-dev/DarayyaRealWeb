@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { t, loc, fmtNum, type Lang } from '../i18n/strings';
+import { withGovFunding } from '../data/gov-funding';
 
 // We declare L globally because Leaflet is loaded via CDN in BaseLayout
 declare const L: any;
@@ -13,6 +14,7 @@ type MapProject = {
   health: 'healthy' | 'warning' | 'stalled' | 'completed';
   raisedUSD: number;
   budgetUSD: number;
+  govFunding?: unknown;
 };
 
 type Props = {
@@ -53,7 +55,8 @@ export default function DarayyaMap({ projects, lang, basePath }: Props) {
     projects.forEach(p => {
       if (!p.lat || !p.lng) return;
       // Use the values as passed in — HomeContent has already applied demos
-      const pct = Math.min(100, Math.round((p.raisedUSD / Math.max(1, p.budgetUSD)) * 100));
+      // Government funding counts towards the bar (display only).
+      const pct = Math.min(100, Math.round((withGovFunding(p).raisedUSD / Math.max(1, p.budgetUSD)) * 100));
       const fillColor: Record<string, string> = {
         healthy: '#007A3D',
         warning: '#C9A14A',

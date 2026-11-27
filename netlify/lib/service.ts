@@ -66,7 +66,7 @@ export async function handle(opts: {
     }
   } catch (e) {
     if (e instanceof RuleError) {
-      const status = e.code === 'INVALID_FORMAT' || e.code === 'INVALID_CHANGE' || e.code === 'INVALID_AMOUNT' || e.code === 'EXCEEDS_BUDGET' ? 422 : 403;
+      const status = e.code === 'INVALID_FORMAT' || e.code === 'INVALID_CHANGE' || e.code === 'INVALID_AMOUNT' || e.code === 'EXCEEDS_BUDGET' || e.code === 'GOV_FUNDED' ? 422 : 403;
       return fail(status, e.code, e.message);
     }
     if (e instanceof GitHubError) {

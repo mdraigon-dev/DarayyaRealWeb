@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { t, loc, fmtNum, fmtMoney, type Lang } from '../i18n/strings';
 import { displayStatus } from '../data/donation-math';
+import { withGovFunding } from '../data/gov-funding';
 import { buildActivityFeed, lastActivityAt, type ActivityProject, type ActivityDocument } from '../data/activity-feed';
 import { can } from '../data/permissions';
 import AccessNotice from './AccessNotice';
@@ -48,7 +49,9 @@ export default function AdminDashboard(props: Props) {
   return <Dashboard {...props} canEdit={can(identity.user, 'edit-projects')} canUseCms={can(identity.user, 'reverse-funds')} />;
 }
 
-function Dashboard({ lang, basePath, projects, documents = [], canEdit, canUseCms }: Props & { canEdit: boolean; canUseCms: boolean }) {
+function Dashboard({ lang, basePath, projects: rawProjects, documents = [], canEdit, canUseCms }: Props & { canEdit: boolean; canUseCms: boolean }) {
+  // Government funding counts towards each project's bar and totals.
+  const projects = rawProjects.map(withGovFunding);
   const currency = 'USD' as const;
   const isAdmin = canEdit;
   const now = useNow(); // null until the page runs in the browser

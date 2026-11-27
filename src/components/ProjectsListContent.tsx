@@ -3,6 +3,7 @@ import ProjectCard, { type ProjectCardData } from './ProjectCard';
 import { t, fmtNum, type Lang } from '../i18n/strings';
 import { useIdentity } from '../data/use-identity';
 import { can } from '../data/permissions';
+import { withGovFunding } from '../data/gov-funding';
 
 type Props = {
   lang: Lang;
@@ -18,7 +19,8 @@ export default function ProjectsListContent({ lang, basePath, projects: rawProje
   const [statusKey, setStatusKey] = useState<typeof STATUSES[number]>('funding');
   const [currency] = useState<'USD' | 'SYP'>('USD');
 
-  const projects = rawProjects;
+  // Government funding counts towards each project's bar and totals.
+  const projects = rawProjects.map(withGovFunding);
   const identity = useIdentity();
   const canCreate = identity.kind === 'authenticated' && can(identity.user, 'edit-projects');
 

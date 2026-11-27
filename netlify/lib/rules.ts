@@ -61,7 +61,7 @@ export function classifyPath(path: string): PathClass {
 
 export type ProjectNeed =
   | 'create-project' | 'delete-project' | 'edit-project'
-  | 'post' | 'moderate' | 'funds' | 'reverse-funds';
+  | 'post' | 'moderate' | 'funds' | 'reverse-funds' | 'gov-funds';
 
 type FM = Record<string, any>;
 
@@ -110,8 +110,24 @@ const subsOf = (fm: FM): FM[] => list(fm.subs).filter((s) => s && typeof s === '
 
 /** Everything except the lists people add to and the money figures. */
 function coreOf(fm: FM, body: string): string {
-  const { updates, comments, photos, fundLog, raisedUSD, subs, ...rest } = fm;
+  const { updates, comments, photos, fundLog, raisedUSD, subs, govFunding, ...rest } = fm;
   return canon({ ...rest, subs: subsOf(fm).map(({ raisedUSD: _r, ...s }) => s), __body: body });
+}
+
+/** Government funding, normalised as in src/data/gov-funding.ts. */
+function govOf(fm: FM): { type: 'none' | 'partial' | 'full'; amount: number; note: string } {
+  const g = fm.govFunding && typeof fm.govFunding === 'object' ? fm.govFunding : {};
+  const type = g.type === 'full' || g.type === 'partial' ? g.type : 'none';
+  const amount = type === 'partial' && num(g.amountUSD) > 0 ? num(g.amountUSD) : 0;
+  const note = type === 'none' ? '' : canon({ ar: String(g.note?.ar ?? ''), en: String(g.note?.en ?? '') });
+  return { type, amount, note };
+}
+
+/** How much of the project's budget the government covers. */
+function govCovered(fm: FM): number {
+  const g = govOf(fm);
+  const budget = budgetOf(fm, '_');
+  return g.type === 'full' ? budget : Math.min(budget, g.amount);
 }
 
 /** Raised amount per funding target: each line item, or the project itself. */
@@ -155,6 +171,16 @@ export function projectNeeds(before: string | null, after: string | null): Set<P
 
   if (coreOf(a.fm, a.body) !== coreOf(b.fm, b.body)) needs.add('edit-project');
 
+  // Government funding: raising a partial amount (Finance may do this, like
+  // recording a contribution) or any other change (project editors only).
+  const ga = govOf(a.fm);
+  const gb = govOf(b.fm);
+  const govRaised = gb.amount > ga.amount + EPS;
+  if (canon(ga) !== canon(gb)) {
+    const raiseOnly = gb.type === 'partial' && ga.type !== 'full' && govRaised && (ga.type === 'none' || gb.note === ga.note);
+    needs.add(raiseOnly ? 'gov-funds' : 'edit-project');
+  }
+
   for (const field of ['updates', 'comments', 'photos']) {
     const added = minus(list(b.fm[field]), list(a.fm[field]));
     const removed = minus(list(a.fm[field]), list(b.fm[field]));
@@ -189,6 +215,18 @@ export function projectNeeds(before: string | null, after: string | null): Set<P
     }
     if ((explained.get(t) || 0) > EPS && (rb.get(t) || 0) - budgetOf(b.fm, t) > EPS) {
       throw new RuleError('EXCEEDS_BUDGET', 'This contribution would take the amount raised above the budget.');
+    }
+  }
+
+  // The government's share counts towards the budget: contributions only fill
+  // what it doesn't cover, and a fully government-funded project takes none.
+  if (addedFunds.length && gb.type === 'full') {
+    throw new RuleError('GOV_FUNDED', 'This project is fully funded by the government and takes no contributions.');
+  }
+  if (addedFunds.length || govRaised) {
+    const contributions = [...rb.values()].reduce((x, y) => x + y, 0);
+    if (contributions + govCovered(b.fm) - budgetOf(b.fm, '_') > EPS) {
+      throw new RuleError('EXCEEDS_BUDGET', 'Contributions plus the government share would exceed the budget.');
     }
   }
   return needs;
@@ -239,6 +277,7 @@ export async function authorize(user: RoleUser, changes: FileChange[], lookup: L
           if (n === 'post') need(canPostOn(user, engineers), 'You can only post on projects you are assigned to');
           if (n === 'moderate') need(caps.has('moderate-projects'), 'Your role cannot delete notes, updates or photos');
           if (n === 'funds') need(caps.has('record-funds'), 'Only Finance can record contributions');
+          if (n === 'gov-funds') need(caps.has('record-funds') || caps.has('edit-projects'), 'Your role cannot record government funding');
           if (n === 'reverse-funds') need(caps.has('reverse-funds'), 'Only administrators can reverse or adjust recorded amounts');
         }
         break;

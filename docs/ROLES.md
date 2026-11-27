@@ -11,7 +11,7 @@ everything each one allows.
 | `project-manager` | مدير المشاريع | Create and edit projects (details, budgets, line items, team); edit the team directory; post notes, updates and photos on any project; delete notes, updates and photos |
 | `engineer` | مهندس | Post notes, field updates and photos on projects whose team is linked to their account |
 | `secretary` | أمين السر | Upload circulars and reports (cannot delete or replace them) |
-| `finance` | المالية | Record contributions against projects (cannot reverse them) |
+| `finance` | المالية | Record contributions against projects, and the amount the government covers on a partly government-funded project (cannot reverse or lower either) |
 
 Only `admin` can: delete documents, delete activity-log entries, reverse a
 recorded contribution, change a raised amount directly, or delete a project.

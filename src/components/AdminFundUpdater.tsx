@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { t, loc, fmtMoney, type Lang } from '../i18n/strings';
-import { addProjectFunds } from '../data/project-file-edit';
+import { addProjectFunds, setGovFundingAmount } from '../data/project-file-edit';
+import { govFundingOf, govCoveredUSD } from '../data/gov-funding';
 import { can, type ProjectEngineer, type AuthUser } from '../data/permissions';
 import { loadPrefs, preferredAuthorName } from '../data/admin-prefs';
 import { commitName } from '../data/admin-prefs';
@@ -26,8 +27,12 @@ type Props = {
   engineers: ProjectEngineer[];
   lang: Lang;
   currency: 'USD' | 'SYP';
+  /** The project's government funding (live, see src/data/gov-funding.ts) */
+  govFunding?: unknown;
   /** Called after a successful commit so the page can update its totals now */
   onUpdated: (r: { subId?: string; amount: number }) => void;
+  /** Called after the government amount is saved */
+  onGovUpdated?: (amountUSD: number) => void;
 };
 
 type AuthState =
@@ -54,7 +59,9 @@ export default function AdminFundUpdater({
   engineers,
   lang,
   currency,
+  govFunding,
   onUpdated,
+  onGovUpdated,
 }: Props) {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const hasSubs = subs.length > 0;
@@ -62,6 +69,9 @@ export default function AdminFundUpdater({
   const [amount, setAmount] = useState('');
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [flash, setFlash] = useState(false);
+  const [govAmount, setGovAmount] = useState('');
+  const [govSave, setGovSave] = useState<SaveState>({ kind: 'idle' });
+  const [govFlash, setGovFlash] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,19 +103,40 @@ export default function AdminFundUpdater({
   // notes/updates but not move the funding number.
   if (!can(auth.user, 'record-funds')) return null;
 
+  const gov = govFundingOf({ govFunding });
+  // A fully government-funded project takes no contributions.
+  if (gov.type === 'full') {
+    return (
+      <div className="fund-admin">
+        <div className="fund-admin-head">
+          <span className="fund-admin-icon">＄</span>
+          <div>
+            <strong>{t(lang, 'fund_admin_title')}</strong>
+            <div className="fund-admin-sub">{t(lang, 'fund_gov_full_note')}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const currentRaised = hasSubs
     ? subs.reduce((a, s) => a + s.raisedUSD, 0)
     : projectRaisedUSD;
+  const govCovered = govCoveredUSD({ govFunding }, totalBudgetUSD);
+  // What contributions can still add to the whole project once the
+  // government's share is counted.
+  const projectRoom = Math.max(0, totalBudgetUSD - govCovered - currentRaised);
+  const canEditProject = can(auth.user, 'edit-projects');
 
   // The most that can still be added to the chosen target without passing its
   // budget. Contributions can only go up, and never beyond what was planned.
   const targetSub = hasSubs ? subs.find((s) => s.id === target) : undefined;
-  const remaining = Math.max(
+  const remaining = Math.min(projectRoom, Math.max(
     0,
     targetSub
       ? targetSub.budgetUSD - targetSub.raisedUSD
       : totalBudgetUSD - projectRaisedUSD,
-  );
+  ));
   const fullyFunded = remaining <= 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -143,12 +174,14 @@ export default function AdminFundUpdater({
       setFlash(true);
       setTimeout(() => setFlash(false), 4000);
     } catch (err: any) {
-      const raw = err?.code === 'EXCEEDS_BUDGET' ? 'EXCEEDS_BUDGET' : (err?.message || 'Save failed');
+      const raw = err?.code === 'EXCEEDS_BUDGET' || err?.code === 'GOV_FUNDED' ? err.code : (err?.message || 'Save failed');
       const message =
         raw === 'NOT_FOUND'
           ? (lang === 'ar' ? 'لم يتم العثور على ملف المشروع' : 'Project file not found')
           : raw === 'EXCEEDS_BUDGET'
             ? t(lang, 'fund_exceeds_live')
+          : raw === 'GOV_FUNDED'
+            ? t(lang, 'fund_gov_full_note')
           : raw === 'INVALID_AMOUNT'
             ? t(lang, 'fund_invalid')
           : raw === 'CONFLICT'
@@ -159,6 +192,46 @@ export default function AdminFundUpdater({
             ? saveErrorMessage(err, lang)
             : raw;
       setSave({ kind: 'error', message });
+    }
+  };
+
+  // Government share: Finance may only raise it; project editors may set any
+  // amount. The save service applies the same rules.
+  const handleGovSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = Number(govAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setGovSave({ kind: 'error', message: t(lang, 'fund_invalid') });
+      return;
+    }
+    if (!canEditProject && amt <= gov.amountUSD) {
+      setGovSave({ kind: 'error', message: t(lang, 'fund_gov_must_increase', { current: fmtMoney(lang, currency, gov.amountUSD) }) });
+      return;
+    }
+    const govMax = Math.max(0, totalBudgetUSD - currentRaised);
+    if (amt > govMax) {
+      setGovSave({ kind: 'error', message: t(lang, 'fund_gov_exceeds', { max: fmtMoney(lang, currency, govMax) }) });
+      return;
+    }
+    setGovSave({ kind: 'saving' });
+    try {
+      const message = `Update government funding: $${amt} on ${projectId} by ${commitName(auth.user)}`;
+      await setGovFundingAmount({ projectId, amountUSD: amt, message });
+      onGovUpdated?.(amt);
+      setGovSave({ kind: 'idle' });
+      setGovAmount('');
+      setGovFlash(true);
+      setTimeout(() => setGovFlash(false), 4000);
+    } catch (err: any) {
+      const code = err?.code || err?.message;
+      const message =
+        code === 'EXCEEDS_BUDGET' ? t(lang, 'fund_exceeds_live')
+        : code === 'GOV_FUNDED' ? t(lang, 'fund_gov_full_note')
+        : code === 'INVALID_AMOUNT' ? t(lang, 'fund_invalid')
+        : err?.name === 'PermissionError' ? t(lang, 'fund_gov_not_allowed')
+        : err?.name === 'SaveError' ? saveErrorMessage(err, lang)
+        : (err?.message || 'Save failed');
+      setGovSave({ kind: 'error', message });
     }
   };
 
@@ -246,6 +319,47 @@ export default function AdminFundUpdater({
           disabled={save.kind === 'saving' || !amount.trim() || fullyFunded}
         >
           {save.kind === 'saving' ? t(lang, 'fund_adding') : t(lang, 'fund_add_btn')}
+        </button>
+      </form>
+
+      <form className="fund-admin-form fund-admin-gov" onSubmit={handleGovSubmit} noValidate>
+        <div className="fund-admin-gov-head">
+          <strong>{t(lang, 'fund_gov_title')}</strong>
+          <div className="fund-admin-sub">{t(lang, 'fund_gov_hint')}</div>
+          <div className="fund-admin-current">
+            {gov.type === 'partial' && gov.amountUSD > 0
+              ? t(lang, 'fund_gov_current', { amount: fmtMoney(lang, currency, gov.amountUSD) })
+              : t(lang, 'fund_gov_none')}
+          </div>
+        </div>
+        <label className="fund-admin-field">
+          <span>{t(lang, 'fund_gov_amount_label')}</span>
+          <input
+            type="number"
+            className="fund-admin-input"
+            dir="ltr"
+            inputMode="decimal"
+            min={1}
+            step="any"
+            value={govAmount}
+            onChange={(e) => { setGovAmount(e.target.value.replace(/-/g, '')); setGovSave({ kind: 'idle' }); }}
+            onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault(); }}
+            placeholder={t(lang, 'fund_amount_ph')}
+            disabled={govSave.kind === 'saving'}
+          />
+        </label>
+        {govSave.kind === 'error' && (
+          <div className="fund-admin-error">⚠ {govSave.message}</div>
+        )}
+        {govFlash && govSave.kind !== 'error' && (
+          <div className="fund-admin-flash">✓ {t(lang, 'fund_gov_saved')}</div>
+        )}
+        <button
+          type="submit"
+          className="fund-admin-btn"
+          disabled={govSave.kind === 'saving' || !govAmount.trim()}
+        >
+          {govSave.kind === 'saving' ? t(lang, 'fund_gov_saving') : t(lang, 'fund_gov_save')}
         </button>
       </form>
     </div>
