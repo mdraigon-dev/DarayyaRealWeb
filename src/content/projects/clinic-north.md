@@ -70,4 +70,7 @@ engineers:
       ar: "مهندس مدني "
       en: ""
     phone: ""
+govFunding:
+  type: "partial"
+  amountUSD: 30000
 ---
