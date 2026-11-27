@@ -239,6 +239,7 @@ collections:
               - { label: "بالإنجليزية (اختياري)", name: "en", widget: "string", required: false, default: "" }
           - { label: "الميزانية بالدولار", name: "budgetUSD", widget: "number", value_type: "int", min: 0 }
           - { label: "المحصّل بالدولار",    name: "raisedUSD", widget: "number", value_type: "int", min: 0, default: 0 }
+          - { label: "حصة الحكومة بالدولار (للمشاريع الممولة جزئياً)", name: "govUSD", widget: "number", value_type: "int", min: 0, required: false, hint: "يُجمع تلقائياً في مبلغ التمويل الحكومي للمشروع" }
 
       # ─── 8. الفريق والمهندسون ───────────────────────────────────
       - label: "👷 الفريق والمهندسون"

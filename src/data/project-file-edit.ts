@@ -25,7 +25,7 @@
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { govFundingOf, govCoveredUSD } from './gov-funding';
+import { govFundingOf, govCoveredUSD, govBySub } from './gov-funding';
 import { getFileContent, getFileSha, commitFile, commitChanges, prepareChanges, GitConflictError, type Change } from './repo';
 
 export type ProjectFileCache = { content: string; sha: string };
@@ -340,6 +340,13 @@ export async function addProjectFunds(opts: {
     const budget = allSubs.length ? allSubs.reduce((a, s) => a + num(s.budgetUSD), 0) : num(fm.budgetUSD);
     const raisedNow = allSubs.length ? allSubs.reduce((a, s) => a + num(s.raisedUSD), 0) : num(fm.raisedUSD);
     if (raisedNow + govCoveredUSD(fm, budget) + opts.amountUSD > budget + 0.005) throw new Error('EXCEEDS_BUDGET');
+    // An older file holds the government amount only for the whole project;
+    // fix its per-item spread now, so this contribution doesn't move it.
+    const g = govFundingOf(fm);
+    if (g.type === 'partial' && allSubs.length && g.amountUSD > 0 && !allSubs.some((s) => num(s.govUSD) > 0)) {
+      const shares = govBySub(fm as any);
+      for (const s of allSubs) if (shares[String(s.id)]) s.govUSD = shares[String(s.id)];
+    }
 
     let out: { projectRaised: number; subRaised?: number };
     if (opts.subId) {
@@ -347,7 +354,9 @@ export async function addProjectFunds(opts: {
       const sub = subs.find((s) => s.id === opts.subId);
       if (!sub) throw new Error('SUB_NOT_FOUND');
       const newSubRaised = num(sub.raisedUSD) + opts.amountUSD;
-      if (newSubRaised > num(sub.budgetUSD)) throw new Error('EXCEEDS_BUDGET');
+      // The item's government share counts towards its budget too.
+      const itemGov = govBySub(fm as any)[String(sub.id)] || 0;
+      if (newSubRaised + itemGov > num(sub.budgetUSD) + 0.005) throw new Error('EXCEEDS_BUDGET');
       sub.raisedUSD = newSubRaised;
       fm.raisedUSD = subs.reduce((a, s) => a + num(s.raisedUSD), 0);
       out = { projectRaised: fm.raisedUSD as number, subRaised: newSubRaised };
@@ -364,12 +373,15 @@ export async function addProjectFunds(opts: {
 
 /**
  * Record (or raise) the amount the government covers on a partly
- * government-funded project. Finance may only raise it; lowering or removing
- * it is a project edit (the save service enforces both). The government
- * amount plus recorded contributions can never pass the budget.
+ * government-funded project. With line items, `subId` names the item and
+ * `amountUSD` is that item's new share; without, it is the project's amount.
+ * Finance may only raise it; lowering or removing it is a project edit (the
+ * save service enforces both). The government share plus recorded
+ * contributions can never pass the budget, for the project or for an item.
  */
 export async function setGovFundingAmount(opts: {
   projectId: string;
+  subId?: string;
   amountUSD: number;
   message: string;
 }): Promise<void> {
@@ -377,11 +389,26 @@ export async function setGovFundingAmount(opts: {
   await mutateProjectFile(opts.projectId, (fm) => {
     const g = govFundingOf(fm);
     if (g.type === 'full') throw new Error('GOV_FUNDED');
-    const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
-    const budget = subs.length ? subs.reduce((a, s) => a + num(s.budgetUSD), 0) : num(fm.budgetUSD);
-    const raised = subs.length ? subs.reduce((a, s) => a + num(s.raisedUSD), 0) : num(fm.raisedUSD);
-    if (raised + opts.amountUSD > budget + 0.005) throw new Error('EXCEEDS_BUDGET');
     const prev = fm.govFunding && typeof fm.govFunding === 'object' ? (fm.govFunding as Record<string, unknown>) : {};
+    const subs = Array.isArray(fm.subs) ? (fm.subs as Record<string, unknown>[]) : [];
+
+    if (subs.length) {
+      const sub = subs.find((s) => s.id === opts.subId);
+      if (!sub) throw new Error('SUB_NOT_FOUND');
+      if (num(sub.raisedUSD) + opts.amountUSD > num(sub.budgetUSD) + 0.005) throw new Error('EXCEEDS_BUDGET');
+      // An older file holds only a project amount: save its per-item spread
+      // first, so the other items keep the share they were shown with.
+      const shares = govBySub({ govFunding: { ...prev, type: 'partial' }, subs: subs as any });
+      for (const s of subs) s.govUSD = shares[String(s.id)] || 0;
+      sub.govUSD = opts.amountUSD;
+      for (const s of subs) if (!num(s.govUSD)) delete s.govUSD;
+      fm.govFunding = { ...prev, type: 'partial', amountUSD: subs.reduce((a, s) => a + num(s.govUSD), 0) };
+      return;
+    }
+
+    const budget = num(fm.budgetUSD);
+    const raised = num(fm.raisedUSD);
+    if (raised + opts.amountUSD > budget + 0.005) throw new Error('EXCEEDS_BUDGET');
     fm.govFunding = { ...prev, type: 'partial', amountUSD: opts.amountUSD };
   }, opts.message);
 }

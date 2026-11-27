@@ -10,6 +10,7 @@
  */
 import { parse as parseYaml } from 'yaml';
 import { canPostOn, capsOf, rolesOf, type RoleUser } from '../../src/data/roles';
+import { govBySub } from '../../src/data/gov-funding';
 
 export type FileChange = {
   path: string;
@@ -111,22 +112,28 @@ const subsOf = (fm: FM): FM[] => list(fm.subs).filter((s) => s && typeof s === '
 /** Everything except the lists people add to and the money figures. */
 function coreOf(fm: FM, body: string): string {
   const { updates, comments, photos, fundLog, raisedUSD, subs, govFunding, ...rest } = fm;
-  return canon({ ...rest, subs: subsOf(fm).map(({ raisedUSD: _r, ...s }) => s), __body: body });
+  return canon({ ...rest, subs: subsOf(fm).map(({ raisedUSD: _r, govUSD: _g, ...s }) => s), __body: body });
 }
 
 /** Government funding, normalised as in src/data/gov-funding.ts. */
-function govOf(fm: FM): { type: 'none' | 'partial' | 'full'; amount: number; note: string } {
+function govOf(fm: FM): { type: 'none' | 'partial' | 'full'; amount: number; note: string; items: Record<string, number> } {
   const g = fm.govFunding && typeof fm.govFunding === 'object' ? fm.govFunding : {};
   const type = g.type === 'full' || g.type === 'partial' ? g.type : 'none';
-  const amount = type === 'partial' && num(g.amountUSD) > 0 ? num(g.amountUSD) : 0;
+  // With line items the share is held per item (subs[].govUSD) — or, on an
+  // older file, the project amount spread over the items (src/data/gov-funding.ts).
+  const items = type === 'partial' && subsOf(fm).length ? govBySub(fm) : {};
+  const amount = type !== 'partial' ? 0
+    : subsOf(fm).length ? Object.values(items).reduce((x, y) => x + y, 0)
+    : num(g.amountUSD) > 0 ? num(g.amountUSD) : 0;
   const note = type === 'none' ? '' : canon({ ar: String(g.note?.ar ?? ''), en: String(g.note?.en ?? '') });
-  return { type, amount, note };
+  return { type, amount, note, items };
 }
 
 /** How much of the project's budget the government covers. */
 function govCovered(fm: FM): number {
   const g = govOf(fm);
   const budget = budgetOf(fm, '_');
+  // g.amount is already the sum of the line items' shares when there are any.
   return g.type === 'full' ? budget : Math.min(budget, g.amount);
 }
 
@@ -176,8 +183,11 @@ export function projectNeeds(before: string | null, after: string | null): Set<P
   const ga = govOf(a.fm);
   const gb = govOf(b.fm);
   const govRaised = gb.amount > ga.amount + EPS;
-  if (canon(ga) !== canon(gb)) {
-    const raiseOnly = gb.type === 'partial' && ga.type !== 'full' && govRaised && (ga.type === 'none' || gb.note === ga.note);
+  // No line item's share went down (Finance may only add government money).
+  const noItemLowered = Object.keys(ga.items).every((id) => (gb.items[id] ?? 0) >= ga.items[id] - EPS);
+  if (canon({ ...ga, items: 0 }) !== canon({ ...gb, items: 0 }) || canon(ga.items) !== canon(gb.items)) {
+    const raiseOnly = gb.type === 'partial' && ga.type !== 'full' && govRaised && noItemLowered
+      && (ga.type === 'none' || gb.note === ga.note);
     needs.add(raiseOnly ? 'gov-funds' : 'edit-project');
   }
 
@@ -227,6 +237,13 @@ export function projectNeeds(before: string | null, after: string | null): Set<P
     const contributions = [...rb.values()].reduce((x, y) => x + y, 0);
     if (contributions + govCovered(b.fm) - budgetOf(b.fm, '_') > EPS) {
       throw new RuleError('EXCEEDS_BUDGET', 'Contributions plus the government share would exceed the budget.');
+    }
+    // …and the same for each line item.
+    for (const sub of subsOf(b.fm)) {
+      const id = String(sub.id);
+      if (num(sub.raisedUSD) + (gb.items[id] ?? 0) - num(sub.budgetUSD) > EPS) {
+        throw new RuleError('EXCEEDS_BUDGET', 'Contributions plus the government share would exceed a line item\'s budget.');
+      }
     }
   }
   return needs;
